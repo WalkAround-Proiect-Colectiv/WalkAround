@@ -3,7 +3,7 @@ services:
     image: postgres:18
     container_name: application-api-db
     env_file:
-      - "${APPLICATION_API_ENV_FILE_LOCATION}"
+      - "${APPLICATION_API_DB_ENV_FILE_LOCATION}"
     ports:
       - "${APPLICATION_API_DB_HOST_PORT}:${APPLICATION_API_DB_CONTAINER_PORT}"
     volumes:
