@@ -1,0 +1,34 @@
+services:
+  application-api-db:
+    image: postgres:18
+    container_name: application-api-db
+    env_file:
+      - "${APPLICATION_API_DB_ENV_FILE_LOCATION}"
+    ports:
+      - "${APPLICATION_API_DB_HOST_PORT}:${APPLICATION_API_DB_CONTAINER_PORT}"
+    volumes:
+      - application-api-db-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:4.1.1
+    container_name: kafka
+    ports:
+      - "${KAFKA_HOST_PORT}:${KAFKA_CONTAINER_PORT}"
+    env_file:
+      - "${KAFKA_ENV_FILE_LOCATION}"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+
+volumes:
+  application-api-db-data:
+  kafka-data:
