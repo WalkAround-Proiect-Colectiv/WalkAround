@@ -20,6 +20,7 @@ public class SecurityConfiguration {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.POST, "/api/registrations/google").permitAll()
                         .requestMatchers(HttpMethod.GET,"/actuator/**").permitAll()
                         .anyRequest().authenticated()
                 );
