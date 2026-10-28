@@ -11,6 +11,7 @@ spring:
       connection-timeout: 30000
 
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
     properties:
@@ -51,3 +52,11 @@ info:
 logging:
   level:
     root: info
+
+app:
+  registration:
+    google:
+      client-ids: ${GOOGLE_CLIENT_IDS:}
+      jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
+      issuers: https://accounts.google.com,accounts.google.com
+    allowed-origins: ${REGISTRATION_ALLOWED_ORIGINS:}
