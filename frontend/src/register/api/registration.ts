@@ -25,7 +25,7 @@ export async function registerWithGoogle(
     const messages: Record<number, string> = {
       400: 'Google did not return a valid registration request. Please try again.',
       401: 'Google verification failed. Please try again.',
-      409: 'You already have a WalkAround account. Please sign in when login is available.',
+      409: 'You already have a WalkAround account.',
       503: 'Google registration is currently unavailable. Please try again later.',
     };
     throw new Error(messages[response.status] ?? 'Registration failed. Please try again later.');
