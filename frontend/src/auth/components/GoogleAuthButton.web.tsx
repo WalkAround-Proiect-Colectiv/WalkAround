@@ -88,9 +88,16 @@ export default function GoogleAuthButton(props: GoogleAuthButtonProps) {
   }, [props.intent]);
 
   return <div
-    ref={container}
     aria-disabled={props.disabled}
     inert={props.disabled}
-    style={{ minHeight: 44, opacity: props.disabled ? 0.5 : 1, pointerEvents: props.disabled ? 'none' : 'auto' }}
-  />;
+    style={{
+      position: 'relative', width: 280, maxWidth: '100%', height: 48, flexShrink: 0,
+      opacity: props.disabled ? 0.5 : 1, pointerEvents: props.disabled ? 'none' : 'auto',
+    }}
+  >
+    {/* Google's fallback and personalized iframe must not resize the surrounding card. */}
+    <div ref={container} style={{
+      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }} />
+  </div>;
 }
