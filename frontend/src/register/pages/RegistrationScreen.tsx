@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import GoogleRegistrationButton from '../components/GoogleRegistrationButton';
+import GoogleAuthButton from '../../auth/components/GoogleAuthButton';
+import { Link } from 'expo-router';
 import { registerWithGoogle, type RegisteredUser } from '../api/registration';
 import { environment } from '../../config/environment';
 
@@ -52,7 +53,7 @@ export default function RegistrationScreen() {
         </Text>
         {!user && (
           <>
-            <GoogleRegistrationButton
+            <GoogleAuthButton
               disabled={!configured || loading}
               onCredential={register}
               onError={setError}
@@ -63,6 +64,9 @@ export default function RegistrationScreen() {
             <Text style={styles.note}>We use your Google name and photo to get your profile started.</Text>
           </>
         )}
+        <Link href="/login" style={{ color: '#246448', fontWeight: '600' }}>
+          {user ? 'Continue to sign in' : 'Already have an account? Sign in'}
+        </Link>
       </View>
     </ScrollView>
   );

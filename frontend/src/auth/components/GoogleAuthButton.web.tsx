@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { environment } from '../../config/environment';
-import type { GoogleRegistrationButtonProps } from './GoogleRegistrationButton.types';
+import type { GoogleAuthButtonProps } from './GoogleAuthButton.types';
 
 type GoogleIdentityServices = {
   accounts: {
@@ -34,7 +34,7 @@ function loadGoogle(): Promise<void> {
   return scriptPromise;
 }
 
-export default function GoogleRegistrationButton(props: GoogleRegistrationButtonProps) {
+export default function GoogleAuthButton(props: GoogleAuthButtonProps) {
   const container = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   useEffect(() => { latest.current = props; }, [props]);
@@ -52,13 +52,13 @@ export default function GoogleRegistrationButton(props: GoogleRegistrationButton
         },
       });
       window.google.accounts.id.renderButton(container.current, {
-        type: 'standard', theme: 'outline', size: 'large', text: 'signup_with', width: 280,
+        type: 'standard', theme: 'outline', size: 'large', text: props.intent === 'login' ? 'signin_with' : 'signup_with', width: 280,
       });
     }).catch(() => {
-      if (active) latest.current.onError('Could not load Google sign-up. Check your connection and reload.');
+      if (active) latest.current.onError('Could not load Google. Check your connection and reload.');
     });
     return () => { active = false; };
-  }, []);
+  }, [props.intent]);
 
   return <div
     ref={container}
