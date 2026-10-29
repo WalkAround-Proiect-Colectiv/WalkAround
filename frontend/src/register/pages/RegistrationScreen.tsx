@@ -64,7 +64,7 @@ export default function RegistrationScreen() {
             <Text style={styles.note}>We use your Google name and photo to get your profile started.</Text>
           </>
         )}
-        <Link href="/login" style={{ color: '#246448', fontWeight: '600' }}>
+        <Link href="/login" replace style={{ color: '#246448', fontWeight: '600' }}>
           {user ? 'Continue to sign in' : 'Already have an account? Sign in'}
         </Link>
       </View>

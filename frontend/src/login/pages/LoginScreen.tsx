@@ -35,7 +35,7 @@ export default function LoginScreen() {
         {!configured && <Text style={styles.description}>Google sign-in is not available yet. Please check back soon.</Text>}
         {loading && <ActivityIndicator accessibilityLabel="Signing in" />}
         {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-        <Link href="/register" style={styles.link}>New to WalkAround? Create an account</Link>
+        <Link href="/register" replace style={styles.link}>New to WalkAround? Create an account</Link>
       </View>
     </ScrollView>
   );
