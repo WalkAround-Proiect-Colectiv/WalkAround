@@ -7,11 +7,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const iosUrlScheme = iosClientId?.split('.').reverse().join('.');
   return {
     ...config,
+    scheme: 'walkaround',
+    web: { ...config.web, bundler: 'metro', output: 'single' },
     name: config.name ?? 'WalkAround',
     slug: config.slug ?? 'walkaround',
     android: { ...config.android, package: process.env.ANDROID_APPLICATION_ID ?? 'com.walkaround.app' },
     ios: { ...config.ios, bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER ?? 'com.walkaround.app' },
     plugins: [
+      'expo-router',
+      'expo-secure-store',
       ...(config.plugins ?? []),
       ...(iosUrlScheme ? [['@react-native-google-signin/google-signin', { iosUrlScheme }] as [string, { iosUrlScheme: string }]] : []),
     ],

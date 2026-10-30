@@ -54,6 +54,15 @@ logging:
     root: info
 
 app:
+  login:
+    signing-secret: ${JWT_SIGNING_SECRET:}
+    issuer: ${JWT_ISSUER:walkaround}
+    audience: ${JWT_AUDIENCE:walkaround-api}
+    access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:PT15M}
+    refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:P30D}
+    allowed-origins: ${AUTH_ALLOWED_ORIGINS:${REGISTRATION_ALLOWED_ORIGINS:}}
+    cookie-secure: ${AUTH_COOKIE_SECURE:true}
+    cookie-name: ${AUTH_COOKIE_NAME:walkaround_refresh}
   registration:
     google:
       client-ids: ${GOOGLE_CLIENT_IDS:}

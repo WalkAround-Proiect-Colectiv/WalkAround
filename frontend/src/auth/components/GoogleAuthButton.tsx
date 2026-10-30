@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { GoogleSignin, GoogleSigninButton, isSuccessResponse, isErrorWithCode, statusCodes } from '@react-native-google-signin/google-signin';
 import { environment } from '../../config/environment';
-import type { GoogleRegistrationButtonProps } from './GoogleRegistrationButton.types';
+import type { GoogleAuthButtonProps } from './GoogleAuthButton.types';
 
-export default function GoogleRegistrationButton({ disabled, onCredential, onError }: GoogleRegistrationButtonProps) {
+export default function GoogleAuthButton({ disabled, onCredential, onError, intent = 'register' }: GoogleAuthButtonProps) {
   const signingIn = useRef(false);
   useEffect(() => {
     GoogleSignin.configure({
@@ -37,7 +37,7 @@ export default function GoogleRegistrationButton({ disabled, onCredential, onErr
     color={GoogleSigninButton.Color.Light}
     disabled={disabled}
     onPress={signUp}
-    accessibilityLabel="Sign up with Google"
+    accessibilityLabel={intent === 'login' ? 'Sign in with Google' : 'Sign up with Google'}
     style={{ width: 280, height: 48 }}
   />;
 }
