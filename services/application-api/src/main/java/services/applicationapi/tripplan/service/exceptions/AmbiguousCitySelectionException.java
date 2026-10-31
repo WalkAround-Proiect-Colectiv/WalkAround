@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.service;
+package services.applicationapi.tripplan.service.exceptions;
 
 public class AmbiguousCitySelectionException extends RuntimeException {
 

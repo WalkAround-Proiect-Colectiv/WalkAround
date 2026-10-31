@@ -11,8 +11,10 @@ import services.applicationapi.airport.model.Airport;
 import services.applicationapi.airport.repository.AirportRepository;
 import services.applicationapi.municipality.model.Municipality;
 import services.applicationapi.municipality.repository.MunicipalityRepository;
-import services.applicationapi.tripplan.CityNameNormalizer;
+import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
 import services.applicationapi.tripplan.dto.AirportResponse;
+import services.applicationapi.tripplan.service.exceptions.AmbiguousCitySelectionException;
+import services.applicationapi.tripplan.service.exceptions.InvalidCitySelectionException;
 
 @Service
 public class CityAirportServiceImpl implements CityAirportService {

@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan;
+package services.applicationapi.tripplan.service.utils;
 
 import java.text.Normalizer;
 import java.util.Locale;

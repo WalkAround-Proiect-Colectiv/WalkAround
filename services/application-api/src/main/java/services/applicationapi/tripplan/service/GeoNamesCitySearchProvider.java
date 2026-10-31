@@ -13,6 +13,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import services.applicationapi.tripplan.configurations.CityAutocompleteProperties;
 import services.applicationapi.tripplan.dto.CitySuggestion;
+import services.applicationapi.tripplan.service.exceptions.CitySearchUnavailableException;
 
 @Component
 @ConditionalOnProperty(name = "app.trip-plan.city-provider", havingValue = "geonames", matchIfMissing = true)

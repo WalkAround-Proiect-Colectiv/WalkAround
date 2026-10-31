@@ -1,7 +1,7 @@
 package services.applicationapi.tripplan.dto;
 
 import java.math.BigDecimal;
-import services.applicationapi.tripplan.CityNameNormalizer;
+import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
 
 public record CitySuggestion(
         String name,

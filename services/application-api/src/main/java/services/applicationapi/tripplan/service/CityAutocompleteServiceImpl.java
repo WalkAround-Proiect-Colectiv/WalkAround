@@ -4,6 +4,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 import services.applicationapi.tripplan.configurations.CityAutocompleteProperties;
 import services.applicationapi.tripplan.dto.CitySuggestion;
+import services.applicationapi.tripplan.service.exceptions.InvalidCityQueryException;
 
 @Service
 public class CityAutocompleteServiceImpl implements CityAutocompleteService {

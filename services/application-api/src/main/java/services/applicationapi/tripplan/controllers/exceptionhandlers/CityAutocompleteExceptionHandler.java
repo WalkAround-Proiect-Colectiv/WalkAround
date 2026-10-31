@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.controllers;
+package services.applicationapi.tripplan.controllers.exceptionhandlers;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,8 +8,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import services.applicationapi.tripplan.service.CitySearchUnavailableException;
-import services.applicationapi.tripplan.service.InvalidCityQueryException;
+import services.applicationapi.tripplan.controllers.CityAutocompleteController;
+import services.applicationapi.tripplan.service.exceptions.CitySearchUnavailableException;
+import services.applicationapi.tripplan.service.exceptions.InvalidCityQueryException;
 
 @RestControllerAdvice(assignableTypes = CityAutocompleteController.class)
 public class CityAutocompleteExceptionHandler {
