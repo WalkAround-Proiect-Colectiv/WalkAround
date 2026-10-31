@@ -69,3 +69,9 @@ app:
       jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
       issuers: https://accounts.google.com,accounts.google.com
     allowed-origins: ${REGISTRATION_ALLOWED_ORIGINS:}
+
+  trip-plan:
+    geonames-username: ${GEONAMES_USERNAME}
+    city-autocomplete-max-results: ${CITY_AUTOCOMPLETE_MAX_RESULTS:10}
+    geonames-base-url: ${GEONAMES_BASE_URL:https://secure.geonames.org}
+    geonames-timeout: ${GEONAMES_TIMEOUT:PT3S}
