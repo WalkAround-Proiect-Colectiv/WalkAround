@@ -28,6 +28,6 @@ Let `D` be the number of calendar dates in the requested departure interval. A r
 
 `viewUrls` in the response come from SerpApi's `search_metadata.google_flights_url`, validated as HTTPS Google Flights URLs. A round trip has one URL; two one-way tickets have outbound and return URLs in that order. If no usable URL is provided, the provider supplies the Google Flights homepage. These are search-page references, not guaranteed direct links to the specific displayed offer. This package does not purchase tickets or retrieve booking options.
 
-## Errors and current limitation
+## Empty results and upstream errors
 
-The controller maps invalid searches to `400` and provider failures to `502`. Provider request URLs and API keys must not be logged. The current `SerpApiFlightSearchProvider` treats any top-level `error` field as a failure; SerpApi can also set that field on a successful search with zero results. A future fix should use `search_metadata.status` to distinguish an empty successful search from a genuine upstream error. Keep the external error message out of client responses.
+The provider uses `search_metadata.status` as the outcome of a SerpApi flight search. `Success` is processed even when SerpApi includes a top-level `error`; if there are no flight offers, the endpoint returns an empty list. Missing metadata or any status other than `Success` is treated as an upstream failure. The controller maps invalid searches to `400` and provider failures to `502` with a generic message. The provider logs the unsuccessful status, but neither exposes SerpApi's error text to clients nor logs provider request URLs or API keys.

@@ -135,8 +135,13 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
             throw new FlightSearchUnavailableException("Flight search is temporarily unavailable", exception);
         }
 
-        if (response == null || response.error() != null) {
-            log.warn("SerpApi returned an invalid flight search response");
+        if (response == null || response.searchMetadata() == null) {
+            log.warn("SerpApi returned flight search response without search metadata");
+            throw new FlightSearchUnavailableException("Flight search is temporarily unavailable");
+        }
+
+        if (!"Success".equals(response.searchMetadata().status())) {
+            log.warn("SerpApi flight search did not succeed (status={})", response.searchMetadata().status());
             throw new FlightSearchUnavailableException("Flight search is temporarily unavailable");
         }
 
@@ -219,14 +224,14 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
     private record SerpApiResponse(
             @JsonProperty("search_metadata") SerpApiSearchMetadata searchMetadata,
             @JsonProperty("best_flights") List<SerpApiOffer> bestFlights,
-            @JsonProperty("other_flights") List<SerpApiOffer> otherFlights,
-            String error
+            @JsonProperty("other_flights") List<SerpApiOffer> otherFlights
     ) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record SerpApiSearchMetadata(
-            @JsonProperty("google_flights_url") String googleFlightsUrl
+            @JsonProperty("google_flights_url") String googleFlightsUrl,
+            String status
     ) {
     }
 
