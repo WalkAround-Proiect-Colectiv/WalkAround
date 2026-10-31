@@ -8,4 +8,6 @@ import services.applicationapi.airport.model.Airport;
 public interface AirportRepository extends Repository<Airport, Long> {
 
     List<Airport> findByMunicipality_IdInOrderByNameAscIdAsc(Collection<Long> municipalityIds);
+
+    boolean existsByIataCodeIgnoreCase(String iataCode);
 }

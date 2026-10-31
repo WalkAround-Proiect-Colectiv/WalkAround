@@ -76,3 +76,9 @@ app:
     city-autocomplete-max-results: ${CITY_AUTOCOMPLETE_MAX_RESULTS:10}
     geonames-base-url: ${GEONAMES_BASE_URL:https://secure.geonames.org}
     geonames-timeout: ${GEONAMES_TIMEOUT:PT3S}
+    flight-provider: ${FLIGHT_PROVIDER:serpapi}
+    serp-api-key: ${SERP_API_KEY:}
+    flight-search-max-results: ${FLIGHT_SEARCH_MAX_RESULTS:3}
+    serp-api-base-url: ${SERP_API_BASE_URL:https://serpapi.com}
+    serp-api-timeout: ${SERP_API_TIMEOUT:PT15S}
+    flight-search-max-date-range-days: ${FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS:7}
