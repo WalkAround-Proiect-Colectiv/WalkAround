@@ -16,6 +16,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      '@maplibre/maplibre-react-native',
+      ['expo-location', { locationWhenInUsePermission: 'Allow WalkAround to center the map on your location.' }],
       ...(config.plugins ?? []),
       ...(iosUrlScheme ? [['@react-native-google-signin/google-signin', { iosUrlScheme }] as [string, { iosUrlScheme: string }]] : []),
     ],
