@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osmChange version="0.6" generator="WalkAround synthetic test fixture">
+  <create>
+    <node id="11" version="1" timestamp="2026-10-02T00:00:00Z" lat="44.4265" lon="26.1026"><tag k="amenity" v="pharmacy"/><tag k="name" v="Fixture pharmacy"/></node>
+  </create>
+  <modify>
+    <node id="2" version="2" timestamp="2026-10-02T00:00:00Z" lat="44.4271" lon="26.1031"/>
+    <way id="100" version="2" timestamp="2026-10-02T00:00:00Z"><nd ref="1"/><nd ref="2"/><tag k="highway" v="primary"/><tag k="name" v="Updated fixture road"/></way>
+  </modify>
+  <delete>
+    <node id="10" version="2" timestamp="2026-10-02T00:00:00Z"/>
+  </delete>
+</osmChange>
