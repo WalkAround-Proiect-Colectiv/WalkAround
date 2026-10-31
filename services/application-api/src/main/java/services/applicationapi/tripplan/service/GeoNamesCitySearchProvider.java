@@ -40,6 +40,7 @@ public class GeoNamesCitySearchProvider implements CitySearchProvider {
                     .uri(builder -> builder.path("/searchJSON")
                             .queryParam("name_startsWith", "{prefix}")
                             .queryParam("featureClass", "P")
+                            .queryParam("continentCode", "EU")
                             .queryParam("maxRows", limit)
                             .queryParam("username", "{username}")
                             .build(Map.of(
