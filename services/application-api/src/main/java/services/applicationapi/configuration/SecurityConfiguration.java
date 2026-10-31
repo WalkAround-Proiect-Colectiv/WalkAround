@@ -24,7 +24,6 @@ public class SecurityConfiguration {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.POST, "/api/registrations/google").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/trip-plans/**").permitAll()
                         .requestMatchers(HttpMethod.POST,
                                 "/api/sessions/google", "/api/sessions/refresh", "/api/sessions/logout",
                                 "/api/mobile/sessions/google", "/api/mobile/sessions/refresh", "/api/mobile/sessions/logout").permitAll()
