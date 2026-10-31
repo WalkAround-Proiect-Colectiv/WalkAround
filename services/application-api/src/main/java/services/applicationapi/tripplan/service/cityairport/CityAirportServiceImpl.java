@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.service;
+package services.applicationapi.tripplan.service.cityairport;
 
 import java.util.List;
 import java.util.Locale;

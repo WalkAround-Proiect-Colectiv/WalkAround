@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import services.applicationapi.tripplan.dto.AirportResponse;
-import services.applicationapi.tripplan.service.CityAirportService;
+import services.applicationapi.tripplan.service.cityairport.CityAirportService;
 
 @RestController
 @RequestMapping("/api/trip-plans/cities")

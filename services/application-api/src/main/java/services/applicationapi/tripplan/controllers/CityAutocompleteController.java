@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import services.applicationapi.tripplan.dto.CitySuggestion;
-import services.applicationapi.tripplan.service.CityAutocompleteService;
+import services.applicationapi.tripplan.service.cityautocomplete.CityAutocompleteService;
 
 @RestController
 @RequestMapping("/api/trip-plans")

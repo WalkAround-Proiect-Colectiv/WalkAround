@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.service;
+package services.applicationapi.tripplan.service.flightsearch;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -25,7 +25,7 @@ import services.applicationapi.tripplan.dto.FlightItineraryResponse;
 import services.applicationapi.tripplan.dto.FlightSearchRequest;
 import services.applicationapi.tripplan.dto.FlightSegmentResponse;
 import services.applicationapi.tripplan.dto.TicketOption;
-import services.applicationapi.tripplan.service.FlightSearchProvider.FlightOffer;
+import services.applicationapi.tripplan.service.flightsearch.FlightSearchProvider.FlightOffer;
 import services.applicationapi.tripplan.service.exceptions.InvalidFlightSearchException;
 
 @Service

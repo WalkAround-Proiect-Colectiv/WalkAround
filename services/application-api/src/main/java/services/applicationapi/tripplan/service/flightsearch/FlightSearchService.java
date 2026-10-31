@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.service;
+package services.applicationapi.tripplan.service.flightsearch;
 
 import java.util.List;
 import services.applicationapi.tripplan.dto.FlightItineraryResponse;

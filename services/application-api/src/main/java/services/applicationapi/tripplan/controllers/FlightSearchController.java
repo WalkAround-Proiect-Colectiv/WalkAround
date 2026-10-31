@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import services.applicationapi.tripplan.dto.FlightItineraryResponse;
 import services.applicationapi.tripplan.dto.FlightSearchRequest;
-import services.applicationapi.tripplan.service.FlightSearchService;
+import services.applicationapi.tripplan.service.flightsearch.FlightSearchService;
 
 @RestController
 @RequestMapping("/api/trip-plans/flight-searches")

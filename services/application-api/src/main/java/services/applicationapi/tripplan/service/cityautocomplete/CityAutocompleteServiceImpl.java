@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.service;
+package services.applicationapi.tripplan.service.cityautocomplete;
 
 import java.util.List;
 import org.springframework.stereotype.Service;

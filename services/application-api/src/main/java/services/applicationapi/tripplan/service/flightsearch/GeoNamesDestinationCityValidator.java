@@ -1,4 +1,4 @@
-package services.applicationapi.tripplan.service;
+package services.applicationapi.tripplan.service.flightsearch;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
