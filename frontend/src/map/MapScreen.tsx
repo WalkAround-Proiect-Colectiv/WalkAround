@@ -8,7 +8,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
-import { styleMap } from './style';
+import { resolveStyleResources, styleMap } from './style';
 
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
@@ -39,7 +39,7 @@ export default function MapScreen() {
       if (!response.ok) throw new Error('Style unavailable');
       const result = await response.json();
       if (result.version !== 8 || !result.sources || !Array.isArray(result.layers)) throw new Error('Invalid map style');
-      if (!controller.signal.aborted) setStyle(styleMap(result));
+      if (!controller.signal.aborted) setStyle(styleMap(resolveStyleResources(result, response.url || MAP_STYLE_URL)));
     }).catch(() => {
       if (!controller.signal.aborted) { setError('Could not load the map. Check your connection and retry.'); setLoading(false); }
       else if (controller.signal.reason?.name === 'TimeoutError') { setError('Map request timed out. Please retry.'); setLoading(false); }

@@ -1,0 +1,19 @@
+listen_addresses: 0.0.0.0:3000
+base_path: /tiles
+web_ui: disable
+cache: disable
+cache_control: no-cache
+convert_to_mlt: disabled
+postgres:
+  connection_string: ${MAP_DATABASE_URL}
+  auto_publish: false
+  pool_size: 8
+  functions:
+    basemap:
+      schema: tiles
+      function: basemap
+      minzoom: 4
+      maxzoom: 15
+      bounds: [19.5, 43.4, 30, 48.5]
+fonts:
+  paths: [/fonts]

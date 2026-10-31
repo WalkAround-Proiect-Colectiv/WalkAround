@@ -1,0 +1,98 @@
+name: walkaround-map
+
+x-database-client: &database-client
+  PGHOST: map-db
+  PGPORT: "5432"
+  PGDATABASE: map
+  PGUSER: map_import
+  PGPASSWORD: ${MAP_IMPORT_PASSWORD:?Set MAP_IMPORT_PASSWORD}
+
+services:
+  map-db:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_DB: map
+      POSTGRES_USER: map_admin
+      POSTGRES_PASSWORD: ${MAP_DB_ADMIN_PASSWORD:?Set MAP_DB_ADMIN_PASSWORD}
+      MAP_IMPORT_PASSWORD: ${MAP_IMPORT_PASSWORD:?Set MAP_IMPORT_PASSWORD}
+      MAP_TILES_PASSWORD: ${MAP_TILES_PASSWORD:?Set MAP_TILES_PASSWORD}
+    volumes:
+      - map-db-data:/var/lib/postgresql/data
+      - ./database/init.sh:/docker-entrypoint-initdb.d/20-map-roles.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U map_admin -d map"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  map-job:
+    build: ./importer
+    profiles: [maintenance]
+    environment:
+      <<: *database-client
+      OSM_EXTRACT_URL: ${OSM_EXTRACT_URL:-https://download.geofabrik.de/europe/romania-latest.osm.pbf}
+      OSM_REPLICATION_URL: ${OSM_REPLICATION_URL:-https://download.geofabrik.de/europe/romania-updates}
+      OSM_INPUT: ${OSM_INPUT:-/data/region.osm.pbf}
+      OSM_CACHE_MB: ${OSM_CACHE_MB:-512}
+      OSM_PROCESSES: ${OSM_PROCESSES:-2}
+    volumes:
+      - map-downloads:/data
+      - map-locks:/locks
+      - ./importer:/workspace/importer:ro
+      - ./tests:/workspace/tests:ro
+    entrypoint: [bash, /workspace/importer/run.sh]
+    command: [status]
+    depends_on:
+      map-db:
+        condition: service_healthy
+
+  map-migrate:
+    image: flyway/flyway:11.8.2
+    environment:
+      FLYWAY_URL: jdbc:postgresql://map-db:5432/map
+      FLYWAY_USER: map_import
+      FLYWAY_PASSWORD: ${MAP_IMPORT_PASSWORD:?Set MAP_IMPORT_PASSWORD}
+      FLYWAY_DEFAULT_SCHEMA: tiles
+      FLYWAY_LOCATIONS: filesystem:/flyway/sql
+      FLYWAY_CONNECT_RETRIES: "10"
+    volumes:
+      - ./database/migrations:/flyway/sql:ro
+    command: migrate
+    depends_on:
+      map-db:
+        condition: service_healthy
+
+  martin:
+    build: ./martin
+    environment:
+      MAP_DATABASE_URL: postgresql://map_tiles:${MAP_TILES_PASSWORD:?Set MAP_TILES_PASSWORD}@map-db:5432/map
+    command: [--config, /etc/martin/config.yaml]
+    volumes:
+      - ./martin.yaml:/etc/martin/config.yaml:ro
+    depends_on:
+      map-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  map-gateway:
+    image: nginx:1.28-alpine
+    ports:
+      - "${MAP_BIND_ADDRESS:-127.0.0.1}:${MAP_TILES_PORT:-3001}:8080"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./gateway/style.json:/usr/share/nginx/html/style.json:ro
+    depends_on:
+      martin:
+        condition: service_started
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8080/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  map-db-data:
+  map-downloads:
+  map-locks:

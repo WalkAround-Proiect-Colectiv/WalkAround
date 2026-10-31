@@ -1,5 +1,18 @@
 import type { StyleSpecification } from 'maplibre-gl';
 
+export function resolveStyleResources(input: StyleSpecification, styleUrl: string): StyleSpecification {
+  const style = structuredClone(input);
+  const absolute = (value: string) => new URL(value, styleUrl).href.replace(/%7B/gi, '{').replace(/%7D/gi, '}');
+  for (const source of Object.values(style.sources)) {
+    if ('url' in source && source.url) source.url = absolute(source.url);
+    if ('tiles' in source && source.tiles) source.tiles = source.tiles.map(absolute);
+  }
+  if (style.glyphs) style.glyphs = absolute(style.glyphs);
+  if (typeof style.sprite === 'string') style.sprite = absolute(style.sprite);
+  else if (style.sprite) style.sprite = style.sprite.map(sprite => ({ ...sprite, url: absolute(sprite.url) }));
+  return style;
+}
+
 export function styleMap(input: StyleSpecification): StyleSpecification {
   const style = structuredClone(input);
   const rasterSources = new Set(Object.keys(style.sources).filter(key => style.sources[key].type === 'raster-dem' || style.sources[key].type === 'raster'));

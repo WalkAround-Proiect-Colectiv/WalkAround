@@ -70,9 +70,11 @@ Android requires its SDK/emulator or a connected device; iOS local builds requir
 
 MapLibre GL JS 6 requires a module worker. The install/start scripts copy its version-matched worker and shared bundle into the ignored `public/maplibre/` directory, served from the same origin. Run `node scripts/prepare-map-assets.mjs` before a direct `npx expo export --platform web` or after changing the renderer version. Deploy the exported worker assets with the app; root-relative `/maplibre/` URLs currently assume root-path hosting.
 
-Hosted tiles are temporary for prototype validation. The target is self-hosted OSM data imported into PostGIS via `osm2pgsql`, with Martin serving vector tiles and MapLibre rendering them. Point `EXPO_PUBLIC_MAP_STYLE_URL` at a self-hosted style once ready; its source-layer names and fields must match the Martin tile schema, and glyphs/sprites must also be reachable. The prototype's layer-ID-specific color adjustments target the Liberty style, so review them when changing the schema/style. A raw Martin tile URL is not a complete style JSON.
+The self-hosted alternative is implemented in [the map-data module](../services/map-data/README.md): a dedicated PostGIS database, full regional osm2pgsql import, regional replication-diff updates, a Flyway-managed tile function, Martin, local glyphs, and a matching style. It needs a running Docker engine and a verified import before use; hosted OpenFreeMap remains the default during rollout.
 
-Offline map downloads, elevation/3D terrain, Valhalla routing, H3 reports, tile operations, and background location are outside this prototype. Offline and elevation support are deferred to future stories.
+After following the map-data setup, set `EXPO_PUBLIC_MAP_STYLE_URL=http://localhost:3001/style.json` in the frontend's local environment and restart Expo. Use an accessible LAN/emulator host instead of localhost on other devices. The frontend resolves source URLs, tile templates, glyphs, and sprites against the style response URL, preserving MapLibre placeholders. The self-hosted `features` vector layer is not OpenMapTiles-compatible; use its supplied style, not Liberty or a raw Martin tile URL. Glyphs are served locally and the supplied style needs no sprites. Expect less complete styling than the hosted prototype, particularly around coastlines and detailed transport ordering.
+
+Offline map downloads, elevation/3D terrain, Valhalla routing, H3 reports, and background location remain out of scope. Offline and elevation support are deferred to future stories; tile import/update operations now belong to the separate map-data module.
 
 ### Verification
 
@@ -90,7 +92,7 @@ Use the following design direction as the app's shared template. Apply it as con
 
 ### Map
 
-Use Waze's color palette as a reference, favoring simple, elegant colors. Initial map coverage should focus on Romania to keep map data, storage, and memory requirements manageable. Aim to make country coverage data-driven, so neighboring countries can be added mostly by supplying additional map data rather than introducing country-specific application logic. Use OpenStreetMap for underlying map features such as POIs, streets, and roads; the planned backend pipeline imports OSM data into PostgreSQL/PostGIS with `osm2pgsql` weekly.
+Use Waze's color palette as a reference, favoring simple, elegant colors. Initial map coverage should focus on Romania to keep map data, storage, and memory requirements manageable. Aim to make country coverage data-driven, so neighboring countries can be added mostly by supplying additional map data rather than introducing country-specific application logic. Use OpenStreetMap for underlying map features such as POIs, streets, and roads; the separate map-data pipeline performs an initial PostGIS import with `osm2pgsql` and supports weekly regional replication-diff updates.
 
 Use MapLibre GL to render tiles supplied by the planned Martin tile server. Martin serves map data; MapLibre GL renders it. Load tiles for the visible map area rather than loading the full country dataset into app memory. Represent dangerous-area reports with H3 cells instead of ad hoc circles, choosing a resolution that communicates their coverage clearly.
 
