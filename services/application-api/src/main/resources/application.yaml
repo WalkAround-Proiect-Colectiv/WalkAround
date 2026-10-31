@@ -71,6 +71,7 @@ app:
     allowed-origins: ${REGISTRATION_ALLOWED_ORIGINS:}
 
   trip-plan:
+    city-provider: ${CITY_PROVIDER:geonames}
     geonames-username: ${GEONAMES_USERNAME}
     city-autocomplete-max-results: ${CITY_AUTOCOMPLETE_MAX_RESULTS:10}
     geonames-base-url: ${GEONAMES_BASE_URL:https://secure.geonames.org}
