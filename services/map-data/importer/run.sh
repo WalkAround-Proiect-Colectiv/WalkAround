@@ -16,7 +16,7 @@ case "$operation" in
     curl --fail --location --retry 3 "$OSM_EXTRACT_URL" --output /data/region.osm.pbf.part
     curl --fail --location --retry 3 "$OSM_EXTRACT_URL.md5" --output /data/region.md5
     read -r expected _ < /data/region.md5
-    printf '%s  %s\n' "$expected" /data/region.osm.pbf.part | md5sum --check -
+    printf '%s  %s\n' "$expected" /data/region.osm.pbf.part | md5sum -c -
     mv /data/region.osm.pbf.part /data/region.osm.pbf
     ;;
   import)
