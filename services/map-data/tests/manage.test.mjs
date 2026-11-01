@@ -106,3 +106,10 @@ test('verification requires local fonts, metadata, and nonempty city tile respon
     assert.equal(tileRequests, 4);
   } finally { await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
+
+test('synthetic OSM change nodes remain ID-ordered across create, modify, and delete blocks', async () => {
+  const change = await readFile(new URL('./change.osc', import.meta.url), 'utf8');
+  const nodeIds = Array.from(change.matchAll(/<node\b[^>]*\bid="(\d+)"/g), match => Number(match[1]));
+  assert.ok(nodeIds.length > 0);
+  assert.deepEqual(nodeIds, [...nodeIds].sort((left, right) => left - right));
+});
