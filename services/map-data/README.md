@@ -87,7 +87,7 @@ docker compose --env-file .env up --build -d --wait map-gateway
 docker compose --env-file .env --profile maintenance run --rm map-job verify
 ```
 
-The download uses Geofabrik's Romania extract and verifies its published MD5 checksum before promoting the partial file. This is an integrity check, not a cryptographic authenticity guarantee; transport uses HTTPS. The PBF remains in a persistent volume for checkpoint initialization. Do not replace it with a newer snapshot after import and use it to reset replication.
+The download uses Geofabrik's Romania extract and verifies its published MD5 checksum with `md5sum -c` (the Alpine/BusyBox-compatible syntax) before promoting the partial file. This is an integrity check, not a cryptographic authenticity guarantee; transport uses HTTPS. The PBF remains in a persistent volume for checkpoint initialization. Do not replace it with a newer snapshot after import and use it to reset replication.
 
 `import` performs one full regional import with `--create --slim`, bounded cache/concurrency settings, and sequential index construction. It refuses to overwrite an existing import. Flyway and Martin start only after the explicit import step; running the gateway against an empty database will fail rather than publish an empty-looking replacement map.
 
