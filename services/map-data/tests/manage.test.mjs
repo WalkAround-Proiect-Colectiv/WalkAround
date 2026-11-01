@@ -107,9 +107,12 @@ test('verification requires local fonts, metadata, and nonempty city tile respon
   } finally { await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
 
-test('synthetic OSM change nodes remain ID-ordered across create, modify, and delete blocks', async () => {
+test('synthetic OSM change objects remain ordered by type then ID across action blocks', async () => {
   const change = await readFile(new URL('./change.osc', import.meta.url), 'utf8');
-  const nodeIds = Array.from(change.matchAll(/<node\b[^>]*\bid="(\d+)"/g), match => Number(match[1]));
-  assert.ok(nodeIds.length > 0);
-  assert.deepEqual(nodeIds, [...nodeIds].sort((left, right) => left - right));
+  const objects = Array.from(change.matchAll(/<(node|way|relation)\b[^>]*\bid="(\d+)"/g), match => ({
+    type: { node: 0, way: 1, relation: 2 }[match[1]], id: Number(match[2]),
+  }));
+  assert.ok(objects.length > 0);
+  const ordered = [...objects].sort((left, right) => left.type - right.type || left.id - right.id);
+  assert.deepEqual(objects, ordered);
 });

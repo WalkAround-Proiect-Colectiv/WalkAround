@@ -8,6 +8,6 @@
     <way id="100" version="2" timestamp="2026-10-02T00:00:00Z"><nd ref="1"/><nd ref="12"/><tag k="highway" v="primary"/><tag k="name" v="Updated fixture road"/></way>
   </modify>
   <delete>
-    <node id="13" version="2" timestamp="2026-10-02T00:00:00Z"/>
+    <way id="101" version="2" timestamp="2026-10-02T00:00:00Z"/>
   </delete>
 </osmChange>

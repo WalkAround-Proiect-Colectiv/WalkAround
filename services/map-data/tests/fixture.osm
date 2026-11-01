@@ -11,9 +11,8 @@
   <node id="9" version="1" timestamp="2026-10-01T00:00:00Z" lat="44.4268" lon="26.1025"><tag k="place" v="city"/><tag k="name" v="Fixture city"/></node>
   <node id="10" version="1" timestamp="2026-10-01T00:00:00Z" lat="44.4265" lon="26.1026"><tag k="amenity" v="cafe"/><tag k="name" v="Fixture cafe"/></node>
   <node id="12" version="1" timestamp="2026-10-01T00:00:00Z" lat="44.4270" lon="26.1030"/>
-  <node id="13" version="1" timestamp="2026-10-01T00:00:00Z" lat="44.4265" lon="26.1026"><tag k="amenity" v="cafe"/><tag k="name" v="Fixture cafe"/></node>
   <way id="100" version="1" timestamp="2026-10-01T00:00:00Z"><nd ref="1"/><nd ref="2"/><tag k="highway" v="primary"/><tag k="name" v="Fixture road"/></way>
-  <way id="101" version="1" timestamp="2026-10-01T00:00:00Z"><nd ref="5"/><nd ref="6"/><nd ref="7"/><nd ref="8"/><nd ref="5"/><tag k="building" v="yes"/></way>
+  <way id="101" version="1" timestamp="2026-10-01T00:00:00Z"><nd ref="5"/><nd ref="6"/><nd ref="7"/><nd ref="8"/><nd ref="5"/><tag k="building" v="yes"/><tag k="name" v="Fixture building"/></way>
   <way id="102" version="1" timestamp="2026-10-01T00:00:00Z"><nd ref="1"/><nd ref="4"/><nd ref="2"/><nd ref="3"/><nd ref="1"/><tag k="natural" v="water"/></way>
   <way id="103" version="1" timestamp="2026-10-01T00:00:00Z"><nd ref="1"/><nd ref="4"/><nd ref="2"/><nd ref="3"/><nd ref="1"/></way>
   <way id="104" version="1" timestamp="2026-10-01T00:00:00Z"><nd ref="1"/><nd ref="2"/><tag k="waterway" v="river"/></way>

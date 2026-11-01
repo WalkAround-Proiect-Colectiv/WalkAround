@@ -50,12 +50,15 @@ try {
   for (const kind of ['road', 'building', 'water', 'waterway', 'landcover', 'place', 'poi']) {
     assert.ok(before.some(feature => feature.kind === kind), `Missing ${kind}`);
   }
+  assert.ok(before.some(feature => feature.name === 'Fixture building'));
+  assert.ok(before.some(feature => feature.name === 'Fixture cafe'));
   assert.ok(!(await tile(base, 5)).some(feature => ['building', 'poi'].includes(feature.kind)));
   compose(['run', '--rm', '--no-deps', 'map-job', 'append-fixture']);
   const after = await tile(base, 15);
   assert.ok(after.some(feature => feature.name === 'Updated fixture road'));
   assert.ok(after.some(feature => feature.name === 'Fixture pharmacy'));
-  assert.ok(!after.some(feature => feature.name === 'Fixture cafe'));
+  assert.ok(!after.some(feature => feature.name === 'Fixture building'));
+  assert.ok(after.some(feature => feature.name === 'Fixture cafe'));
   assert.ok(!after.some(feature => feature.name === 'Fixture road'));
   console.log('Import, permissions, tiles, fonts, zoom filtering, and create/modify/delete updates passed.');
 } finally {
