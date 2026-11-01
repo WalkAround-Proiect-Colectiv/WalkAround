@@ -1,0 +1,8 @@
+docker info --format '{{.OSType}}'
+node --version
+
+- should print linux and node > v22.13
+
+cd frontend
+npm install
+

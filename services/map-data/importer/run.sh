@@ -28,15 +28,16 @@ case "$operation" in
       --middle-schema=osm_middle --cache="$cache" --number-processes="$processes" \
       --disable-parallel-indexing "$OSM_INPUT"
     query 'ANALYZE osm.features' >/dev/null
+    query "INSERT INTO osm_middle.osm2pgsql_properties (property, value) VALUES ('_walkaround_import_complete', 'true') ON CONFLICT (property) DO UPDATE SET value = EXCLUDED.value" >/dev/null
     ;;
   replication-init)
-    test -f "$OSM_INPUT" || { echo 'The original imported PBF is required.' >&2; exit 1; }
     test "$(query "SELECT EXISTS (SELECT 1 FROM osm_middle.osm2pgsql_properties WHERE property = 'replication_base_url' AND value <> :'feed')")" = f || {
       echo 'Replication feed differs from the imported extract; refusing to switch feeds.' >&2; exit 1;
     }
     if test "$(query "SELECT count(*) FROM osm_middle.osm2pgsql_properties WHERE property IN ('replication_base_url', 'replication_sequence_number', 'replication_timestamp') AND value <> ''")" = 3; then
       echo 'Existing replication checkpoint retained.'
     else
+      test -f "$OSM_INPUT" || { echo 'The original imported PBF is required to initialize replication.' >&2; exit 1; }
       osm2pgsql-replication init --database "$PGDATABASE" --middle-schema osm_middle --osm-file "$OSM_INPUT"
     fi
     test "$(query "SELECT EXISTS (SELECT 1 FROM osm_middle.osm2pgsql_properties WHERE property = 'replication_base_url' AND value = :'feed')")" = t || {
@@ -54,6 +55,20 @@ case "$operation" in
   status)
     query "SELECT property || '=' || value FROM osm_middle.osm2pgsql_properties WHERE property IN ('replication_base_url', 'replication_sequence_number', 'replication_timestamp', 'current_timestamp', 'updatable') ORDER BY property"
     ;;
+  inspect-state)
+    state=empty
+    if test "$(query "SELECT to_regclass('osm_middle.osm2pgsql_properties') IS NOT NULL")" = t; then
+      state=partial
+      if test "$(query "SELECT EXISTS (SELECT 1 FROM osm_middle.osm2pgsql_properties WHERE property = '_walkaround_import_complete' AND value = 'true')")" = t; then
+        state=ready
+      fi
+    elif test "$(query "SELECT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname IN ('osm', 'osm_middle'))")" = t; then
+      state=partial
+    fi
+    snapshot=false
+    if test -f "$OSM_INPUT"; then snapshot=true; fi
+    printf '{"import":"%s","snapshot":%s}\n' "$state" "$snapshot"
+    ;;
   verify)
     psql -X -v ON_ERROR_STOP=1 -f /workspace/tests/verify.sql
     ;;
@@ -64,5 +79,5 @@ case "$operation" in
     test "${OSM_INPUT:-}" = /workspace/tests/fixture.osm || { echo 'Fixture updates require the fixture stack.' >&2; exit 1; }
     osm2pgsql --append --slim --middle-schema=osm_middle /workspace/tests/change.osc
     ;;
-  *) echo 'Usage: map-job download|import|replication-init|update|status|verify|test-style|append-fixture' >&2; exit 2 ;;
+  *) echo 'Usage: map-job download|import|replication-init|update|status|inspect-state|verify|test-style|append-fixture' >&2; exit 2 ;;
 esac

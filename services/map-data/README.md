@@ -28,6 +28,52 @@ Run Docker with Linux containers, Docker Compose v2 with `--wait` support, inter
 
 Docker's engine was unavailable during implementation. Compose/style/contracts and Lua mapping tests can be checked without it, but image builds, the real PostGIS/Martin smoke test, full Romania import, live replication, and native rendering still need runtime verification. Do not switch a working deployment before those checks pass.
 
+## Team Quick Start
+
+Each colleague builds their own database from the public regional extract. No database dump, Docker volume, or OSM download needs to be committed to Git. Prerequisites are Node.js 22.13 or newer, a running Docker Linux engine, Docker Compose v2 with `--wait` support, and sufficient RAM/disk for the regional import. Install frontend npm dependencies first because the smoke test uses its vector-tile decoder.
+
+From the repository root, run:
+
+```sh
+node services/map-data/manage.mjs doctor
+node services/map-data/manage.mjs smoke
+node services/map-data/manage.mjs setup
+node services/map-data/manage.mjs connect
+npm --prefix frontend run web
+```
+
+On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`. The Node management script itself works on Windows, macOS, and Linux and invokes Docker without a shell. Its Compose paths are anchored to the module, so `node /absolute/path/to/manage.mjs <command>` also works from another working directory.
+
+`doctor` checks for a reachable Linux Docker engine and Compose. If it reports the engine is unavailable, start Docker Desktop in Linux-container mode (or start Docker Engine on Linux) and rerun it. Then run `smoke`: it uses the tiny synthetic OSM fixture, not a country download. The first run still downloads/builds container images. Resolve smoke failures before spending time on the full import; do not share passwords or secret-bearing configuration when reporting errors.
+
+`setup` creates an ignored module `.env` with three independent random passwords if it does not exist, builds the importer, starts PostGIS, inspects import state, downloads Romania if needed, imports once, initializes/preserves replication state, applies migrations, starts the gateway/Martin, and verifies database access plus local style/font/tile endpoints. It never replaces existing credentials. A completed import is marked in osm2pgsql's properties after successful import and analysis; rerunning setup reuses it. A partial or older unmarked import causes a clear refusal rather than a destructive rebuild. Use a fresh staging project and the recovery guidance for those cases. A completed checkpoint can be reused even if its old PBF is no longer present; initialization without a checkpoint still requires the original PBF.
+
+`connect` first verifies the map, then updates only `EXPO_PUBLIC_MAP_STYLE_URL` in the ignored frontend `.env.local`; other local auth/API settings are preserved. Restart Expo afterward. The generated URL targets the local computer. Adjust it to an accessible LAN/emulator address for native testing as described below. No automatic frontend cutover happens during setup, and no existing frontend environment file is replaced.
+
+### Daily Commands
+
+```sh
+node services/map-data/manage.mjs start
+node services/map-data/manage.mjs status
+node services/map-data/manage.mjs verify
+node services/map-data/manage.mjs update
+node services/map-data/manage.mjs stop
+```
+
+`start` requires a completed import and does not download/import again. `status` shows containers and, when PostGIS is running, import/replication state. `verify` checks database permissions/geometry, the style, TileJSON, local fonts, and nonempty MVT responses around Bucharest, Cluj-Napoca, Brasov, and Constanta. These checks are stronger than liveness but do not establish completeness, decode every production feature, or benchmark the country; the smoke test decodes its fixture tiles and manual map inspection is still required. `update` applies regional replication diffs, verifies endpoints, and prints checkpoint status. Run it against a started stack. `stop` stops containers but preserves all volumes; none of these commands deletes database volumes or resets an import.
+
+Schedule the `update` command weekly with an absolute script path if desired. The scheduler should run as the same user with Docker access; the script does not install an OS task. Other than `init` and `help`, the operational commands require Docker. `init` can generate local credentials in advance without starting services.
+
+### What Belongs in Git
+
+Commit the Compose definition, Dockerfiles, importer, SQL migrations, style, scripts, documentation, and small synthetic test fixtures. The module ignore rules exclude local environment variants (except `.env.example`), `data/`, `backups/`, PBF extracts, compressed diffs, and database backup files. Normal imports put the database and PBF in Docker-managed named volumes, not in the repository at all. Never replace the synthetic fixtures with real database dumps.
+
+Preserve the local map `.env` alongside its database volumes: generating new passwords does not change passwords already stored in Postgres. Do not share that file with colleagues; each setup generates its own. On Unix it is created with owner-only permissions; Windows protection follows the local filesystem ACL. If multiple checkouts share one Docker engine, the fixed `walkaround-map` project name and port also share a stack; use the lower-level Compose `-p` option and a different port for a genuinely separate staging instance.
+
+### Help With Runtime Testing
+
+Start Docker, run `doctor`, then `smoke`. Once smoke passes, run `setup`, `connect`, and restart Expo. Browse the country overview and city presets, zoom to building/POI level, and confirm map network requests target your own gateway rather than OpenFreeMap. Report the failing stage, sanitized error output, Docker OS/architecture, and whether the issue occurs with the tiny fixture or Romania. No database upload or credential sharing is needed.
+
 ## Initial Romania Import
 
 Run these commands from `services/map-data/`. Copy `.env.example` to `.env` and replace all three password placeholders with separate random values. Use URL-safe characters for `MAP_TILES_PASSWORD` because it is embedded in Martin's connection URL. The `.env` file is ignored; never commit it or print resolved Compose configuration containing its credentials.
@@ -93,10 +139,11 @@ From the repository root, with frontend npm dependencies installed:
 ```sh
 docker compose --env-file services/map-data/.env.example -f services/map-data/compose.yaml --profile maintenance config --quiet
 node --test services/map-data/tests/contracts.test.mjs
+node --test services/map-data/tests/manage.test.mjs
 node services/map-data/tests/smoke.mjs
 ```
 
-The contract check validates the real style against the MapLibre specification and checks schema wiring. The smoke test needs Docker: it creates a uniquely named disposable project with random test credentials, imports the synthetic fixture, checks database permissions, decodes real tiles at different zooms, checks local glyph serving, applies create/modify/delete changes, and checks changed tile contents. It removes only its own project/volumes in cleanup. It does not validate Romania completeness or the real replication feed.
+The contract check validates the real style against the MapLibre specification and checks schema wiring. Management tests cover unique credentials, non-overwriting initialization, setup planning, partial-import refusal, frontend setting preservation, and mocked endpoint handling; they do not prove the real containers work. The smoke test needs Docker: it creates a uniquely named disposable project with random test credentials, imports the synthetic fixture, checks database permissions, decodes real tiles at different zooms, checks local glyph serving, applies create/modify/delete changes, and checks changed tile contents. It removes only its own project/volumes in cleanup. It does not validate Romania completeness or the real replication feed.
 
 Lua classification tests also run inside the smoke test. Without Docker, run `lua5.4 services/map-data/tests/flex.test.lua services/map-data/importer/flex.lua` with a local Lua interpreter, or use `npx --yes --package=fengari-node-cli fengari` instead of `lua5.4` for a temporary JavaScript-hosted interpreter. Mock geometries test tag/zoom mapping, not osm2pgsql's actual polygon assembly; that requires the integration test.
 

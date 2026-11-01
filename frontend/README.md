@@ -72,6 +72,8 @@ MapLibre GL JS 6 requires a module worker. The install/start scripts copy its ve
 
 The self-hosted alternative is implemented in [the map-data module](../services/map-data/README.md): a dedicated PostGIS database, full regional osm2pgsql import, regional replication-diff updates, a Flyway-managed tile function, Martin, local glyphs, and a matching style. It needs a running Docker engine and a verified import before use; hosted OpenFreeMap remains the default during rollout.
 
+For per-developer setup, follow the [team quick start](../services/map-data/README.md#team-quick-start). Its `connect` command verifies the local map and updates only the map URL in frontend `.env.local`, preserving other auth/API settings. Each colleague imports a separate local database; no database contents are distributed through Git.
+
 After following the map-data setup, set `EXPO_PUBLIC_MAP_STYLE_URL=http://localhost:3001/style.json` in the frontend's local environment and restart Expo. Use an accessible LAN/emulator host instead of localhost on other devices. The frontend resolves source URLs, tile templates, glyphs, and sprites against the style response URL, preserving MapLibre placeholders. The self-hosted `features` vector layer is not OpenMapTiles-compatible; use its supplied style, not Liberty or a raw Martin tile URL. Glyphs are served locally and the supplied style needs no sprites. Expect less complete styling than the hosted prototype, particularly around coastlines and detailed transport ordering.
 
 Offline map downloads, elevation/3D terrain, Valhalla routing, H3 reports, and background location remain out of scope. Offline and elevation support are deferred to future stories; tile import/update operations now belong to the separate map-data module.
