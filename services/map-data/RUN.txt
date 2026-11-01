@@ -6,3 +6,12 @@ node --version
 cd frontend
 npm install
 
+node services/map-data/manage.mjs doctor
+node services/map-data/manage.mjs smoke
+
+- The smoke test uses a small fixture, not Romania. It checks imports, migrations, permissions, tile generation, fonts, zoom filtering, and incremental create/modify/delete updates. Its temporary Docker project and volumes are cleaned up afterward.
+If it fails, stop there and ask AI wtf is going on.
+
+node services/map-data/manage.mjs setup
+
+- This creates local credentials in an ignored .env, downloads the Romania extract, imports it into the new laptop’s PostGIS database, initializes replication, starts Martin and the gateway, and verifies the endpoints. The download and import may take a while. Keep Docker running.

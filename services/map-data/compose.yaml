@@ -48,7 +48,7 @@ services:
         condition: service_healthy
 
   map-migrate:
-    image: flyway/flyway:11.8.2
+    image: flyway/flyway:13.12.0-alpine
     environment:
       FLYWAY_URL: jdbc:postgresql://map-db:5432/map
       FLYWAY_USER: map_import
