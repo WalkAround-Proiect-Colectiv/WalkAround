@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { LogIn } from 'lucide-react-native';
+import AuthLayout, { authColors, authStyles as styles } from '../../auth/components/AuthLayout';
 import { Link, Redirect } from 'expo-router';
 import GoogleAuthButton from '../../auth/components/GoogleAuthButton';
 import { environment } from '../../config/environment';
@@ -23,30 +25,24 @@ export default function LoginScreen() {
     finally { pending.current = false; setLoading(false); }
   }
 
-  if (!ready) return <View style={styles.container}><ActivityIndicator accessibilityLabel="Restoring session" /></View>;
+  if (!ready) return <AuthLayout><ActivityIndicator color={authColors.primary} accessibilityLabel="Restoring session" /><Text style={styles.description}>Getting your account ready…</Text></AuthLayout>;
   if (session) return <Redirect href="/home" />;
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.brand}>WalkAround</Text>
+    <AuthLayout>
+      <View style={styles.intro}>
+        <View style={styles.icon}><LogIn size={30} color={authColors.primary} /></View>
         <Text accessibilityRole="header" style={styles.title}>Welcome back</Text>
         <Text style={styles.description}>Sign in to continue exploring.</Text>
-        <GoogleAuthButton intent="login" disabled={!configured || loading} onCredential={login} onError={setError} />
-        {!configured && <Text style={styles.description}>Google sign-in is not available yet. Please check back soon.</Text>}
-        {loading && <ActivityIndicator accessibilityLabel="Signing in" />}
-        {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-        <Link href="/register" replace style={styles.link}>New to WalkAround? Create an account</Link>
       </View>
-    </ScrollView>
+      <GoogleAuthButton intent="login" disabled={!configured || loading} onCredential={login} onError={setError} />
+      {!configured && <Text style={styles.note}>Google sign-in is not available yet. Please check back soon.</Text>}
+      {loading && <View style={styles.progress}><ActivityIndicator color={authColors.primary} /><Text style={styles.progressText}>Signing in…</Text></View>}
+      {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
+      <View style={styles.footer}>
+        <Text style={styles.description}>New to WalkAround?</Text>
+        <Link href="/register" replace style={styles.link}>Create an account</Link>
+      </View>
+    </AuthLayout>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#f3f7f5' },
-  card: { width: '100%', maxWidth: 420, alignItems: 'center', padding: 24, paddingVertical: 36, gap: 24, backgroundColor: '#fff', borderRadius: 20 },
-  brand: { fontSize: 20, fontWeight: '700', color: '#246448' },
-  title: { fontSize: 30, fontWeight: '700', color: '#17372b', textAlign: 'center' },
-  description: { fontSize: 16, lineHeight: 24, color: '#52635c', textAlign: 'center' },
-  error: { fontSize: 14, color: '#a32929', textAlign: 'center' },
-  link: { color: '#246448', fontWeight: '600', textAlign: 'center' },
-});
