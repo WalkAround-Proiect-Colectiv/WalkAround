@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { ActivityIndicator, Text, View } from 'react-native';
+import { Check, UserRoundPlus } from 'lucide-react-native';
+import AuthLayout, { authColors, authStyles as styles } from '../../auth/components/AuthLayout';
 import GoogleAuthButton from '../../auth/components/GoogleAuthButton';
 import { Link } from 'expo-router';
 import { registerWithGoogle, type RegisteredUser } from '../api/registration';
@@ -39,10 +40,11 @@ export default function RegistrationScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <StatusBar style="dark" />
-      <View style={styles.card}>
-        <Text style={styles.brand}>WalkAround</Text>
+    <AuthLayout>
+      <View style={styles.intro}>
+        <View style={styles.icon}>
+          {user ? <Check size={30} color={authColors.primary} /> : <UserRoundPlus size={30} color={authColors.primary} />}
+        </View>
         <Text accessibilityRole="header" style={styles.title}>
           {user ? 'Your account is ready' : 'Start your next adventure'}
         </Text>
@@ -51,35 +53,27 @@ export default function RegistrationScreen() {
             ? `Welcome${user.firstName ? `, ${user.firstName}` : ''}! Your WalkAround account has been created.`
             : 'Create your account with Google and get ready to discover more around you.'}
         </Text>
-        {!user && (
-          <>
-            <GoogleAuthButton
-              disabled={!configured || loading}
-              onCredential={register}
-              onError={setError}
-            />
-            {!configured && <Text style={styles.notice}>Google sign-up is not available yet. Please check back soon.</Text>}
-            {loading && <View style={styles.progress}><ActivityIndicator /><Text>Creating your account…</Text></View>}
-            {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-            <Text style={styles.note}>We use your Google name and photo to get your profile started.</Text>
-          </>
-        )}
-        <Link href="/login" replace style={{ color: '#246448', fontWeight: '600' }}>
-          {user ? 'Continue to sign in' : 'Already have an account? Sign in'}
+      </View>
+      {!user && (
+        <>
+          <GoogleAuthButton
+            intent="register"
+            disabled={!configured || loading}
+            onCredential={register}
+            onError={setError}
+          />
+          {!configured && <Text style={styles.note}>Google sign-up is not available yet. Please check back soon.</Text>}
+          {loading && <View style={styles.progress}><ActivityIndicator color={authColors.primary} /><Text style={styles.progressText}>Creating your account…</Text></View>}
+          {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
+          <Text style={styles.note}>We use your Google name and photo to get your profile started.</Text>
+        </>
+      )}
+      <View style={styles.footer}>
+        {!user && <Text style={styles.description}>Already have an account?</Text>}
+        <Link href="/login" replace style={user ? styles.primaryLink : styles.link}>
+          {user ? 'Continue to sign in' : 'Sign in'}
         </Link>
       </View>
-    </ScrollView>
+    </AuthLayout>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: '#f3f7f5' },
-  card: { width: '100%', maxWidth: 420, alignItems: 'center', paddingVertical: 36, paddingHorizontal: 20, gap: 24, backgroundColor: '#ffffff', borderRadius: 20 },
-  brand: { fontSize: 20, fontWeight: '700', color: '#246448' },
-  title: { fontSize: 30, fontWeight: '700', textAlign: 'center', color: '#17372b' },
-  description: { fontSize: 16, lineHeight: 24, textAlign: 'center', color: '#52635c' },
-  note: { fontSize: 13, lineHeight: 20, textAlign: 'center', color: '#66756e' },
-  notice: { fontSize: 14, textAlign: 'center', color: '#52635c' },
-  error: { fontSize: 14, lineHeight: 20, color: '#a32929', textAlign: 'center' },
-  progress: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-});
