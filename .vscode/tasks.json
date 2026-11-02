@@ -1,0 +1,40 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Map: Docker Smoke Test",
+			"type": "shell",
+			"command": "node",
+			"args": [
+				"services/map-data/manage.mjs",
+				"smoke"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Map: Pull PostGIS",
+			"type": "shell",
+			"command": "docker",
+			"args": [
+				"pull",
+				"--platform",
+				"linux/amd64",
+				"postgis/postgis:17-3.5"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		},
+		{
+			"label": "Map: Pull PostGIS Mirror",
+			"type": "shell",
+			"command": "docker",
+			"args": [
+				"pull",
+				"mirror.gcr.io/postgis/postgis:17-3.5"
+			],
+			"isBackground": false,
+			"problemMatcher": []
+		}
+	]
+}
