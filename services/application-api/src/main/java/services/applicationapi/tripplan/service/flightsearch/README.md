@@ -11,7 +11,7 @@ The request uses an origin airport **IATA code**, destination city name, destina
 3. [`GeoNamesDestinationCityValidator`](GeoNamesDestinationCityValidator.java) searches populated places (`featureClass=P`) within that country and compares the returned name or ASCII name with the requested city. This validates the city without relying on the local municipality/airport dataset.
 4. [`SerpApiFlightCityProvider`](SerpApiFlightCityProvider.java) queries the Google Flights Autocomplete engine using the validated city and country names. It accepts a matching `type=city` suggestion and returns its Google location ID (`/m/...` or `/g/...`). The flight searches pass that ID as the destination; Google Flights chooses the airports. Spelling comparison uses `CityNameNormalizer`, not language translation.
 
-The separate `cityairport` package is not used to find destination airports for this flow. A budget below EUR 1 returns an empty list after GeoNames validation and before the SerpApi city lookup.
+The separate `cityairport` package is not used to find destination airports for this flow. The saved-plan service also uses `DestinationCityValidator` to validate both departure and destination cities when a user stores a search preset. A budget below EUR 1 returns an empty list after GeoNames validation and before the SerpApi city lookup.
 
 ## Search and price assembly
 
