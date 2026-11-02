@@ -1,0 +1,3 @@
+# Trip planning page
+
+`TripPlanningScreen` is a single-page, mobile-first onboarding flow. Users explicitly search for and select GeoNames city suggestions, choose a local departure airport, enter budget, departure dates and times, nights, and ticket style, then inspect selectable flight cards on the same page. Dates are chosen through `components/CalendarPicker.tsx`; budget, night count, and time fields strip nonnumeric input. Changing an input hides outdated offers. Each card expands to show every outbound and return segment and safe Google Flights links from the backend. The page is available at `/trip-plan` and requires a signed-in session.

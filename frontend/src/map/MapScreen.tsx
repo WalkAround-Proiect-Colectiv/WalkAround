@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import * as Location from 'expo-location';
-import { Compass, LocateFixed, Minus, Plus, RotateCcw, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -21,6 +21,7 @@ function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string;
 }
 
 export default function MapScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const map = useRef<MapHandle>(null);
   const [style, setStyle] = useState<StyleSpecification | null>(null);
@@ -29,6 +30,7 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
@@ -73,9 +75,28 @@ export default function MapScreen() {
 
   return <View style={styles.screen}>
     <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-      <View style={styles.heading}><Compass size={28} color="#0065EB" /><Text style={styles.brand}>WalkAround</Text></View>
+      <View style={styles.heading}>
+        <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close menu' : 'Open menu'}
+          accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
+          {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
+        </Pressable>
+        <Text style={styles.brand}>WalkAround</Text>
+      </View>
       <Link href="/login" accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
     </View>
+    {menuOpen && <View style={styles.menuPanel}>
+      <Pressable accessibilityRole="button" onPress={() => setMenuOpen(false)} style={styles.menuItem}>
+        <Compass size={20} color="#0065EB" /><Text style={styles.menuItemText}>Explore map</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
+        <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
+        accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
+        <Heart size={20} color="#8c96a4" /><Text style={styles.menuItemTextDisabled}>My future</Text>
+        <Text style={styles.menuComingSoon}>Coming soon</Text>
+      </Pressable>
+    </View>}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presets} contentContainerStyle={styles.presetContent}>
       {PLACES.map(place => <Pressable key={place.name} accessibilityRole="button" accessibilityLabel={`View ${place.name}`}
         disabled={!style || loading} onPress={() => place.name === 'Romania' ? map.current?.fitCoverage() : map.current?.goTo(place)} style={styles.place}>
@@ -108,6 +129,13 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#ffffff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#e5e8ed' },
   heading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  menuButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: '#eef5ff' },
+  menuPanel: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#e5e8ed', gap: 2 },
+  menuItem: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
+  menuItemText: { color: '#263241', fontSize: 15, fontWeight: '700' },
+  menuItemDisabled: { opacity: 0.72 },
+  menuItemTextDisabled: { color: '#758091', fontSize: 15, fontWeight: '700' },
+  menuComingSoon: { marginLeft: 'auto', color: '#8c96a4', fontSize: 11, fontWeight: '600' },
   brand: { fontSize: 22, fontWeight: '700', color: '#0065EB' },
   account: { padding: 10 },
   presets: { flexGrow: 0, flexShrink: 0, height: 54, borderBottomWidth: 1, borderColor: '#e5e8ed' },
