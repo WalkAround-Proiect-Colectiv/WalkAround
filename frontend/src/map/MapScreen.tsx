@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
+import { useSession } from '../login/components/SessionProvider';
 import * as Location from 'expo-location';
 import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
@@ -21,6 +22,7 @@ function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string;
 }
 
 export default function MapScreen() {
+  const { session } = useSession();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const map = useRef<MapHandle>(null);
@@ -79,7 +81,7 @@ export default function MapScreen() {
         <Compass size={28} color="#0065EB" />
         <Text style={styles.brand}>WalkAround</Text>
       </View>
-      <Link href="/login" accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
+      <Link href={session ? '/home' : '/login'} accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presets} contentContainerStyle={styles.presetContent}>
       {PLACES.map(place => <Pressable key={place.name} accessibilityRole="button" accessibilityLabel={`View ${place.name}`}
