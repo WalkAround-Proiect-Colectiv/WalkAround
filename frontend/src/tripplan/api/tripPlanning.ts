@@ -37,6 +37,54 @@ export interface PlaceRecommendationPage {
   nextPage: number | null;
 }
 
+export interface SafetyAdvisorySource {
+  agency: string | null;
+  level: number | null;
+  summary: string | null;
+  url: string | null;
+  updatedAt: string | null;
+}
+
+export interface SafetyAdvisory {
+  maxLevel: number | null;
+  summary: string | null;
+  sources: SafetyAdvisorySource[];
+}
+
+export interface SafetyAlert {
+  id: number | null;
+  type: string | null;
+  severity: string | null;
+  location: string | null;
+  description: string | null;
+  eventDate: string | null;
+  source: string | null;
+  distanceKm: number;
+}
+
+export interface SafetyConflict {
+  id: number | null;
+  severity: string | null;
+  location: string | null;
+  description: string | null;
+  eventDate: string | null;
+  sourceUrl: string | null;
+  distanceKm: number;
+}
+
+export interface DestinationSafety {
+  city: string;
+  country: string;
+  countryCode: string;
+  nearbyRadiusKm: number;
+  checkedAt: string;
+  advisory: SafetyAdvisory | null;
+  alerts: SafetyAlert[];
+  conflicts: SafetyConflict[];
+  alertsPartial: boolean;
+  conflictsPartial: boolean;
+}
+
 export type PlaceCategory = 'attractions' | 'restaurants' | 'museums' | 'coffee-shops';
 
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
@@ -188,6 +236,12 @@ export function getPlaceRecommendations(
   const name = encodeURIComponent(city.lookupName || city.name);
   const country = encodeURIComponent(city.countryCode);
   return send(`/api/trip-plans/cities/${name}/${category}?countryCode=${country}&page=${page}`);
+}
+
+export function getDestinationSafety(city: CitySuggestion): Promise<DestinationSafety> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/safety?countryCode=${country}`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
