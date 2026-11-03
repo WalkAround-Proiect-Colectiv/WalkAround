@@ -5,21 +5,26 @@ import {
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, ArrowRight, BedDouble, BookmarkCheck, BookmarkPlus, CalendarDays, Check, ExternalLink, MapPin,
+  ArrowLeft, ArrowRight, BedDouble, BookmarkCheck, BookmarkPlus, CalendarDays, Check, Compass, ExternalLink, MapPin,
   Plane, Search, Sparkles, Ticket, Wallet,
 } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import CalendarPicker from '../components/CalendarPicker';
 import AccommodationOfferCard from '../components/AccommodationOfferCard';
+import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import {
-  getCityAirports, saveTripPlan, searchAccommodations, searchCities, searchFlights,
+  getCityAirports, getTouristAttractions, saveTripPlan, searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type SavedTripPlan, type TicketOption,
+  type PlaceRecommendation, type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
 const PURPLE = '#23012C';
 const INK = '#202632';
+
+const PLACE_CATEGORIES = [
+  { id: 'tourist-attractions', label: 'Tourist attractions', load: getTouristAttractions },
+];
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
@@ -314,6 +319,8 @@ export default function TripPlanningScreen() {
   const accommodationRequestId = useRef(0);
   const saveRequestId = useRef(0);
   const savePending = useRef(false);
+  const placeRequestId = useRef(0);
+  const placePending = useRef(false);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -346,6 +353,65 @@ export default function TripPlanningScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedPlan, setSavedPlan] = useState<SavedTripPlan | null>(null);
   const [hasSavedBefore, setHasSavedBefore] = useState(false);
+  const [placeCategory, setPlaceCategory] = useState(PLACE_CATEGORIES[0].id);
+  const [placesByCategory, setPlacesByCategory] = useState<Record<string, PlaceRecommendation[]>>({});
+  const [placesBusy, setPlacesBusy] = useState(false);
+  const [placesError, setPlacesError] = useState<string | null>(null);
+
+  function clearPlaces() {
+    placeRequestId.current += 1;
+    placePending.current = false;
+    setPlacesByCategory({});
+    setPlacesBusy(false);
+    setPlacesError(null);
+    setPlaceCategory(PLACE_CATEGORIES[0].id);
+  }
+
+  async function loadPlaces(city: CitySuggestion, categoryId: string) {
+    const category = PLACE_CATEGORIES.find((item) => item.id === categoryId);
+    if (!category || placePending.current) return;
+
+    const requestId = ++placeRequestId.current;
+    placePending.current = true;
+    setPlacesBusy(true);
+    setPlacesError(null);
+
+    try {
+      const places = await category.load(city);
+      if (placeRequestId.current === requestId) {
+        setPlacesByCategory((current) => ({ ...current, [categoryId]: places }));
+      }
+    } catch (reason) {
+      if (placeRequestId.current === requestId) setPlacesError(message(reason));
+    } finally {
+      if (placeRequestId.current === requestId) {
+        placePending.current = false;
+        setPlacesBusy(false);
+      }
+    }
+  }
+
+  function selectDestination(city: CitySuggestion) {
+    clearPlaces();
+    setDestinationCity(city);
+    clearTickets();
+    clearAccommodations();
+    void loadPlaces(city, PLACE_CATEGORIES[0].id);
+  }
+
+  function changeDestination() {
+    clearPlaces();
+    setDestinationCity(null);
+    clearTickets();
+    clearAccommodations();
+  }
+
+  function selectPlaceCategory(categoryId: string) {
+    if (!destinationCity || placesBusy || categoryId === placeCategory) return;
+    setPlaceCategory(categoryId);
+    setPlacesError(null);
+    if (!(categoryId in placesByCategory)) void loadPlaces(destinationCity, categoryId);
+  }
 
   function clearSavedPlan() {
     saveRequestId.current += 1;
@@ -630,8 +696,7 @@ export default function TripPlanningScreen() {
 
           <View style={styles.routeDivider}><View style={styles.dividerLine} /><Plane size={17} color={PURPLE} /><View style={styles.dividerLine} /></View>
           <CityPicker label="Going to" hint="Choose your destination city"
-            selected={destinationCity} onSelect={(city) => { setDestinationCity(city); clearTickets(); clearAccommodations(); }}
-            onChange={() => { setDestinationCity(null); clearTickets(); clearAccommodations(); }} />
+            selected={destinationCity} onSelect={selectDestination} onChange={changeDestination} />
         </View>
 
         <View style={styles.card}>
@@ -774,6 +839,43 @@ export default function TripPlanningScreen() {
             <Text style={styles.primaryButtonText}>{saveBusy ? 'Saving trip…' : savedPlan ? 'Trip saved' : hasSavedBefore ? 'Save as new plan' : 'Save trip plan'}</Text>
           </Pressable>
         </View>
+
+        <View style={styles.card}>
+          <View style={styles.stepRow}><Text style={styles.stepNumber}>05</Text><Text style={styles.stepLabel}>EXPLORE YOUR DESTINATION</Text></View>
+          <View style={styles.sectionHeading}>
+            <View style={styles.iconBubble}><Compass size={20} color={BLUE} /></View>
+            <View style={styles.headingCopy}>
+              <Text style={styles.sectionTitle}>Places to explore</Text>
+              <Text style={styles.helper}>{destinationCity
+                ? `Ideas around ${destinationCity.name}, ${destinationCity.country}`
+                : 'Choose a destination city to see recommendations'}</Text>
+            </View>
+          </View>
+          {destinationCity && <>
+            <View style={styles.placeCategories}>
+              {PLACE_CATEGORIES.map((category) => <Pressable key={category.id} accessibilityRole="tab"
+                accessibilityState={{ selected: placeCategory === category.id, disabled: placesBusy }}
+                disabled={placesBusy} onPress={() => selectPlaceCategory(category.id)}
+                style={[styles.placeCategory, placeCategory === category.id && styles.placeCategorySelected]}>
+                <Text style={[styles.placeCategoryText, placeCategory === category.id && styles.placeCategoryTextSelected]}>{category.label}</Text>
+              </Pressable>)}
+            </View>
+            {placesBusy && <View accessibilityLiveRegion="polite" style={styles.placeStatus}>
+              <ActivityIndicator color={BLUE} />
+              <Text style={styles.helper}>Finding places around {destinationCity.name}…</Text>
+            </View>}
+            {placesError && <View style={styles.placeStatus}>
+              <Text accessibilityRole="alert" style={styles.errorText}>{placesError}</Text>
+              <Pressable accessibilityRole="button" onPress={() => loadPlaces(destinationCity, placeCategory)}
+                style={styles.placeRetry}><Text style={styles.placeRetryText}>Try again</Text></Pressable>
+            </View>}
+            {!placesBusy && !placesError && placesByCategory[placeCategory]?.length === 0 &&
+              <Text style={styles.emptyText}>No places found for this category. Try another destination.</Text>}
+            {placesByCategory[placeCategory]?.map((place, index) => <PlaceRecommendationCard
+              key={`${place.name}-${place.mapsUrl}-${index}`} place={place} />)}
+            <Text style={styles.helper}>Recommendations can include nearby places. Check opening times and details before visiting.</Text>
+          </>}
+        </View>
       </View>
     </ScrollView>
   </View>;
@@ -898,4 +1000,12 @@ const styles = StyleSheet.create({
   linkNote: { color: '#697587', fontSize: 12, lineHeight: 18 },
   linkButton: { minHeight: 44, borderRadius: 13, backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, paddingHorizontal: 12 },
   linkButtonText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  placeCategories: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  placeCategory: { borderRadius: 18, borderWidth: 1, borderColor: '#DCE5F0', paddingHorizontal: 14, paddingVertical: 10, backgroundColor: '#F8FAFD' },
+  placeCategorySelected: { borderColor: BLUE, backgroundColor: '#EAF3FF' },
+  placeCategoryText: { color: '#566276', fontSize: 13, fontWeight: '700' },
+  placeCategoryTextSelected: { color: BLUE },
+  placeStatus: { gap: 11, paddingVertical: 10, alignItems: 'flex-start' },
+  placeRetry: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#B5D1FA', justifyContent: 'center', paddingHorizontal: 14 },
+  placeRetryText: { color: BLUE, fontSize: 13, fontWeight: '800' },
 });

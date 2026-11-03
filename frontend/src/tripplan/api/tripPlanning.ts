@@ -18,6 +18,20 @@ export interface Airport {
   longitude: number;
 }
 
+export interface PlaceRecommendation {
+  name: string;
+  category: string | null;
+  address: string | null;
+  description: string | null;
+  rating: number | null;
+  reviews: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  mapsUrl: string;
+  imageUrl: string | null;
+  websiteUrl: string | null;
+}
+
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
 
 export interface FlightSegment {
@@ -159,6 +173,12 @@ export function getCityAirports(city: CitySuggestion): Promise<Airport[]> {
   const name = encodeURIComponent(city.lookupName || city.name);
   const country = encodeURIComponent(city.countryCode);
   return send(`/api/trip-plans/cities/${name}/airports?countryCode=${country}`);
+}
+
+export function getTouristAttractions(city: CitySuggestion): Promise<PlaceRecommendation[]> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/attractions?countryCode=${country}`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
