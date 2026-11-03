@@ -41,7 +41,10 @@ export default function MapScreen() {
   const [zoneModalVisible, setZoneModalVisible] = useState(false);
   const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
   const [selectedZoneInfo, setSelectedZoneInfo] = useState<{ categories: string[], intensity: number } | null>(null);
-  const [dangerousZonesData, setDangerousZonesData] = useState<any>(null);
+  const [dangerousZonesData, setDangerousZonesData] = useState<any>({
+    type: 'FeatureCollection',
+    features: []
+  });
   
   useEffect(() => {
     if (!style) return;
