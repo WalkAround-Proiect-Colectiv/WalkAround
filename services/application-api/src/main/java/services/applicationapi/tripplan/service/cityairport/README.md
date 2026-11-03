@@ -10,3 +10,5 @@ Matching has two stages:
 The repository query is intentionally simple; the normalization is performed in Java, so PostgreSQL `unaccent` is not required. The service returns `[]` if no municipality or airport matches. The `AirportResponse` may contain a null IATA code because the database column is nullable.
 
 The import script `scripts/airports_data/import_airports.py` currently loads EU member countries and **large airports only**. This endpoint describes that local dataset; it is not the destination-airport resolver for flight search, which instead passes a Google Flights city ID to SerpApi.
+
+The saved-plan service reuses `CityAirportService.findAirports` when creating a plan. It verifies that the chosen origin IATA code appears in the selected GeoNames departure city's local airport results. The saved departure city and country code can be used with this lookup again when the user wants another origin airport.
