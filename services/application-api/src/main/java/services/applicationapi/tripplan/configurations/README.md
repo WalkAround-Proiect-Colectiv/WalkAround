@@ -17,7 +17,8 @@ The properties records bind under `app.trip-plan` in `src/main/resources/applica
 | `FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS` | Maximum calendar dates covered by one departure interval | `7` |
 | `ACCOMMODATION_PROVIDER` | Selects the `AccommodationSearchProvider` implementation | `serpapi` |
 | `ACCOMMODATION_SEARCH_MAX_RESULTS` | Maximum accommodation offers returned | `3` |
+| `ATTRACTION_PROVIDER` | Selects the shared `AttractionSearchProvider` implementation for all place categories | `serpapi` |
 
-The properties constructors reject non-HTTPS provider URLs, non-positive timeouts, and out-of-range limits. The SerpApi providers require a configured API key. A different flight provider must implement both the flight-search and Flights-city lookup interfaces, or supply equivalent beans. A different accommodation provider implements `AccommodationSearchProvider`.
+The properties constructors reject non-HTTPS provider URLs, non-positive timeouts, and out-of-range limits. The SerpApi providers require a configured API key. A different flight provider must implement both the flight-search and Flights-city lookup interfaces, or supply equivalent beans. A different accommodation provider implements `AccommodationSearchProvider`; a different place provider implements `AttractionSearchProvider` for both categories. Place search reuses the existing qualified SerpApi and GeoNames clients, so no new external URL or timeout setting is needed.
 
 Put real credentials only in the local `services/application-api/.env`; keep `services/application-api/.env.example` synchronized with new keys. Never log provider request URLs or raw exceptions that might contain the API key.
