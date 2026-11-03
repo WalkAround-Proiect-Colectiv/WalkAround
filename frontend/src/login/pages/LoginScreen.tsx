@@ -26,7 +26,7 @@ export default function LoginScreen() {
   }
 
   if (!ready) return <AuthLayout><ActivityIndicator color={authColors.primary} accessibilityLabel="Restoring session" /><Text style={styles.description}>Getting your account ready…</Text></AuthLayout>;
-  if (session) return <Redirect href="/home" />;
+  if (session) return <Redirect href="/map" />;
   return (
     <AuthLayout>
       <View style={styles.intro}>
