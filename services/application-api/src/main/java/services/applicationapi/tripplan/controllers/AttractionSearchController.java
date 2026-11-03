@@ -48,6 +48,15 @@ public class AttractionSearchController {
         return search(city, countryCode, page, PlaceCategory.MUSEUMS);
     }
 
+    @GetMapping("/{city}/coffee-shops")
+    public ResponseEntity<PlaceRecommendationPageResponse> coffeeShops(
+            @PathVariable String city,
+            @RequestParam String countryCode,
+            @RequestParam(defaultValue = "0") int page
+    ) {
+        return search(city, countryCode, page, PlaceCategory.COFFEE_SHOPS);
+    }
+
     private ResponseEntity<PlaceRecommendationPageResponse> search(
             String city, String countryCode, int page, PlaceCategory category
     ) {
