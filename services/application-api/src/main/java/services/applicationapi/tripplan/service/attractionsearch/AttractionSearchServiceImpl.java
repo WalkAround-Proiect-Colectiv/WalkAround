@@ -5,8 +5,8 @@ import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import services.applicationapi.tripplan.dto.AttractionResponse;
-import services.applicationapi.tripplan.dto.AttractionPageResponse;
+import services.applicationapi.tripplan.dto.PlaceRecommendationPageResponse;
+import services.applicationapi.tripplan.dto.PlaceRecommendationResponse;
 import services.applicationapi.tripplan.service.accommodationsearch.AccommodationCityValidator;
 import services.applicationapi.tripplan.service.exceptions.AccommodationSearchUnavailableException;
 import services.applicationapi.tripplan.service.exceptions.AttractionSearchUnavailableException;
@@ -32,7 +32,7 @@ public class AttractionSearchServiceImpl implements AttractionSearchService {
     }
 
     @Override
-    public AttractionPageResponse search(String city, String countryCode, int page) {
+    public PlaceRecommendationPageResponse search(String city, String countryCode, int page, PlaceCategory category) {
         if (city == null || city.isBlank() || city.length() > 100
                 || city.codePoints().anyMatch(Character::isISOControl)) {
             throw new InvalidAttractionSearchException("City must contain 1 to 100 valid characters");
@@ -56,38 +56,39 @@ public class AttractionSearchServiceImpl implements AttractionSearchService {
         } catch (InvalidAccommodationSearchException exception) {
             throw new InvalidAttractionSearchException("City was not found in the selected European country");
         } catch (AccommodationSearchUnavailableException exception) {
-            throw new AttractionSearchUnavailableException("Attraction city validation is unavailable", exception);
+            throw new AttractionSearchUnavailableException("Place city validation is unavailable", exception);
         }
 
         if (validated.latitude() == null || validated.longitude() == null
                 || !Double.isFinite(validated.latitude()) || !Double.isFinite(validated.longitude())
                 || Math.abs(validated.latitude()) > 90 || Math.abs(validated.longitude()) > 180) {
-            log.warn("GeoNames returned invalid coordinates for attraction search");
-            throw new AttractionSearchUnavailableException("Attraction city validation is unavailable");
+            log.warn("GeoNames returned invalid coordinates for place search");
+            throw new AttractionSearchUnavailableException("Place city validation is unavailable");
         }
 
         AttractionSearchProvider.Page providerPage = provider.search(
-                validated.name(), validated.countryName(), validated.latitude(), validated.longitude(), page);
-        List<AttractionResponse> results = providerPage.items()
+                validated.name(), validated.countryName(), validated.latitude(), validated.longitude(), page, category);
+        List<PlaceRecommendationResponse> results = providerPage.items()
                 .stream()
-                .filter(attraction -> attraction.name() != null && !attraction.name().isBlank())
-                .map(attraction -> new AttractionResponse(
-                        attraction.name(),
-                        attraction.category(),
-                        attraction.address(),
-                        attraction.description(),
-                        attraction.rating(),
-                        attraction.reviews(),
-                        attraction.latitude(),
-                        attraction.longitude(),
-                        attraction.mapsUrl(),
-                        attraction.imageUrl(),
-                        attraction.websiteUrl()
+                .filter(place -> place.name() != null && !place.name().isBlank())
+                .map(place -> new PlaceRecommendationResponse(
+                        place.name(),
+                        place.category(),
+                        place.address(),
+                        place.description(),
+                        place.rating(),
+                        place.reviews(),
+                        place.latitude(),
+                        place.longitude(),
+                        place.mapsUrl(),
+                        place.imageUrl(),
+                        place.websiteUrl()
                 ))
                 .toList();
 
         Integer nextPage = providerPage.hasNext() && page < MAX_PAGE ? page + 1 : null;
-        log.debug("Found {} attraction recommendations for country {} on page {}", results.size(), normalizedCountryCode, page);
-        return new AttractionPageResponse(results, nextPage);
+        log.debug("Found {} {} recommendations for country {} on page {}",
+                results.size(), category, normalizedCountryCode, page);
+        return new PlaceRecommendationPageResponse(results, nextPage);
     }
 }

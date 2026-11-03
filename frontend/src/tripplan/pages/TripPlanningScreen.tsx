@@ -13,17 +13,18 @@ import CalendarPicker from '../components/CalendarPicker';
 import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import {
-  getCityAirports, getTouristAttractions, saveTripPlan, searchAccommodations, searchCities, searchFlights,
+  getCityAirports, getPlaceRecommendations, saveTripPlan, searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type PlaceRecommendationPage, type SavedTripPlan, type TicketOption,
+  type PlaceCategory, type PlaceRecommendationPage, type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
 const PURPLE = '#23012C';
 const INK = '#202632';
 
-const PLACE_CATEGORIES = [
-  { id: 'tourist-attractions', label: 'Tourist attractions', load: getTouristAttractions },
+const PLACE_CATEGORIES: { id: PlaceCategory; label: string }[] = [
+  { id: 'attractions', label: 'Tourist attractions' },
+  { id: 'restaurants', label: 'Restaurants' },
 ];
 
 function message(error: unknown): string {
@@ -353,8 +354,8 @@ export default function TripPlanningScreen() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [savedPlan, setSavedPlan] = useState<SavedTripPlan | null>(null);
   const [hasSavedBefore, setHasSavedBefore] = useState(false);
-  const [placeCategory, setPlaceCategory] = useState(PLACE_CATEGORIES[0].id);
-  const [placesByCategory, setPlacesByCategory] = useState<Record<string, PlaceRecommendationPage>>({});
+  const [placeCategory, setPlaceCategory] = useState<PlaceCategory>(PLACE_CATEGORIES[0].id);
+  const [placesByCategory, setPlacesByCategory] = useState<Partial<Record<PlaceCategory, PlaceRecommendationPage>>>({});
   const [placesBusy, setPlacesBusy] = useState(false);
   const [loadingPlacePage, setLoadingPlacePage] = useState<number | null>(null);
   const [placesError, setPlacesError] = useState<string | null>(null);
@@ -369,9 +370,8 @@ export default function TripPlanningScreen() {
     setPlaceCategory(PLACE_CATEGORIES[0].id);
   }
 
-  async function loadPlaces(city: CitySuggestion, categoryId: string, page = 0) {
-    const category = PLACE_CATEGORIES.find((item) => item.id === categoryId);
-    if (!category || placePending.current) return;
+  async function loadPlaces(city: CitySuggestion, categoryId: PlaceCategory, page = 0) {
+    if (placePending.current) return;
 
     const requestId = ++placeRequestId.current;
     placePending.current = true;
@@ -380,7 +380,7 @@ export default function TripPlanningScreen() {
     setPlacesError(null);
 
     try {
-      const places = await category.load(city, page);
+      const places = await getPlaceRecommendations(city, categoryId, page);
       if (placeRequestId.current === requestId) {
         setPlacesByCategory((current) => {
           const previous = current[categoryId]?.items ?? [];
@@ -425,7 +425,7 @@ export default function TripPlanningScreen() {
     clearAccommodations();
   }
 
-  function selectPlaceCategory(categoryId: string) {
+  function selectPlaceCategory(categoryId: PlaceCategory) {
     if (!destinationCity || placesBusy || categoryId === placeCategory) return;
     setPlaceCategory(categoryId);
     setPlacesError(null);

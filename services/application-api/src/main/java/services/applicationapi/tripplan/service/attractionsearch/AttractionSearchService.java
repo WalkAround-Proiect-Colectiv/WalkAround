@@ -1,8 +1,8 @@
 package services.applicationapi.tripplan.service.attractionsearch;
 
-import services.applicationapi.tripplan.dto.AttractionPageResponse;
+import services.applicationapi.tripplan.dto.PlaceRecommendationPageResponse;
 
 public interface AttractionSearchService {
 
-    AttractionPageResponse search(String city, String countryCode, int page);
+    PlaceRecommendationPageResponse search(String city, String countryCode, int page, PlaceCategory category);
 }

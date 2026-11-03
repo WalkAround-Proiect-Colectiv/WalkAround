@@ -35,13 +35,13 @@ public class AttractionSearchExceptionHandler {
 
     @ExceptionHandler(AttractionSearchUnavailableException.class)
     ResponseEntity<ProblemDetail> handleProviderFailure() {
-        return problem(HttpStatus.BAD_GATEWAY, "Attraction search is temporarily unavailable");
+        return problem(HttpStatus.BAD_GATEWAY, "Place recommendations are temporarily unavailable");
     }
 
     @ExceptionHandler(Exception.class)
     ResponseEntity<ProblemDetail> handleUnexpected(Exception exception) {
-        log.error("Unexpected attraction search failure", exception);
-        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Attractions could not be retrieved");
+        log.error("Unexpected place recommendation failure", exception);
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "Place recommendations could not be retrieved");
     }
 
     private ResponseEntity<ProblemDetail> problem(HttpStatus status, String detail) {

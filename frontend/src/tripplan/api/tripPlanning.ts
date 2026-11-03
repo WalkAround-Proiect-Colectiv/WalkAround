@@ -37,6 +37,8 @@ export interface PlaceRecommendationPage {
   nextPage: number | null;
 }
 
+export type PlaceCategory = 'attractions' | 'restaurants';
+
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
 
 export interface FlightSegment {
@@ -180,10 +182,12 @@ export function getCityAirports(city: CitySuggestion): Promise<Airport[]> {
   return send(`/api/trip-plans/cities/${name}/airports?countryCode=${country}`);
 }
 
-export function getTouristAttractions(city: CitySuggestion, page = 0): Promise<PlaceRecommendationPage> {
+export function getPlaceRecommendations(
+  city: CitySuggestion, category: PlaceCategory, page = 0,
+): Promise<PlaceRecommendationPage> {
   const name = encodeURIComponent(city.lookupName || city.name);
   const country = encodeURIComponent(city.countryCode);
-  return send(`/api/trip-plans/cities/${name}/attractions?countryCode=${country}&page=${page}`);
+  return send(`/api/trip-plans/cities/${name}/${category}?countryCode=${country}&page=${page}`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {

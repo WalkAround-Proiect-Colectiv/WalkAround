@@ -5,12 +5,12 @@ import java.util.List;
 
 public interface AttractionSearchProvider {
 
-    Page search(String city, String country, double latitude, double longitude, int page);
+    Page search(String city, String country, double latitude, double longitude, int page, PlaceCategory category);
 
-    record Page(List<Attraction> items, boolean hasNext) {
+    record Page(List<Place> items, boolean hasNext) {
     }
 
-    record Attraction(
+    record Place(
             String name,
             String category,
             String address,

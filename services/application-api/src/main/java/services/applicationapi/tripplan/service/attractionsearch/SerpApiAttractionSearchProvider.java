@@ -44,7 +44,7 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
     }
 
     @Override
-    public Page search(String city, String country, double latitude, double longitude, int page) {
+    public Page search(String city, String country, double latitude, double longitude, int page, PlaceCategory category) {
         SerpApiResponse response;
 
         try {
@@ -58,34 +58,34 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
                             .queryParam("hl", "en")
                             .queryParam("api_key", "{apiKey}")
                             .build(Map.of(
-                                    "query", "top-rated tourist attractions in " + city + ", " + country,
+                                    "query", category.searchTerm() + " in " + city + ", " + country,
                                     "location", String.format(Locale.ROOT, "@%s,%s,14z", latitude, longitude),
                                     "apiKey", properties.serpApiKey()
                             )))
                     .retrieve()
                     .body(SerpApiResponse.class);
         } catch (RestClientException | IllegalArgumentException exception) {
-            log.warn("SerpApi attraction search failed: {}", exception.getClass().getSimpleName());
-            throw new AttractionSearchUnavailableException("Attraction search is temporarily unavailable", exception);
+            log.warn("SerpApi {} search failed: {}", category, exception.getClass().getSimpleName());
+            throw new AttractionSearchUnavailableException("Place search is temporarily unavailable", exception);
         }
 
         if (response == null || response.searchMetadata() == null
                 || !"Success".equals(response.searchMetadata().status())) {
-            log.warn("SerpApi returned an unsuccessful attraction search response (status={})",
+            log.warn("SerpApi returned an unsuccessful {} search response (status={})", category,
                     response == null || response.searchMetadata() == null
                             ? "missing" : response.searchMetadata().status());
-            throw new AttractionSearchUnavailableException("Attraction search is temporarily unavailable");
+            throw new AttractionSearchUnavailableException("Place search is temporarily unavailable");
         }
 
         if (response.localResults() == null) {
-            log.debug("SerpApi attraction search returned no local results");
+            log.debug("SerpApi {} search returned no local results", category);
             return new Page(List.of(), false);
         }
 
-        List<Attraction> attractions = response.localResults().stream()
+        List<Place> places = response.localResults().stream()
                 .filter(Objects::nonNull)
                 .filter(result -> result.title() != null && !result.title().isBlank())
-                .map(result -> new Attraction(
+                .map(result -> new Place(
                         result.title(),
                         result.type(),
                         result.address(),
@@ -103,9 +103,9 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
         boolean hasNext = response.pagination() != null
                 && response.pagination().next() != null
                 && !response.pagination().next().isBlank();
-        log.debug("SerpApi returned {} attraction candidates on page {} (hasNext={})",
-                attractions.size(), page, hasNext);
-        return new Page(attractions, hasNext);
+        log.debug("SerpApi returned {} {} candidates on page {} (hasNext={})",
+                places.size(), category, page, hasNext);
+        return new Page(places, hasNext);
     }
 
     private Double latitude(GpsCoordinates coordinates) {

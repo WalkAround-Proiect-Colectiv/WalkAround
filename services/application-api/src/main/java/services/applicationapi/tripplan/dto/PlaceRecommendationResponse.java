@@ -2,7 +2,7 @@ package services.applicationapi.tripplan.dto;
 
 import java.math.BigDecimal;
 
-public record AttractionResponse(
+public record PlaceRecommendationResponse(
         String name,
         String category,
         String address,
