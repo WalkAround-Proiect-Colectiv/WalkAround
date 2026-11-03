@@ -49,6 +49,38 @@ export interface FlightSearchInput {
   ticketOption: TicketOption;
 }
 
+export interface AccommodationSearchInput {
+  destinationCity: string;
+  countryCode: string;
+  checkInDate: string;
+  stayingNights: number;
+  budget: number;
+}
+
+export interface AccommodationBookingOption {
+  source: string;
+  totalPrice: number;
+  currency: string;
+  bookingUrl: string;
+}
+
+export interface AccommodationOffer {
+  name: string;
+  propertyType: string | null;
+  totalPrice: number;
+  currency: string;
+  checkInDate: string;
+  checkOutDate: string;
+  propertyWebsiteUrl: string | null;
+  description: string | null;
+  address: string | null;
+  overallRating: number | null;
+  reviews: number | null;
+  amenities: string[];
+  roomTypes: string[];
+  bookingOptions: AccommodationBookingOption[];
+}
+
 async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!environment.apiBaseUrl) {
     throw new Error('The trip planner is not configured yet.');
@@ -86,7 +118,7 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
     return await response.json() as T;
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error('The search took too long. Please try a shorter departure period.');
+      throw new Error('The search took too long. Please try again.');
     }
     if (error instanceof TypeError) {
       throw new Error('Could not reach WalkAround. Check your connection.');
@@ -109,6 +141,14 @@ export function getCityAirports(city: CitySuggestion): Promise<Airport[]> {
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
   return send('/api/trip-plans/flight-searches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function searchAccommodations(input: AccommodationSearchInput): Promise<AccommodationOffer[]> {
+  return send('/api/trip-plans/accommodation-searches', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

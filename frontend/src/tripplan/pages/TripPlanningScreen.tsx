@@ -5,14 +5,15 @@ import {
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, ArrowRight, CalendarDays, Check, ExternalLink, MapPin,
+  ArrowLeft, ArrowRight, BedDouble, CalendarDays, Check, ExternalLink, MapPin,
   Plane, Search, Sparkles, Ticket, Wallet,
 } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import CalendarPicker from '../components/CalendarPicker';
+import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import {
-  getCityAirports, searchCities, searchFlights,
-  type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment, type TicketOption,
+  getCityAirports, searchAccommodations, searchCities, searchFlights,
+  type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment, type TicketOption,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
@@ -219,6 +220,12 @@ function validDateTime(date: string, time: string): boolean {
     `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}` === date;
 }
 
+function ticketDepartureDate(ticket: FlightItinerary | undefined): string | null {
+  const departure = ticket?.outbound?.[0]?.departureTime;
+  const date = departure?.slice(0, 10);
+  return date && validDateTime(date, '12:00') ? date : null;
+}
+
 function timeLabel(value: string): string {
   return value ? value.replace('T', ' · ') : 'Time unavailable';
 }
@@ -302,6 +309,7 @@ export default function TripPlanningScreen() {
   const { session, ready } = useSession();
   const airportRequestId = useRef(0);
   const flightRequestId = useRef(0);
+  const accommodationRequestId = useRef(0);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -319,12 +327,91 @@ export default function TripPlanningScreen() {
   const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [checkInDate, setCheckInDate] = useState('');
+  const [checkInSource, setCheckInSource] = useState<'ticket' | 'calendar' | null>(null);
+  const [checkInCalendarOpen, setCheckInCalendarOpen] = useState(false);
+  const [accommodationBudget, setAccommodationBudget] = useState('');
+  const [accommodations, setAccommodations] = useState<AccommodationOffer[] | null>(null);
+  const [accommodationBusy, setAccommodationBusy] = useState(false);
+  const [accommodationError, setAccommodationError] = useState<string | null>(null);
+
+  function clearAccommodations() {
+    accommodationRequestId.current += 1;
+    setAccommodations(null);
+    setAccommodationError(null);
+  }
 
   function clearTickets() {
     flightRequestId.current += 1;
     setTickets(null);
     setSelectedTicket(null);
     setFormError(null);
+    if (checkInSource === 'ticket') {
+      setCheckInDate('');
+      setCheckInSource(null);
+      clearAccommodations();
+    }
+  }
+
+  function chooseTicket(index: number) {
+    if (selectedTicket === index) {
+      setSelectedTicket(null);
+      if (checkInSource === 'ticket') setCheckInSource('calendar');
+      return;
+    }
+
+    setSelectedTicket(index);
+    const date = ticketDepartureDate(tickets?.[index]);
+    if (date) {
+      setCheckInDate(date);
+      setCheckInSource('ticket');
+      clearAccommodations();
+    } else if (checkInSource === 'ticket') {
+      setCheckInDate('');
+      setCheckInSource(null);
+      clearAccommodations();
+    }
+  }
+
+  async function submitAccommodations() {
+    if (accommodationBusy) return;
+    setAccommodationError(null);
+    if (!destinationCity) {
+      setAccommodationError('Choose a destination city first.');
+      return;
+    }
+    if (!validDateTime(checkInDate, '12:00')) {
+      setAccommodationError('Choose a check-in date from the calendar or a flight.');
+      return;
+    }
+    const stay = Number(nights);
+    if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
+      setAccommodationError('Enter a stay of 1 to 365 nights.');
+      return;
+    }
+    const amount = Number(accommodationBudget);
+    if (!/^\d+(\.\d{1,2})?$/.test(accommodationBudget) || amount <= 0 || amount > 999_999_999.99) {
+      setAccommodationError('Enter an accommodation budget greater than zero, in EUR.');
+      return;
+    }
+
+    const id = ++accommodationRequestId.current;
+    setAccommodations(null);
+    setAccommodationBusy(true);
+    try {
+      const results = await searchAccommodations({
+        destinationCity: destinationCity.lookupName || destinationCity.name,
+        countryCode: destinationCity.countryCode,
+        checkInDate,
+        stayingNights: stay,
+        budget: amount,
+      });
+      if (accommodationRequestId.current === id) setAccommodations(results);
+    } catch (reason) {
+      if (accommodationRequestId.current === id) setAccommodationError(message(reason));
+    } finally {
+      setAccommodationBusy(false);
+    }
   }
 
   async function selectDeparture(city: CitySuggestion) {
@@ -383,9 +470,8 @@ export default function TripPlanningScreen() {
       return;
     }
 
+    clearTickets();
     const id = ++flightRequestId.current;
-    setTickets(null);
-    setSelectedTicket(null);
     setSearchBusy(true);
     try {
       const results = await searchFlights({
@@ -451,8 +537,8 @@ export default function TripPlanningScreen() {
 
           <View style={styles.routeDivider}><View style={styles.dividerLine} /><Plane size={17} color={PURPLE} /><View style={styles.dividerLine} /></View>
           <CityPicker label="Going to" hint="Choose your destination city"
-            selected={destinationCity} onSelect={(city) => { setDestinationCity(city); clearTickets(); }}
-            onChange={() => { setDestinationCity(null); clearTickets(); }} />
+            selected={destinationCity} onSelect={(city) => { setDestinationCity(city); clearTickets(); clearAccommodations(); }}
+            onChange={() => { setDestinationCity(null); clearTickets(); clearAccommodations(); }} />
         </View>
 
         <View style={styles.card}>
@@ -467,7 +553,7 @@ export default function TripPlanningScreen() {
           <DateTimeFields label="Until" date={untilDate} time={untilTime} minimumDate={fromDate}
             onDate={(value) => { setUntilDate(value); clearTickets(); }} onTime={(value) => { setUntilTime(value); clearTickets(); }} />
           <NumberField label="Nights away" value={nights} placeholder="e.g. 3"
-            onChange={(value) => { setNights(value); clearTickets(); }} />
+            onChange={(value) => { setNights(value); clearTickets(); clearAccommodations(); }} />
           <Text style={styles.fieldLabel}>Ticket style</Text>
           <View style={styles.optionRow}>
             <Pressable accessibilityRole="radio" accessibilityState={{ selected: ticketOption === 'ROUND_TRIP' }}
@@ -491,13 +577,69 @@ export default function TripPlanningScreen() {
         </View>
 
         {(searchBusy || tickets) && <View style={styles.results}>
-          <View style={styles.stepRow}><Text style={styles.stepNumber}>03</Text><Text style={styles.stepLabel}>PICK YOUR FLIGHT</Text></View>
+          <Text style={styles.stepLabel}>FLIGHT OPTIONS</Text>
           <Text style={styles.resultsTitle}>Flights for your trip</Text>
           <Text style={styles.helper}>{airport?.iataCode} to {destinationCity?.name} · {nights} night{nights === '1' ? '' : 's'}</Text>
           {searchBusy && <View style={styles.searchingPanel}><ActivityIndicator color={BLUE} /><Text style={styles.searchingText}>Searching available flights…</Text><Text style={styles.helper}>This can take a little while.</Text></View>}
           {tickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No flights found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
           {tickets?.map((ticket, index) => <TicketCard key={`${ticket.totalPrice}-${index}`} ticket={ticket} index={index}
-            selected={selectedTicket === index} onSelect={() => setSelectedTicket(selectedTicket === index ? null : index)} />)}
+            selected={selectedTicket === index} onSelect={() => chooseTicket(index)} />)}
+        </View>}
+
+        <View style={styles.card}>
+          <View style={styles.stepRow}><Text style={styles.stepNumber}>03</Text><Text style={styles.stepLabel}>FIND YOUR STAY</Text></View>
+          <View style={styles.sectionHeading}>
+            <View style={styles.iconBubble}><BedDouble size={20} color={BLUE} /></View>
+            <View style={styles.headingCopy}>
+              <Text style={styles.sectionTitle}>A place to stay</Text>
+              <Text style={styles.helper}>{destinationCity ? `In ${destinationCity.name}, ${destinationCity.country}` : 'Choose a destination city above'}</Text>
+            </View>
+          </View>
+          <Text style={styles.helper}>Select a flight to use its departure date, or choose your first night directly.</Text>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Check-in date · first night</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Choose accommodation check-in date"
+              onPress={() => setCheckInCalendarOpen(true)} style={[styles.fieldInputWrap, styles.checkInInput]}>
+              <CalendarDays size={18} color={BLUE} />
+              <Text style={[styles.dateValue, !checkInDate && styles.datePlaceholder]}>{checkInDate || 'Choose a date'}</Text>
+              <Text style={styles.dateAction}>Change</Text>
+            </Pressable>
+            {checkInSource === 'ticket' && <Text style={styles.sourceHint}>Suggested from the selected flight’s departure date. You can change it.</Text>}
+            {checkInSource === 'calendar' && checkInDate && <Text style={styles.sourceHint}>Date chosen from the calendar.</Text>}
+            <CalendarPicker label="Check-in" description="Select the first night of your stay" value={checkInDate}
+              visible={checkInCalendarOpen} onSelect={(date) => {
+                setCheckInDate(date);
+                setCheckInSource('calendar');
+                clearAccommodations();
+              }} onClose={() => setCheckInCalendarOpen(false)} />
+          </View>
+          <NumberField label="Accommodation budget" value={accommodationBudget} suffix="EUR" placeholder="e.g. 450"
+            onChange={(value) => { setAccommodationBudget(value); clearAccommodations(); }} />
+          <Text style={styles.helper}>Total budget for {nights || 'your'} night{nights === '1' ? '' : 's'}, including taxes and fees, for one adult.</Text>
+          {accommodationError && <Text accessibilityRole="alert" style={styles.errorText}>{accommodationError}</Text>}
+          <Pressable accessibilityRole="button" disabled={accommodationBusy} onPress={submitAccommodations}
+            style={[styles.primaryButton, accommodationBusy && styles.disabled]}>
+            {accommodationBusy ? <ActivityIndicator color="#fff" /> : <Search size={20} color="#fff" />}
+            <Text style={styles.primaryButtonText}>{accommodationBusy ? 'Finding stays…' : 'Find stays'}</Text>
+            {!accommodationBusy && <ArrowRight size={19} color="#fff" />}
+          </Pressable>
+        </View>
+
+        {(accommodationBusy || accommodations) && <View style={styles.results}>
+          <Text style={styles.stepLabel}>STAY OPTIONS</Text>
+          <Text style={styles.resultsTitle}>Stays in {destinationCity?.name}</Text>
+          <Text style={styles.helper}>{checkInDate} · {nights} night{nights === '1' ? '' : 's'} · one adult</Text>
+          {accommodationBusy && <View style={styles.searchingPanel}>
+            <ActivityIndicator color={BLUE} />
+            <Text style={styles.searchingText}>Finding places to stay…</Text>
+            <Text style={styles.helper}>Checking full-stay prices and available details.</Text>
+          </View>}
+          {accommodations?.length === 0 && <View style={styles.searchingPanel}>
+            <Text style={styles.emptyTitle}>No stays found in this budget</Text>
+            <Text style={styles.helper}>Try another check-in date or a larger accommodation budget.</Text>
+          </View>}
+          {accommodations?.map((offer, index) => <AccommodationOfferCard
+            key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} />)}
         </View>}
       </View>
     </ScrollView>
@@ -571,8 +713,11 @@ const styles = StyleSheet.create({
   fieldSuffix: { color: '#697587', fontWeight: '800', fontSize: 13 },
   dateRow: { flexDirection: 'row', gap: 8 },
   dateInputWrap: { flex: 1.55, minWidth: 0 },
+  checkInInput: { justifyContent: 'flex-start' },
   dateValue: { color: INK, fontSize: 14, fontWeight: '600' },
   datePlaceholder: { color: '#8892A2', fontWeight: '400' },
+  dateAction: { marginLeft: 'auto', color: BLUE, fontSize: 12, fontWeight: '800' },
+  sourceHint: { color: '#66758A', fontSize: 12, lineHeight: 18 },
   timeInputWrap: { flex: 0.85, minWidth: 0 },
   optionRow: { flexDirection: 'row', gap: 8 },
   option: { flex: 1, borderWidth: 1, borderColor: '#DBE3ED', borderRadius: 15, padding: 13, gap: 4 },

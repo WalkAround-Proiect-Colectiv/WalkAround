@@ -10,12 +10,13 @@ function dateKey(year: number, month: number, day: number): string {
 }
 
 export default function CalendarPicker({
-  label, value, visible, minimumDate, onSelect, onClose,
+  label, value, visible, minimumDate, description, onSelect, onClose,
 }: {
   label: string;
   value: string;
   visible: boolean;
   minimumDate?: string;
+  description?: string;
   onSelect(date: string): void;
   onClose(): void;
 }) {
@@ -51,7 +52,7 @@ export default function CalendarPicker({
             <View style={styles.icon}><CalendarDays size={20} color={BLUE} /></View>
             <View>
               <Text style={styles.title}>Choose {label.toLowerCase()} date</Text>
-              <Text style={styles.subtitle}>Select a day for your departure window</Text>
+              <Text style={styles.subtitle}>{description || 'Select a day for your departure window'}</Text>
             </View>
           </View>
           <Pressable accessibilityRole="button" accessibilityLabel="Close calendar" onPress={onClose} style={styles.close}>
