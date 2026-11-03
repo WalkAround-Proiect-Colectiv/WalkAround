@@ -14,7 +14,7 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | `AccommodationOfferResponse` | Property name and type, full-stay EUR price, dates, optional property website, description, address, rating, review count, amenities, room type names, and booking options. |
 | `AccommodationBookingOptionResponse` | Booking source, tax-and-fee-inclusive full-stay EUR price, and HTTPS booking-site URL. |
 | `SaveTripPlanRequest` | Title, optional description, origin airport, GeoNames departure city and country code, destination city and country code, flight search inputs, EUR flight budget, and EUR accommodation budget. It has no accommodation check-in date or selected provider offer. |
-| `TripPlanResponse` | Saved plan ID, departure city/country code and other stored preset fields, and creation time. The owner ID is not exposed or accepted from the client. Legacy plans may have a null departure city. |
+| `TripPlanResponse` | Saved plan ID, departure city/country code and other stored preset fields, and creation time. The owner ID is not exposed or accepted from the client. |
 
 For `ROUND_TRIP`, `viewUrls` contains one search-page URL. For `TWO_ONE_WAY`, the first URL is for the outbound search and the second is for the return search. These URLs can point to a search page rather than the exact displayed offer. No DTO contains a booking token or a purchased-ticket record.
 
