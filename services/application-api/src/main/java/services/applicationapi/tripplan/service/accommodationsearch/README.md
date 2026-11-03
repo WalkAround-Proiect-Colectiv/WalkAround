@@ -8,6 +8,8 @@ The request contains `destinationCity` and `countryCode` from a GeoNames city su
 
 `GeoNamesAccommodationCityValidator` verifies a populated place (`featureClass=P`) with the requested name and country code in geographical Europe (`continentCode=EU`). Name comparison uses `CityNameNormalizer` for spelling variants, including diacritics. The country code comes from the autocomplete option; the endpoint still validates it against GeoNames rather than trusting the client. This covers geographical Europe, including countries outside the EU member-country table used by flight search. A selected city is represented by its name and country code, so two same-named places in one country cannot be distinguished by this request.
 
+The validated city also carries GeoNames latitude and longitude. Accommodation search uses its name and country; attraction pagination uses the coordinates for SerpApi Google Maps' required `ll` parameter.
+
 ## SerpApi request and prices
 
 `SerpApiAccommodationSearchProvider` makes one `google_hotels` list request with the validated `City, Country` query, check-in/check-out dates, `currency=EUR`, `adults=1`, and lowest-price sorting. The property-details requests also use `adults=1`, so displayed prices and booking options are evaluated for one adult. The application inspects only the returned first page; it does not promise the cheapest available property across all pages.

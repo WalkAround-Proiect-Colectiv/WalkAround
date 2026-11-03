@@ -15,7 +15,7 @@ import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import {
   getCityAirports, getTouristAttractions, saveTripPlan, searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type PlaceRecommendation, type SavedTripPlan, type TicketOption,
+  type PlaceRecommendationPage, type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
@@ -354,8 +354,9 @@ export default function TripPlanningScreen() {
   const [savedPlan, setSavedPlan] = useState<SavedTripPlan | null>(null);
   const [hasSavedBefore, setHasSavedBefore] = useState(false);
   const [placeCategory, setPlaceCategory] = useState(PLACE_CATEGORIES[0].id);
-  const [placesByCategory, setPlacesByCategory] = useState<Record<string, PlaceRecommendation[]>>({});
+  const [placesByCategory, setPlacesByCategory] = useState<Record<string, PlaceRecommendationPage>>({});
   const [placesBusy, setPlacesBusy] = useState(false);
+  const [loadingPlacePage, setLoadingPlacePage] = useState<number | null>(null);
   const [placesError, setPlacesError] = useState<string | null>(null);
 
   function clearPlaces() {
@@ -363,23 +364,40 @@ export default function TripPlanningScreen() {
     placePending.current = false;
     setPlacesByCategory({});
     setPlacesBusy(false);
+    setLoadingPlacePage(null);
     setPlacesError(null);
     setPlaceCategory(PLACE_CATEGORIES[0].id);
   }
 
-  async function loadPlaces(city: CitySuggestion, categoryId: string) {
+  async function loadPlaces(city: CitySuggestion, categoryId: string, page = 0) {
     const category = PLACE_CATEGORIES.find((item) => item.id === categoryId);
     if (!category || placePending.current) return;
 
     const requestId = ++placeRequestId.current;
     placePending.current = true;
     setPlacesBusy(true);
+    setLoadingPlacePage(page);
     setPlacesError(null);
 
     try {
-      const places = await category.load(city);
+      const places = await category.load(city, page);
       if (placeRequestId.current === requestId) {
-        setPlacesByCategory((current) => ({ ...current, [categoryId]: places }));
+        setPlacesByCategory((current) => {
+          const previous = current[categoryId]?.items ?? [];
+          const existingUrls = new Set(previous.map((place) => place.mapsUrl));
+          const additional = places.items.filter((place) => {
+            if (existingUrls.has(place.mapsUrl)) return false;
+            existingUrls.add(place.mapsUrl);
+            return true;
+          });
+          return {
+            ...current,
+            [categoryId]: {
+              items: page === 0 ? places.items : [...previous, ...additional],
+              nextPage: places.nextPage,
+            },
+          };
+        });
       }
     } catch (reason) {
       if (placeRequestId.current === requestId) setPlacesError(message(reason));
@@ -387,6 +405,7 @@ export default function TripPlanningScreen() {
       if (placeRequestId.current === requestId) {
         placePending.current = false;
         setPlacesBusy(false);
+        setLoadingPlacePage(null);
       }
     }
   }
@@ -860,19 +879,27 @@ export default function TripPlanningScreen() {
                 <Text style={[styles.placeCategoryText, placeCategory === category.id && styles.placeCategoryTextSelected]}>{category.label}</Text>
               </Pressable>)}
             </View>
-            {placesBusy && <View accessibilityLiveRegion="polite" style={styles.placeStatus}>
+            {placesBusy && loadingPlacePage === 0 && <View accessibilityLiveRegion="polite" style={styles.placeStatus}>
               <ActivityIndicator color={BLUE} />
               <Text style={styles.helper}>Finding places around {destinationCity.name}…</Text>
             </View>}
             {placesError && <View style={styles.placeStatus}>
               <Text accessibilityRole="alert" style={styles.errorText}>{placesError}</Text>
-              <Pressable accessibilityRole="button" onPress={() => loadPlaces(destinationCity, placeCategory)}
+              <Pressable accessibilityRole="button" onPress={() => loadPlaces(
+                destinationCity, placeCategory, placesByCategory[placeCategory]?.nextPage ?? 0)}
                 style={styles.placeRetry}><Text style={styles.placeRetryText}>Try again</Text></Pressable>
             </View>}
-            {!placesBusy && !placesError && placesByCategory[placeCategory]?.length === 0 &&
+            {!placesBusy && !placesError && placesByCategory[placeCategory]?.items.length === 0 &&
               <Text style={styles.emptyText}>No places found for this category. Try another destination.</Text>}
-            {placesByCategory[placeCategory]?.map((place, index) => <PlaceRecommendationCard
+            {placesByCategory[placeCategory]?.items.map((place, index) => <PlaceRecommendationCard
               key={`${place.name}-${place.mapsUrl}-${index}`} place={place} />)}
+            {placesByCategory[placeCategory]?.nextPage != null && !placesError &&
+              <Pressable accessibilityRole="button" disabled={placesBusy}
+                onPress={() => loadPlaces(destinationCity, placeCategory, placesByCategory[placeCategory].nextPage!)}
+                style={[styles.placeLoadMore, placesBusy && styles.disabled]}>
+                {placesBusy ? <ActivityIndicator color={BLUE} size="small" /> : <ArrowRight size={17} color={BLUE} />}
+                <Text style={styles.placeLoadMoreText}>{placesBusy ? 'Loading more places…' : 'Load more places'}</Text>
+              </Pressable>}
             <Text style={styles.helper}>Recommendations can include nearby places. Check opening times and details before visiting.</Text>
           </>}
         </View>
@@ -1008,4 +1035,6 @@ const styles = StyleSheet.create({
   placeStatus: { gap: 11, paddingVertical: 10, alignItems: 'flex-start' },
   placeRetry: { minHeight: 40, borderRadius: 12, borderWidth: 1, borderColor: '#B5D1FA', justifyContent: 'center', paddingHorizontal: 14 },
   placeRetryText: { color: BLUE, fontSize: 13, fontWeight: '800' },
+  placeLoadMore: { minHeight: 46, borderRadius: 14, borderWidth: 1, borderColor: '#B5D1FA', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  placeLoadMoreText: { color: BLUE, fontSize: 14, fontWeight: '800' },
 });

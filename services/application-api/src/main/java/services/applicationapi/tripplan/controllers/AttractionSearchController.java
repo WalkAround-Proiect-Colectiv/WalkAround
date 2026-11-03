@@ -1,6 +1,5 @@
 package services.applicationapi.tripplan.controllers;
 
-import java.util.List;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,7 +7,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import services.applicationapi.tripplan.dto.AttractionResponse;
+import services.applicationapi.tripplan.dto.AttractionPageResponse;
 import services.applicationapi.tripplan.service.attractionsearch.AttractionSearchService;
 
 @RestController
@@ -22,12 +21,13 @@ public class AttractionSearchController {
     }
 
     @GetMapping("/{city}/attractions")
-    public ResponseEntity<List<AttractionResponse>> search(
+    public ResponseEntity<AttractionPageResponse> search(
             @PathVariable String city,
-            @RequestParam String countryCode
+            @RequestParam String countryCode,
+            @RequestParam(defaultValue = "0") int page
     ) {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(attractionSearchService.search(city, countryCode));
+                .body(attractionSearchService.search(city, countryCode, page));
     }
 }

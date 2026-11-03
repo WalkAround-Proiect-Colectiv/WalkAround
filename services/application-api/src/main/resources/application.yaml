@@ -85,4 +85,3 @@ app:
     accommodation-provider: ${ACCOMMODATION_PROVIDER:serpapi}
     accommodation-search-max-results: ${ACCOMMODATION_SEARCH_MAX_RESULTS:3}
     attraction-provider: ${ATTRACTION_PROVIDER:serpapi}
-    attraction-search-max-results: ${ATTRACTION_SEARCH_MAX_RESULTS:10}

@@ -26,6 +26,7 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
 
     private static final Logger log = LoggerFactory.getLogger(SerpApiAttractionSearchProvider.class);
     private static final String MAPS_SEARCH_URL = "https://www.google.com/maps/search/?api=1&query=";
+    private static final int RESULTS_PER_PAGE = 20;
 
     private final RestClient restClient;
     private final AttractionSearchProperties properties;
@@ -43,7 +44,7 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
     }
 
     @Override
-    public List<Attraction> search(String city, String country) {
+    public Page search(String city, String country, double latitude, double longitude, int page) {
         SerpApiResponse response;
 
         try {
@@ -52,10 +53,13 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
                             .queryParam("engine", "google_maps")
                             .queryParam("type", "search")
                             .queryParam("q", "{query}")
+                            .queryParam("ll", "{location}")
+                            .queryParam("start", page * RESULTS_PER_PAGE)
                             .queryParam("hl", "en")
                             .queryParam("api_key", "{apiKey}")
                             .build(Map.of(
                                     "query", "top-rated tourist attractions in " + city + ", " + country,
+                                    "location", String.format(Locale.ROOT, "@%s,%s,14z", latitude, longitude),
                                     "apiKey", properties.serpApiKey()
                             )))
                     .retrieve()
@@ -75,7 +79,7 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
 
         if (response.localResults() == null) {
             log.debug("SerpApi attraction search returned no local results");
-            return List.of();
+            return new Page(List.of(), false);
         }
 
         List<Attraction> attractions = response.localResults().stream()
@@ -96,8 +100,12 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
                 ))
                 .toList();
 
-        log.debug("SerpApi returned {} attraction candidates", attractions.size());
-        return attractions;
+        boolean hasNext = response.pagination() != null
+                && response.pagination().next() != null
+                && !response.pagination().next().isBlank();
+        log.debug("SerpApi returned {} attraction candidates on page {} (hasNext={})",
+                attractions.size(), page, hasNext);
+        return new Page(attractions, hasNext);
     }
 
     private Double latitude(GpsCoordinates coordinates) {
@@ -158,8 +166,13 @@ public class SerpApiAttractionSearchProvider implements AttractionSearchProvider
     @JsonIgnoreProperties(ignoreUnknown = true)
     private record SerpApiResponse(
             @JsonProperty("search_metadata") SearchMetadata searchMetadata,
-            @JsonProperty("local_results") List<LocalResult> localResults
+            @JsonProperty("local_results") List<LocalResult> localResults,
+            @JsonProperty("serpapi_pagination") Pagination pagination
     ) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private record Pagination(String next) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

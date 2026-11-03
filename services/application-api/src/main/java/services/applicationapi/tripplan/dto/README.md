@@ -7,6 +7,7 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | `CitySuggestion` | GeoNames display name, country/code, coordinates, and `lookupName` for a later city lookup. `lookupName` preserves Unicode spelling with normalized whitespace. |
 | `AirportResponse` | Local database airport ID, name, optional IATA code, and coordinates. A null IATA code is allowed by the database. |
 | `AttractionResponse` | Tourist-attraction suggestion with name, optional category/address/description/rating/reviews/coordinates, a Google Maps URL, and optional HTTPS image and website URLs. |
+| `AttractionPageResponse` | One category page with `items` and a nullable zero-based `nextPage` for an explicit follow-up request. |
 | `FlightSearchRequest` | Origin IATA code, destination city/country, EUR budget, inclusive local departure interval, nights, and ticket option. Bean Validation covers individual fields; the service validates relationships between fields and database/provider existence. |
 | `FlightItineraryResponse` | Ticket option, EUR total price, outbound and return segment lists, and Google Flights `viewUrls`. |
 | `FlightSegmentResponse` | One flight segment, including airport codes, local provider time strings, flight number, and airline. Multiple segments represent connections. |

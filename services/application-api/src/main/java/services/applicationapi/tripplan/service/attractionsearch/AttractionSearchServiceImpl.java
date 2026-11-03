@@ -5,8 +5,8 @@ import java.util.Locale;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import services.applicationapi.tripplan.configurations.AttractionSearchProperties;
 import services.applicationapi.tripplan.dto.AttractionResponse;
+import services.applicationapi.tripplan.dto.AttractionPageResponse;
 import services.applicationapi.tripplan.service.accommodationsearch.AccommodationCityValidator;
 import services.applicationapi.tripplan.service.exceptions.AccommodationSearchUnavailableException;
 import services.applicationapi.tripplan.service.exceptions.AttractionSearchUnavailableException;
@@ -18,29 +18,30 @@ import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
 public class AttractionSearchServiceImpl implements AttractionSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(AttractionSearchServiceImpl.class);
+    private static final int MAX_PAGE = 5;
 
     private final AccommodationCityValidator cityValidator;
     private final AttractionSearchProvider provider;
-    private final AttractionSearchProperties properties;
 
     public AttractionSearchServiceImpl(
             AccommodationCityValidator cityValidator,
-            AttractionSearchProvider provider,
-            AttractionSearchProperties properties
+            AttractionSearchProvider provider
     ) {
         this.cityValidator = cityValidator;
         this.provider = provider;
-        this.properties = properties;
     }
 
     @Override
-    public List<AttractionResponse> search(String city, String countryCode) {
+    public AttractionPageResponse search(String city, String countryCode, int page) {
         if (city == null || city.isBlank() || city.length() > 100
                 || city.codePoints().anyMatch(Character::isISOControl)) {
             throw new InvalidAttractionSearchException("City must contain 1 to 100 valid characters");
         }
         if (countryCode == null || !countryCode.matches("[A-Za-z]{2}")) {
             throw new InvalidAttractionSearchException("Country code must contain two letters");
+        }
+        if (page < 0 || page > MAX_PAGE) {
+            throw new InvalidAttractionSearchException("Page must be between 0 and 5");
         }
 
         String normalizedCity = CityNameNormalizer.toLookupName(city);
@@ -58,10 +59,18 @@ public class AttractionSearchServiceImpl implements AttractionSearchService {
             throw new AttractionSearchUnavailableException("Attraction city validation is unavailable", exception);
         }
 
-        List<AttractionResponse> results = provider.search(validated.name(), validated.countryName())
+        if (validated.latitude() == null || validated.longitude() == null
+                || !Double.isFinite(validated.latitude()) || !Double.isFinite(validated.longitude())
+                || Math.abs(validated.latitude()) > 90 || Math.abs(validated.longitude()) > 180) {
+            log.warn("GeoNames returned invalid coordinates for attraction search");
+            throw new AttractionSearchUnavailableException("Attraction city validation is unavailable");
+        }
+
+        AttractionSearchProvider.Page providerPage = provider.search(
+                validated.name(), validated.countryName(), validated.latitude(), validated.longitude(), page);
+        List<AttractionResponse> results = providerPage.items()
                 .stream()
                 .filter(attraction -> attraction.name() != null && !attraction.name().isBlank())
-                .limit(properties.attractionSearchMaxResults())
                 .map(attraction -> new AttractionResponse(
                         attraction.name(),
                         attraction.category(),
@@ -77,7 +86,8 @@ public class AttractionSearchServiceImpl implements AttractionSearchService {
                 ))
                 .toList();
 
-        log.debug("Found {} attraction recommendations for country {}", results.size(), normalizedCountryCode);
-        return results;
+        Integer nextPage = providerPage.hasNext() && page < MAX_PAGE ? page + 1 : null;
+        log.debug("Found {} attraction recommendations for country {} on page {}", results.size(), normalizedCountryCode, page);
+        return new AttractionPageResponse(results, nextPage);
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import services.applicationapi.tripplan.controllers.AttractionSearchController;
@@ -20,6 +21,11 @@ public class AttractionSearchExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     ResponseEntity<ProblemDetail> handleMissingCountryCode() {
         return problem(HttpStatus.BAD_REQUEST, "A country code is required");
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ProblemDetail> handleInvalidPage() {
+        return problem(HttpStatus.BAD_REQUEST, "Page must be between 0 and 5");
     }
 
     @ExceptionHandler(InvalidAttractionSearchException.class)

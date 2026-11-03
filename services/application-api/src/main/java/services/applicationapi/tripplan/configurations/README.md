@@ -18,7 +18,6 @@ The properties records bind under `app.trip-plan` in `src/main/resources/applica
 | `ACCOMMODATION_PROVIDER` | Selects the `AccommodationSearchProvider` implementation | `serpapi` |
 | `ACCOMMODATION_SEARCH_MAX_RESULTS` | Maximum accommodation offers returned | `3` |
 | `ATTRACTION_PROVIDER` | Selects the `AttractionSearchProvider` implementation | `serpapi` |
-| `ATTRACTION_SEARCH_MAX_RESULTS` | Maximum first-page attraction recommendations returned, from 1 to 20 | `10` |
 
 The properties constructors reject non-HTTPS provider URLs, non-positive timeouts, and out-of-range limits. The SerpApi providers require a configured API key. A different flight provider must implement both the flight-search and Flights-city lookup interfaces, or supply equivalent beans. A different accommodation provider implements `AccommodationSearchProvider`; a different attractions provider implements `AttractionSearchProvider`. Attractions reuse the existing qualified SerpApi and GeoNames clients, so no new external URL or timeout setting is needed.
 
