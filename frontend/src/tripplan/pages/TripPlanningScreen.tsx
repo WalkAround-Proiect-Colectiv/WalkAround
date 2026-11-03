@@ -5,15 +5,16 @@ import {
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  ArrowLeft, ArrowRight, BedDouble, CalendarDays, Check, ExternalLink, MapPin,
+  ArrowLeft, ArrowRight, BedDouble, BookmarkCheck, BookmarkPlus, CalendarDays, Check, ExternalLink, MapPin,
   Plane, Search, Sparkles, Ticket, Wallet,
 } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import CalendarPicker from '../components/CalendarPicker';
 import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import {
-  getCityAirports, searchAccommodations, searchCities, searchFlights,
-  type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment, type TicketOption,
+  getCityAirports, saveTripPlan, searchAccommodations, searchCities, searchFlights,
+  type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
+  type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
@@ -310,6 +311,8 @@ export default function TripPlanningScreen() {
   const airportRequestId = useRef(0);
   const flightRequestId = useRef(0);
   const accommodationRequestId = useRef(0);
+  const saveRequestId = useRef(0);
+  const savePending = useRef(false);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -334,6 +337,20 @@ export default function TripPlanningScreen() {
   const [accommodations, setAccommodations] = useState<AccommodationOffer[] | null>(null);
   const [accommodationBusy, setAccommodationBusy] = useState(false);
   const [accommodationError, setAccommodationError] = useState<string | null>(null);
+  const [planTitle, setPlanTitle] = useState('');
+  const [planDescription, setPlanDescription] = useState('');
+  const [titleFocused, setTitleFocused] = useState(false);
+  const [descriptionFocused, setDescriptionFocused] = useState(false);
+  const [saveBusy, setSaveBusy] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedPlan, setSavedPlan] = useState<SavedTripPlan | null>(null);
+  const [hasSavedBefore, setHasSavedBefore] = useState(false);
+
+  function clearSavedPlan() {
+    saveRequestId.current += 1;
+    setSavedPlan(null);
+    setSaveError(null);
+  }
 
   function clearAccommodations() {
     accommodationRequestId.current += 1;
@@ -341,7 +358,8 @@ export default function TripPlanningScreen() {
     setAccommodationError(null);
   }
 
-  function clearTickets() {
+  function clearTickets(presetChanged = true) {
+    if (presetChanged) clearSavedPlan();
     flightRequestId.current += 1;
     setTickets(null);
     setSelectedTicket(null);
@@ -414,6 +432,80 @@ export default function TripPlanningScreen() {
     }
   }
 
+  async function savePlan() {
+    if (savePending.current || savedPlan) return;
+    setSaveError(null);
+
+    const title = planTitle.trim();
+    const description = planDescription.trim();
+    if (!title || title.length > 120 || /[\u0000-\u001F\u007F]/.test(title)) {
+      setSaveError('Enter a plan title of up to 120 characters.');
+      return;
+    }
+    if (description.length > 2000 || /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(description)) {
+      setSaveError('The description contains invalid characters.');
+      return;
+    }
+    if (!departureCity || !airport?.iataCode || !destinationCity) {
+      setSaveError('Choose departure and destination cities, plus a departure airport.');
+      return;
+    }
+    if (!validDateTime(fromDate, fromTime) || !validDateTime(untilDate, untilTime)) {
+      setSaveError('Choose a valid flight departure period above.');
+      return;
+    }
+    const from = `${fromDate}T${fromTime}:00`;
+    const until = `${untilDate}T${untilTime}:00`;
+    if (until < from) {
+      setSaveError('The last departure time must be after the first.');
+      return;
+    }
+    const stay = Number(nights);
+    if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
+      setSaveError('Enter a stay of 1 to 365 nights.');
+      return;
+    }
+    const flightAmount = Number(budget);
+    const stayAmount = Number(accommodationBudget);
+    if (!/^\d+(\.\d{1,2})?$/.test(budget) || flightAmount <= 0 || flightAmount > 999_999_999.99 ||
+        !/^\d+(\.\d{1,2})?$/.test(accommodationBudget) || stayAmount <= 0 || stayAmount > 999_999_999.99) {
+      setSaveError('Enter valid flight and accommodation budgets in EUR.');
+      return;
+    }
+
+    const id = ++saveRequestId.current;
+    savePending.current = true;
+    setSaveBusy(true);
+    try {
+      const result = await saveTripPlan({
+        title,
+        description: description || null,
+        originAirport: airport.iataCode,
+        departureCity: departureCity.lookupName || departureCity.name,
+        departureCountryCode: departureCity.countryCode,
+        destinationCity: destinationCity.lookupName || destinationCity.name,
+        countryCode: destinationCity.countryCode,
+        departureFrom: from,
+        departureUntil: until,
+        stayingNights: stay,
+        ticketOption,
+        flightBudget: flightAmount,
+        accommodationBudget: stayAmount,
+      });
+      setHasSavedBefore(true);
+      if (saveRequestId.current === id) {
+        setSavedPlan(result);
+      } else {
+        setSaveError('An earlier version was saved. Save again to keep your latest changes.');
+      }
+    } catch (reason) {
+      if (saveRequestId.current === id) setSaveError(message(reason));
+    } finally {
+      savePending.current = false;
+      setSaveBusy(false);
+    }
+  }
+
   async function selectDeparture(city: CitySuggestion) {
     clearTickets();
     const id = ++airportRequestId.current;
@@ -470,7 +562,7 @@ export default function TripPlanningScreen() {
       return;
     }
 
-    clearTickets();
+    clearTickets(false);
     const id = ++flightRequestId.current;
     setSearchBusy(true);
     try {
@@ -614,7 +706,7 @@ export default function TripPlanningScreen() {
               }} onClose={() => setCheckInCalendarOpen(false)} />
           </View>
           <NumberField label="Accommodation budget" value={accommodationBudget} suffix="EUR" placeholder="e.g. 450"
-            onChange={(value) => { setAccommodationBudget(value); clearAccommodations(); }} />
+            onChange={(value) => { setAccommodationBudget(value); clearAccommodations(); clearSavedPlan(); }} />
           <Text style={styles.helper}>Total budget for {nights || 'your'} night{nights === '1' ? '' : 's'}, including taxes and fees, for one adult.</Text>
           {accommodationError && <Text accessibilityRole="alert" style={styles.errorText}>{accommodationError}</Text>}
           <Pressable accessibilityRole="button" disabled={accommodationBusy} onPress={submitAccommodations}
@@ -641,6 +733,46 @@ export default function TripPlanningScreen() {
           {accommodations?.map((offer, index) => <AccommodationOfferCard
             key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} />)}
         </View>}
+
+        <View style={styles.card}>
+          <View style={styles.stepRow}><Text style={styles.stepNumber}>04</Text><Text style={styles.stepLabel}>KEEP YOUR PLAN</Text></View>
+          <View style={styles.sectionHeading}>
+            <View style={styles.iconBubble}><BookmarkPlus size={20} color={BLUE} /></View>
+            <View style={styles.headingCopy}>
+              <Text style={styles.sectionTitle}>Save this trip</Text>
+              <Text style={styles.helper}>Keep your search choices for another day</Text>
+            </View>
+          </View>
+          <Text style={styles.helper}>Your cities, departure airport, dates, nights, ticket style, and budgets will be saved. Flight and stay offers can change, so search again when you return.</Text>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Plan title</Text>
+            <TextInput accessibilityLabel="Plan title" autoCapitalize="sentences" maxLength={120}
+              onFocus={() => setTitleFocused(true)} onBlur={() => setTitleFocused(false)}
+              onChangeText={(value) => { setPlanTitle(value); clearSavedPlan(); }}
+              placeholder="e.g. Weekend in Paris" placeholderTextColor="#8892A2"
+              style={[styles.saveInput, titleFocused && styles.saveInputFocused]} value={planTitle} />
+          </View>
+          <View style={styles.field}>
+            <Text style={styles.fieldLabel}>Description <Text style={styles.optionalLabel}>(optional)</Text></Text>
+            <TextInput accessibilityLabel="Plan description" maxLength={2000} multiline
+              onFocus={() => setDescriptionFocused(true)} onBlur={() => setDescriptionFocused(false)}
+              onChangeText={(value) => { setPlanDescription(value); clearSavedPlan(); }}
+              placeholder="Add a note for your future self"
+              placeholderTextColor="#8892A2" style={[styles.saveInput, styles.saveDescription, descriptionFocused && styles.saveInputFocused]}
+              textAlignVertical="top" value={planDescription} />
+          </View>
+          {saveError && <Text accessibilityRole="alert" style={styles.errorText}>{saveError}</Text>}
+          {savedPlan && <View style={styles.savedNotice}>
+            <BookmarkCheck size={20} color={BLUE} />
+            <Text accessibilityLiveRegion="polite" style={styles.savedText}>“{savedPlan.title}” was saved.</Text>
+          </View>}
+          {hasSavedBefore && !savedPlan && <Text style={styles.helper}>Saving these changes will create another plan.</Text>}
+          <Pressable accessibilityRole="button" disabled={saveBusy || Boolean(savedPlan)} onPress={savePlan}
+            style={[styles.primaryButton, (saveBusy || Boolean(savedPlan)) && styles.disabled]}>
+            {saveBusy ? <ActivityIndicator color="#fff" /> : savedPlan ? <BookmarkCheck size={20} color="#fff" /> : <BookmarkPlus size={20} color="#fff" />}
+            <Text style={styles.primaryButtonText}>{saveBusy ? 'Saving trip…' : savedPlan ? 'Trip saved' : hasSavedBefore ? 'Save as new plan' : 'Save trip plan'}</Text>
+          </Pressable>
+        </View>
       </View>
     </ScrollView>
   </View>;
@@ -710,6 +842,12 @@ const styles = StyleSheet.create({
   fieldInputWrap: { height: 50, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, borderWidth: 1, borderColor: '#DBE3ED', borderRadius: 14, backgroundColor: '#FBFCFE' },
   fieldInputFocused: { borderColor: BLUE, backgroundColor: '#fff' },
   fieldInput: { flex: 1, minWidth: 0, color: INK, fontSize: 15, paddingVertical: 0, outlineWidth: 0 },
+  saveInput: { minHeight: 50, borderWidth: 1, borderColor: '#DBE3ED', borderRadius: 14, backgroundColor: '#FBFCFE', color: INK, fontSize: 15, paddingHorizontal: 14, outlineWidth: 0 },
+  saveInputFocused: { borderColor: BLUE, backgroundColor: '#fff' },
+  saveDescription: { minHeight: 92, paddingTop: 13, paddingBottom: 13 },
+  optionalLabel: { color: '#7A8595', fontWeight: '400' },
+  savedNotice: { borderRadius: 14, backgroundColor: '#EAF3FF', flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13 },
+  savedText: { color: '#184B94', fontSize: 14, fontWeight: '700', flex: 1 },
   fieldSuffix: { color: '#697587', fontWeight: '800', fontSize: 13 },
   dateRow: { flexDirection: 'row', gap: 8 },
   dateInputWrap: { flex: 1.55, minWidth: 0 },

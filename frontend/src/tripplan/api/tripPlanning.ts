@@ -81,6 +81,28 @@ export interface AccommodationOffer {
   bookingOptions: AccommodationBookingOption[];
 }
 
+export interface SaveTripPlanInput {
+  title: string;
+  description: string | null;
+  originAirport: string;
+  departureCity: string;
+  departureCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  ticketOption: TicketOption;
+  flightBudget: number;
+  accommodationBudget: number;
+}
+
+export interface SavedTripPlan {
+  id: string;
+  title: string;
+  createdAt: string;
+}
+
 async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!environment.apiBaseUrl) {
     throw new Error('The trip planner is not configured yet.');
@@ -118,7 +140,7 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
     return await response.json() as T;
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error('The search took too long. Please try again.');
+      throw new Error('The request took too long. Please try again.');
     }
     if (error instanceof TypeError) {
       throw new Error('Could not reach WalkAround. Check your connection.');
@@ -149,6 +171,14 @@ export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary
 
 export function searchAccommodations(input: AccommodationSearchInput): Promise<AccommodationOffer[]> {
   return send('/api/trip-plans/accommodation-searches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function saveTripPlan(input: SaveTripPlanInput): Promise<SavedTripPlan> {
+  return send('/api/trip-plans', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
