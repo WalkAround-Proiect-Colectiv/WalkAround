@@ -29,7 +29,7 @@ public class DangerousZoneService
     }
     public void reportZone(DangerousZoneRequest request, UUID userId)
     {
-        String h3Index = h3.latLngToCellAddress(request.lat(), request.lng(), 10);
+        String h3Index = h3.latLngToCellAddress(request.lat(), request.lng(), 11);
         DangerousZone zone = DangerousZone.builder()
                 .h3Index(h3Index)
                 .category(request.category())
@@ -40,7 +40,10 @@ public class DangerousZoneService
                 .reportedBy(userId)
                 .build();
         repository.save(zone);
-        kafkaTemplate.send("dangerous-zones-topic", request);
+        DangerousZoneHeatmapResponse eventPayload = new DangerousZoneHeatmapResponse(
+                h3Index, 1, List.of(request.category().name())
+        );
+        kafkaTemplate.send("dangerous-zones-topic", eventPayload);
     }
     public List<DangerousZoneHeatmapResponse> getHeatmapData()
     {

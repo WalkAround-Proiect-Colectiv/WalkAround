@@ -40,6 +40,8 @@ export default function MapScreen() {
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
   const [zoneModalVisible, setZoneModalVisible] = useState(false);
   const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [selectedZoneInfo, setSelectedZoneInfo] = useState<{ categories: string[], intensity: number } | null>(null);
+  const [dangerousZonesData, setDangerousZonesData] = useState<any>(null);
 
   useEffect(() => {
     if (!style) return;
@@ -50,61 +52,85 @@ export default function MapScreen() {
           const boundary = cellToBoundary(zone.h3Index, true);
           return {
             type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: [boundary]
-            },
-            properties: {
-              intensity: zone.intensity,
-              topCategories: zone.topCategories
-            }
+            geometry: { type: 'Polygon', coordinates: [boundary] },
+            properties: { h3Index: zone.h3Index, intensity: zone.intensity, topCategories: zone.topCategories }
           };
         });
-        const geoJsonSource = {
+        setDangerousZonesData({
           type: 'FeatureCollection',
           features: features
-        };
-        const newStyle = JSON.parse(JSON.stringify(style));
-        newStyle.sources['dangerous-zones-source'] = {
-          type: 'geojson',
-          data: geoJsonSource
-        };
-        newStyle.layers.push({
-          id: 'dangerous-zones-layer',
-          type: 'fill',
-          source: 'dangerous-zones-source',
-          paint: {
-            'fill-color': [
-              'step',
-              ['get', 'intensity'],
-              '#FFF9C4',
-              3, '#FFEB3B',
-              5, '#FFC107',
-              10, '#FF9800',
-              15, '#D93838'
-            ],
-            'fill-opacity': 0.45
-          }
         });
-        newStyle.layers.push({
-          id: 'dangerous-zones-borders',
-          type: 'line',
-          source: 'dangerous-zones-source',
-          paint: {
-            'line-color': '#d93838',
-            'line-width': 1,
-            'line-opacity': 0.6
-          }
-        });
-        setStyle(newStyle);
       }
-      catch (e)
-      {
+      catch (e) {
         console.error("Could not load dangerous zones", e);
       }
     }
     loadZones();
   }, [session]);
+
+  useEffect(() => {
+    const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
+    if (!wsUrl) {
+      console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
+      return;
+    }
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+      console.log('Connected to real-time service');
+    };
+    ws.onmessage = (event) => {
+      try {
+        const newZoneEvent = JSON.parse(event.data);
+
+        setDangerousZonesData((prevData: any) => {
+          const currentFeatures = prevData?.features ? [...prevData.features] : [];
+          const existingFeatureIndex = currentFeatures.findIndex(
+              (f: any) => f.properties.h3Index === newZoneEvent.h3Index
+          );
+
+          if (existingFeatureIndex !== -1) {
+            const existingFeature = { ...currentFeatures[existingFeatureIndex] };
+            existingFeature.properties = { ...existingFeature.properties };
+            existingFeature.properties.intensity += 1;
+
+            if (newZoneEvent.topCategories && newZoneEvent.topCategories.length > 0) {
+              const newCategories = newZoneEvent.topCategories[0];
+              if (!existingFeature.properties.topCategories.includes(newCategories)) {
+                existingFeature.properties.topCategories.push(newCategories);
+              }
+            }
+            currentFeatures[existingFeatureIndex] = existingFeature;
+          } else {
+            const boundary = cellToBoundary(newZoneEvent.h3Index, true);
+            const newFeature = {
+              type: 'Feature',
+              geometry: { type: 'Polygon', coordinates: [boundary] },
+              properties: {
+                h3Index: newZoneEvent.h3Index,
+                intensity: newZoneEvent.intensity || 1,
+                topCategories: newZoneEvent.topCategories
+              }
+            };
+            currentFeatures.push(newFeature);
+          }
+          return {
+            type: 'FeatureCollection',
+            features: currentFeatures
+          };
+        });
+      } catch (e) {
+        console.error("Error when processing realtime event", e);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket Error: ', error);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -174,8 +200,20 @@ export default function MapScreen() {
       </Pressable>)}
     </ScrollView>
     <View style={styles.map}>
-      {style && <MapCanvas key={attempt} ref={map} style={style} onMove={setCamera}
-                           onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }} />}
+      {style && <MapCanvas key={attempt} ref={map} style={style} dangerousZonesData={dangerousZonesData} onMove={setCamera}
+                           onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }}
+                           onPress={(properties) => {
+                             if (properties) {
+                               setSelectedZoneInfo({
+                                 intensity: properties.intensity,
+                                 categories: typeof properties.topCategories === 'string'
+                                     ? JSON.parse(properties.topCategories)
+                                     : properties.topCategories
+                               });
+                             } else {
+                               setSelectedZoneInfo(null);
+                             }
+                           }}/>}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
       {isSelectingLocation && (
           <View style={styles.centerPin} pointerEvents="none">
@@ -193,6 +231,20 @@ export default function MapScreen() {
         <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />
       </View>}
     </View>
+
+    {selectedZoneInfo && (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoCardTitle}>
+            Dangerous Zone (Intensity: {selectedZoneInfo.intensity})
+          </Text>
+          <Text style={styles.infoCardText}>
+            Reported for: {selectedZoneInfo.categories.join(', ')}
+          </Text>
+          <Pressable onPress={() => setSelectedZoneInfo(null)} style={styles.closeInfoButton}>
+            <Text style={styles.closeInfoText}>Close</Text>
+          </Pressable>
+        </View>
+    )}
 
     <View style={styles.bottomOverlayArea}>
       {isSelectingLocation ? (
@@ -259,4 +311,9 @@ const styles = StyleSheet.create({
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   cancelButton: { backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
   cancelText: { color: '#363d47', fontWeight: '700', fontSize: 15 },
+  infoCard: { position: 'absolute', bottom: 150, left: 20, right: 20, backgroundColor: '#ffffff', padding: 16, borderRadius: 12, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, zIndex: 110 },
+  infoCardTitle: { fontWeight: '700', fontSize: 16, color: '#d93838', marginBottom: 8 },
+  infoCardText: { color: '#363d47', fontSize: 14 },
+  closeInfoButton: { marginTop: 12, paddingVertical: 8 },
+  closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 }
 });
