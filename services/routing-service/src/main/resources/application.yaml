@@ -49,3 +49,5 @@ app:
     signing-secret: ${JWT_SIGNING_SECRET:}
     issuer: ${JWT_ISSUER:walkaround}
     audience: ${JWT_AUDIENCE:walkaround-api}
+  valhalla:
+    url: ${VALHALLA_URL}

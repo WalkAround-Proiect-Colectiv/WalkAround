@@ -1,4 +1,8 @@
 package services.routingservice.routecalculation.dto;
 
-public record RouteRequestDto() {
-}
+public record RouteRequestDto(
+        double startLat,
+        double startLng,
+        double endLat,
+        double endLng
+) {}
