@@ -221,9 +221,10 @@ function validDateTime(date: string, time: string): boolean {
     `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}` === date;
 }
 
-function ticketDepartureDate(ticket: FlightItinerary | undefined): string | null {
-  const departure = ticket?.outbound?.[0]?.departureTime;
-  const date = departure?.slice(0, 10);
+function ticketArrivalDate(ticket: FlightItinerary | undefined): string | null {
+  const outbound = ticket?.outbound ?? [];
+  const arrival = outbound[outbound.length - 1]?.arrivalTime;
+  const date = arrival?.slice(0, 10);
   return date && validDateTime(date, '12:00') ? date : null;
 }
 
@@ -379,7 +380,7 @@ export default function TripPlanningScreen() {
     }
 
     setSelectedTicket(index);
-    const date = ticketDepartureDate(tickets?.[index]);
+    const date = ticketArrivalDate(tickets?.[index]);
     if (date) {
       setCheckInDate(date);
       setCheckInSource('ticket');
@@ -687,7 +688,7 @@ export default function TripPlanningScreen() {
               <Text style={styles.helper}>{destinationCity ? `In ${destinationCity.name}, ${destinationCity.country}` : 'Choose a destination city above'}</Text>
             </View>
           </View>
-          <Text style={styles.helper}>Select a flight to use its departure date, or choose your first night directly.</Text>
+          <Text style={styles.helper}>Select a flight to use its final arrival date, or choose your first night directly.</Text>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Check-in date · first night</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Choose accommodation check-in date"
@@ -696,7 +697,7 @@ export default function TripPlanningScreen() {
               <Text style={[styles.dateValue, !checkInDate && styles.datePlaceholder]}>{checkInDate || 'Choose a date'}</Text>
               <Text style={styles.dateAction}>Change</Text>
             </Pressable>
-            {checkInSource === 'ticket' && <Text style={styles.sourceHint}>Suggested from the selected flight’s departure date. You can change it.</Text>}
+            {checkInSource === 'ticket' && <Text style={styles.sourceHint}>Suggested from the selected flight’s final arrival date. You can change it.</Text>}
             {checkInSource === 'calendar' && checkInDate && <Text style={styles.sourceHint}>Date chosen from the calendar.</Text>}
             <CalendarPicker label="Check-in" description="Select the first night of your stay" value={checkInDate}
               visible={checkInCalendarOpen} onSelect={(date) => {
