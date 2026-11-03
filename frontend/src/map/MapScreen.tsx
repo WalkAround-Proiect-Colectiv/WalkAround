@@ -76,27 +76,11 @@ export default function MapScreen() {
   return <View style={styles.screen}>
     <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.heading}>
-        <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close menu' : 'Open menu'}
-          accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
-          {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
-        </Pressable>
+        <Compass size={28} color="#0065EB" />
         <Text style={styles.brand}>WalkAround</Text>
       </View>
       <Link href="/login" accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
     </View>
-    {menuOpen && <View style={styles.menuPanel}>
-      <Pressable accessibilityRole="button" onPress={() => setMenuOpen(false)} style={styles.menuItem}>
-        <Compass size={20} color="#0065EB" /><Text style={styles.menuItemText}>Explore map</Text>
-      </Pressable>
-      <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
-        <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
-      </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
-        accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
-        <Heart size={20} color="#8c96a4" /><Text style={styles.menuItemTextDisabled}>My future</Text>
-        <Text style={styles.menuComingSoon}>Coming soon</Text>
-      </Pressable>
-    </View>}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presets} contentContainerStyle={styles.presetContent}>
       {PLACES.map(place => <Pressable key={place.name} accessibilityRole="button" accessibilityLabel={`View ${place.name}`}
         disabled={!style || loading} onPress={() => place.name === 'Romania' ? map.current?.fitCoverage() : map.current?.goTo(place)} style={styles.place}>
@@ -107,6 +91,25 @@ export default function MapScreen() {
       {style && <MapCanvas key={attempt} ref={map} style={style} onMove={setCamera}
         onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }} />}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
+      <View style={styles.mapMenu}>
+        <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
+          accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
+          {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
+        </Pressable>
+        {menuOpen && <View style={styles.menuPanel}>
+          <Pressable accessibilityRole="button" onPress={() => setMenuOpen(false)} style={styles.menuItem}>
+            <Compass size={20} color="#0065EB" /><Text style={styles.menuItemText}>Explore map</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
+            <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
+            accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
+            <Heart size={20} color="#8c96a4" /><Text style={styles.menuItemTextDisabled}>My future</Text>
+            <Text style={styles.menuComingSoon}>Coming soon</Text>
+          </Pressable>
+        </View>}
+      </View>
       <View style={styles.tools}>
         <Tool label="Zoom in" icon={Plus} disabled={!style || loading} onPress={() => map.current?.zoomBy(1)} />
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
@@ -129,8 +132,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#ffffff' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#e5e8ed' },
   heading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  menuButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: '#eef5ff' },
-  menuPanel: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderColor: '#e5e8ed', gap: 2 },
+  mapMenu: { position: 'absolute', left: 12, top: 16, zIndex: 5, alignItems: 'flex-start' },
+  menuButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+  menuPanel: { width: 242, marginTop: 8, padding: 7, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', gap: 2, elevation: 5, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   menuItem: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
   menuItemText: { color: '#263241', fontSize: 15, fontWeight: '700' },
   menuItemDisabled: { opacity: 0.72 },
@@ -147,7 +151,7 @@ const styles = StyleSheet.create({
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
   dim: { opacity: 0.55 },
   tooltip: { position: 'absolute', right: 52, backgroundColor: '#ffffff', color: '#363d47', padding: 8, borderRadius: 4, width: 110, fontSize: 12, borderWidth: 1, borderColor: '#dce2e9' },
-  loading: { position: 'absolute', top: 18, left: 18, backgroundColor: '#ffffff', padding: 12, borderRadius: 6 },
+  loading: { position: 'absolute', top: 18, left: 76, backgroundColor: '#ffffff', padding: 12, borderRadius: 6 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 44, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ff0000', borderRadius: 6 },
   errorText: { flex: 1, color: '#a60000', fontSize: 14 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderColor: '#e5e8ed' },
