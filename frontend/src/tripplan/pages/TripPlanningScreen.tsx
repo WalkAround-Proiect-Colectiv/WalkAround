@@ -25,6 +25,7 @@ const INK = '#202632';
 const PLACE_CATEGORIES: { id: PlaceCategory; label: string }[] = [
   { id: 'attractions', label: 'Tourist attractions' },
   { id: 'restaurants', label: 'Restaurants' },
+  { id: 'museums', label: 'Museums' },
 ];
 
 function message(error: unknown): string {

@@ -2,7 +2,8 @@ package services.applicationapi.tripplan.service.attractionsearch;
 
 public enum PlaceCategory {
     ATTRACTIONS("top-rated tourist attractions"),
-    RESTAURANTS("top-rated restaurants");
+    RESTAURANTS("top-rated restaurants"),
+    MUSEUMS("museums");
 
     private final String searchTerm;
 

@@ -37,7 +37,7 @@ export interface PlaceRecommendationPage {
   nextPage: number | null;
 }
 
-export type PlaceCategory = 'attractions' | 'restaurants';
+export type PlaceCategory = 'attractions' | 'restaurants' | 'museums';
 
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
 
