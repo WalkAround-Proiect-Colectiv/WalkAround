@@ -74,7 +74,7 @@ export default function MapScreen() {
       </Pressable>)}
     </ScrollView>
     <View style={styles.map}>
-      {style && <MapCanvas key={attempt} ref={map} style={style} userLocation={userLocation} onMove={setCamera}
+      {style && <MapCanvas key={attempt} ref={map} style={style} userLocation={userLocation} zoom={camera.zoom} onMove={setCamera}
         onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }} />}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
       <View style={styles.mapMenu}>
