@@ -37,6 +37,100 @@ export interface PlaceRecommendationPage {
   nextPage: number | null;
 }
 
+export interface SafetyAdvisorySource {
+  agency: string | null;
+  level: number | null;
+  summary: string | null;
+  url: string | null;
+  updatedAt: string | null;
+}
+
+export interface SafetyAdvisory {
+  maxLevel: number | null;
+  summary: string | null;
+  sources: SafetyAdvisorySource[];
+}
+
+export interface SafetyAlert {
+  id: number | null;
+  type: string | null;
+  severity: string | null;
+  location: string | null;
+  description: string | null;
+  eventDate: string | null;
+  source: string | null;
+  distanceKm: number;
+}
+
+export interface SafetyConflict {
+  id: number | null;
+  severity: string | null;
+  location: string | null;
+  description: string | null;
+  eventDate: string | null;
+  sourceUrl: string | null;
+  distanceKm: number;
+}
+
+export interface DestinationSafety {
+  city: string;
+  country: string;
+  countryCode: string;
+  nearbyRadiusKm: number;
+  checkedAt: string;
+  advisory: SafetyAdvisory | null;
+  alerts: SafetyAlert[];
+  conflicts: SafetyConflict[];
+  alertsPartial: boolean;
+  conflictsPartial: boolean;
+}
+
+export interface HotlineNumber {
+  value: string;
+  type: 'voice' | 'sms' | 'text' | 'short_code';
+}
+
+export interface CountryHotline {
+  id: string;
+  name: string | null;
+  organization: string | null;
+  category: string | null;
+  generalEmergency: boolean;
+  numbers: HotlineNumber[];
+  lastVerified: string | null;
+  verificationStatus: string | null;
+  scope: string | null;
+  geography: string | null;
+  hours: string | null;
+  cost: string | null;
+  target: string | null;
+  languages: string[] | null;
+  website: string | null;
+  chatUrl: string | null;
+  email: string | null;
+  notes: string | null;
+  sourceLinks: string[] | null;
+  source: string;
+  datasetVersion: string;
+}
+
+export interface CountryHotlines {
+  countryCode: string;
+  hotlines: CountryHotline[];
+}
+
+export interface NewsArticle {
+  id: string | null;
+  title: string;
+  description: string | null;
+  url: string;
+  imageUrl: string | null;
+  author: string | null;
+  language: string | null;
+  categories: string[];
+  publishedAt: string | null;
+}
+
 export type PlaceCategory = 'attractions' | 'restaurants' | 'museums' | 'coffee-shops';
 
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
@@ -188,6 +282,22 @@ export function getPlaceRecommendations(
   const name = encodeURIComponent(city.lookupName || city.name);
   const country = encodeURIComponent(city.countryCode);
   return send(`/api/trip-plans/cities/${name}/${category}?countryCode=${country}&page=${page}`);
+}
+
+export function getDestinationSafety(city: CitySuggestion): Promise<DestinationSafety> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/safety?countryCode=${country}`);
+}
+
+export function getCountryHotlines(countryCode: string): Promise<CountryHotlines> {
+  return send(`/api/trip-plans/countries/${encodeURIComponent(countryCode)}/hotlines`);
+}
+
+export function getCityNews(city: CitySuggestion): Promise<NewsArticle[]> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/news?countryCode=${country}`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {

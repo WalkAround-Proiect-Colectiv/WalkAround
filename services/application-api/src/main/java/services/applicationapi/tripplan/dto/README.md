@@ -8,6 +8,9 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | `AirportResponse` | Local database airport ID, name, optional IATA code, and coordinates. A null IATA code is allowed by the database. |
 | `PlaceRecommendationResponse` | Attraction, restaurant, museum, or coffee-shop suggestion with name, optional category/address/description/rating/reviews/coordinates, a Google Maps URL, and optional HTTPS image and website URLs. |
 | `PlaceRecommendationPageResponse` | One place-category page with `items` and a nullable zero-based `nextPage` for an explicit follow-up request. |
+| `DestinationSafetyResponse` | Validated city/country, check time, nearby radius, country advisory with agency sources, nearby alerts and conflicts, and flags for incomplete fetched or displayed lists. |
+| `CountryHotlineResponse` | EU country code and hotlines grouped by source record ID. Each hotline has typed numbers, organization, category, service details, verification context, source hostname, and evidence links. |
+| `NewsArticleResponse` | Currents article title, description, publisher URL, optional image/author/language/categories, publication string, and provider ID. Only safe HTTPS article URLs are returned. |
 | `FlightSearchRequest` | Origin IATA code, destination city/country, EUR budget, inclusive local departure interval, nights, and ticket option. Bean Validation covers individual fields; the service validates relationships between fields and database/provider existence. |
 | `FlightItineraryResponse` | Ticket option, EUR total price, outbound and return segment lists, and Google Flights `viewUrls`. |
 | `FlightSegmentResponse` | One flight segment, including airport codes, local provider time strings, flight number, and airline. Multiple segments represent connections. |
