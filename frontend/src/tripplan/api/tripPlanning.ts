@@ -85,6 +85,40 @@ export interface DestinationSafety {
   conflictsPartial: boolean;
 }
 
+export interface HotlineNumber {
+  value: string;
+  type: 'voice' | 'sms' | 'text' | 'short_code';
+}
+
+export interface CountryHotline {
+  id: string;
+  name: string | null;
+  organization: string | null;
+  category: string | null;
+  generalEmergency: boolean;
+  numbers: HotlineNumber[];
+  lastVerified: string | null;
+  verificationStatus: string | null;
+  scope: string | null;
+  geography: string | null;
+  hours: string | null;
+  cost: string | null;
+  target: string | null;
+  languages: string[] | null;
+  website: string | null;
+  chatUrl: string | null;
+  email: string | null;
+  notes: string | null;
+  sourceLinks: string[] | null;
+  source: string;
+  datasetVersion: string;
+}
+
+export interface CountryHotlines {
+  countryCode: string;
+  hotlines: CountryHotline[];
+}
+
 export type PlaceCategory = 'attractions' | 'restaurants' | 'museums' | 'coffee-shops';
 
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
@@ -242,6 +276,10 @@ export function getDestinationSafety(city: CitySuggestion): Promise<DestinationS
   const name = encodeURIComponent(city.lookupName || city.name);
   const country = encodeURIComponent(city.countryCode);
   return send(`/api/trip-plans/cities/${name}/safety?countryCode=${country}`);
+}
+
+export function getCountryHotlines(countryCode: string): Promise<CountryHotlines> {
+  return send(`/api/trip-plans/countries/${encodeURIComponent(countryCode)}/hotlines`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
