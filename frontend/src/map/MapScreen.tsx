@@ -67,7 +67,7 @@ export default function MapScreen() {
         });
       }
       catch (e) {
-        console.error("Could not load dangerous zones", e);
+        console.warn('Danger-zone overlays are unavailable; the map can still be used.', e);
       }
     }
     loadZones();
@@ -75,10 +75,7 @@ export default function MapScreen() {
 
   useEffect(() => {
     const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
-    if (!wsUrl) {
-      console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
-      return;
-    }
+    if (!wsUrl) return;
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       console.log('Connected to real-time service');
