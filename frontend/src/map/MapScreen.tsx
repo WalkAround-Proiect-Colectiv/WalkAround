@@ -8,8 +8,9 @@ import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserR
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
-import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
+import { MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
+import { useUserLocalization } from './userLocalization';
 import DangerousZoneButton from '../dangerous-zone/components/DangerousZoneButton';
 import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal';
 import { cellToBoundary } from 'h3-js';
@@ -34,9 +35,10 @@ export default function MapScreen() {
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
+  const displayedError = error ?? locationError;
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
   const [zoneModalVisible, setZoneModalVisible] = useState(false);
   const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -204,20 +206,34 @@ export default function MapScreen() {
       </Pressable>)}
     </ScrollView>
     <View style={styles.map}>
-      {style && <MapCanvas key={attempt} ref={map} style={style} dangerousZonesData={dangerousZonesData} onMove={setCamera}
-                           onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }}
-                           onPress={(properties) => {
-                             if (properties) {
-                               setSelectedZoneInfo({
-                                 intensity: properties.intensity,
-                                 categories: typeof properties.topCategories === 'string'
-                                     ? JSON.parse(properties.topCategories)
-                                     : properties.topCategories
-                               });
-                             } else {
-                               setSelectedZoneInfo(null);
-                             }
-                           }}/>}
+{style && (
+  <MapCanvas
+    key={attempt}
+    ref={map}
+    style={style}
+    userLocation={userLocation}
+    zoomLevel={camera.zoom}
+    dangerousZonesData={dangerousZonesData}
+    onMove={setCamera}
+    onReady={() => setLoading(false)}
+    onError={() => {
+      setLoading(false);
+      setError('Some map resources could not load. Check your connection or retry.');
+    }}
+    onPress={properties => {
+      if (properties) {
+        setSelectedZoneInfo({
+          intensity: properties.intensity,
+          categories: typeof properties.topCategories === 'string'
+            ? JSON.parse(properties.topCategories)
+            : properties.topCategories,
+        });
+      } else {
+        setSelectedZoneInfo(null);
+      }
+    }}
+  />
+)}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
 
       {isSelectingLocation && (
@@ -252,8 +268,8 @@ export default function MapScreen() {
         <Tool label="Reset north" icon={Compass} disabled={!style || loading} onPress={() => map.current?.resetNorth()} />
         <Tool label="My location" icon={LocateFixed} disabled={!style || loading || locating} onPress={locate} />
       </View>
-      {error && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>
-        <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />
+      {displayedError && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{displayedError}</Text>
+        {error && <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />}
       </View>}
     </View>
 

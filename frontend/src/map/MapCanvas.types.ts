@@ -2,6 +2,7 @@ import type { Ref } from 'react';
 import type { StyleSpecification } from 'maplibre-gl';
 
 export type CameraPosition = { center: [number, number]; zoom: number };
+export type UserLocation = { coordinates: [longitude: number, latitude: number]; accuracy: number } | null;
 export type MapHandle = {
   fitCoverage(): void;
   goTo(position: CameraPosition): void;
@@ -11,6 +12,8 @@ export type MapHandle = {
 export type MapCanvasProps = {
   ref?: Ref<MapHandle>;
   style: StyleSpecification;
+  userLocation?: UserLocation;
+  zoomLevel?: number;
   dangerousZonesData?: any;
   onReady(): void;
   onError(): void;
