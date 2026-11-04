@@ -19,6 +19,26 @@ services:
       retries: 10
     restart: unless-stopped
 
+  routing-api-db:
+    image: postgres:18
+    container_name: routing-api-db
+    env_file:
+      - "${ROUTING_API_DB_ENV_FILE_LOCATION}"
+    ports:
+      - "${ROUTING_API_DB_HOST_PORT}:${ROUTING_API_DB_CONTAINER_PORT}"
+    volumes:
+      - routing-api-db-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     container_name: walkaround-valhalla
@@ -44,3 +64,4 @@ services:
 volumes:
   application-api-db-data:
   kafka-data:
+  routing-api-db-data:

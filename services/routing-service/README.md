@@ -1,19 +1,27 @@
 # Routing Service
 
-This is a Spring Boot service responsible for managing geographical routing data and handling the dangerous zones feature for pedestrians. It leverages Uber's H3 library for hexagonal hierarchical spatial indexing.
+This is a Spring Boot service responsible for managing geographical routing data, calculating pedestrian paths, and handling the dangerous zones feature. It leverages Uber's H3 library for hexagonal hierarchical spatial indexing and a self-hosted Valhalla routing engine.
 
 ## Current State
 
-The service exposes a secure REST API to fetch dangerous zones heatmaps and report new dangerous zones. When a user reports a new zone, the service:
-1. Calculates the corresponding H3 index based on latitude and longitude.
-2. Persists the report in the PostgreSQL database (`dangerous_zones` table).
-3. Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
+The service exposes secure REST APIs to manage pedestrian mobility and safety:
 
-Security is configured to use stateless JWT authentication. Fetching the heatmap is publicly accessible, while reporting a zone requires a valid user session.
+**1. Dangerous Zones**
+* Fetches dangerous zones heatmaps (publicly accessible).
+* Allows users to report new dangerous zones (requires valid user session).
+* Calculates the corresponding H3 index based on latitude and longitude.
+* Persists the report in the PostgreSQL database (`dangerous_zones` table).
+* Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
+
+**2. Route Calculation**
+* Provides pedestrian-optimized route calculation (publicly accessible).
+* Receives start and end coordinates and acts as a client to the local Valhalla Docker container to compute paths specifically mapped for walkways and pedestrian infrastructure.
+
+Security is configured to use stateless JWT authentication. Fetching routes and heatmaps is publicly accessible, while reporting a zone requires authentication.
 
 ## Run and Test
 
-Use Java 25. Ensure your PostgreSQL database and local Kafka broker are running (via the root `docker-compose.yaml`).
+Use Java 25. Ensure your PostgreSQL database, local Kafka broker, and Valhalla engine are running (via the root `docker-compose.yaml`).
 
 From `services/routing-service/`:
 
