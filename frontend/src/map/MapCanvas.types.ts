@@ -1,5 +1,6 @@
 import type { Ref } from 'react';
 import type { StyleSpecification } from 'maplibre-gl';
+import type { MapPoi } from './poi';
 
 export type CameraPosition = { center: [number, number]; zoom: number };
 export type MapHandle = {
@@ -14,4 +15,5 @@ export type MapCanvasProps = {
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
+  onPoiSelect(poi: MapPoi | null): void;
 };

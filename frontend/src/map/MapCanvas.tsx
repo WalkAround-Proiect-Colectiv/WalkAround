@@ -1,9 +1,12 @@
 import { useImperativeHandle, useRef } from 'react';
-import { Camera, Map, type CameraRef } from '@maplibre/maplibre-react-native';
+import { Camera, Map, type CameraRef, type MapRef } from '@maplibre/maplibre-react-native';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
+import { readPoi } from './poi';
 
-export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapCanvasProps) {
+export default function MapCanvas({ ref, style, onReady, onError, onMove, onPoiSelect }: MapCanvasProps) {
+  const map = useRef<MapRef>(null);
+  const lastTap = useRef(0);
   const camera = useRef<CameraRef>(null);
   const zoom = useRef(PLACES[0].zoom);
   const center = useRef(PLACES[0].center);
@@ -13,8 +16,18 @@ export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapC
     zoomBy: delta => camera.current?.zoomTo(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom.current + delta)), { duration: 250 }),
     resetNorth: () => camera.current?.easeTo({ center: center.current, bearing: 0, pitch: 0, duration: 250 }),
   }), []);
-  return <Map mapStyle={style} style={{ flex: 1 }} touchPitch={false} attribution logo={false}
+  return <Map ref={map} mapStyle={style} style={{ flex: 1 }} touchPitch={false} attribution logo={false}
     tintColor="#0065EB" attributionPosition={{ bottom: 8, right: 8 }}
+    onPress={async event => {
+      const tap = ++lastTap.current;
+      const layers = style.layers.filter(layer => ['poi-dot', 'poi-label'].includes(layer.id)).map(layer => layer.id);
+      if (!layers.length) { onPoiSelect(null); return; }
+      const [horizontal, vertical] = event.nativeEvent.point;
+      try {
+        const features = await map.current?.queryRenderedFeatures([[horizontal - 12, vertical - 12], [horizontal + 12, vertical + 12]], { layers });
+        if (map.current && tap === lastTap.current) onPoiSelect(features?.map(feature => readPoi(feature.properties)).find(poi => poi !== null) ?? null);
+      } catch { if (map.current && tap === lastTap.current) onPoiSelect(null); }
+    }}
     onDidFinishLoadingMap={onReady} onDidFailLoadingMap={onError}
     onRegionDidChange={event => {
       zoom.current = event.nativeEvent.zoom;

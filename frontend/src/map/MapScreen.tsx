@@ -3,12 +3,13 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
 import * as Location from 'expo-location';
-import { Compass, LocateFixed, Minus, Plus, RotateCcw, UserRound, type LucideIcon } from 'lucide-react-native';
+import { Compass, LocateFixed, Minus, Plus, RotateCcw, UserRound, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
+import type { MapPoi } from './poi';
 
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
@@ -29,12 +30,14 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [selectedPoi, setSelectedPoi] = useState<MapPoi | null>(null);
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
     setLoading(true);
     setError(null);
     setStyle(null);
+    setSelectedPoi(null);
     fetch(MAP_STYLE_URL, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error('Style unavailable');
       const result = await response.json();
@@ -83,7 +86,7 @@ export default function MapScreen() {
       </Pressable>)}
     </ScrollView>
     <View style={styles.map}>
-      {style && <MapCanvas key={attempt} ref={map} style={style} onMove={setCamera}
+      {style && <MapCanvas key={attempt} ref={map} style={style} onMove={setCamera} onPoiSelect={setSelectedPoi}
         onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }} />}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
       <View style={styles.tools}>
@@ -96,6 +99,18 @@ export default function MapScreen() {
         <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />
       </View>}
     </View>
+    {selectedPoi && <View style={styles.poiDetails}>
+      <View style={styles.poiHeading}>
+        <Text accessibilityRole="header" style={styles.poiName}>{selectedPoi.name}</Text>
+        <Tool label="Close place details" icon={X} onPress={() => setSelectedPoi(null)} />
+      </View>
+      <ScrollView style={styles.poiDescription}>
+        <Text style={styles.poiCategory}>{selectedPoi.category}</Text>
+        {!!selectedPoi.sources && <Text style={styles.poiMetadata}>{selectedPoi.sources}</Text>}
+        {!!selectedPoi.attribution && <Text style={styles.poiMetadata}>{selectedPoi.attribution}</Text>}
+        {!!selectedPoi.licenses && <Text style={styles.poiMetadata}>{selectedPoi.licenses}</Text>}
+      </ScrollView>
+    </View>}
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <Text style={styles.footerText}>Romania</Text>
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
@@ -122,6 +137,12 @@ const styles = StyleSheet.create({
   loading: { position: 'absolute', top: 18, left: 18, backgroundColor: '#ffffff', padding: 12, borderRadius: 6 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 44, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ff0000', borderRadius: 6 },
   errorText: { flex: 1, color: '#a60000', fontSize: 14 },
+  poiDetails: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
+  poiHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  poiName: { flex: 1, fontSize: 18, fontWeight: '600', color: '#363d47' },
+  poiDescription: { maxHeight: 110 },
+  poiCategory: { color: '#0065EB', fontSize: 14, marginBottom: 6, textTransform: 'capitalize' },
+  poiMetadata: { color: '#626b78', fontSize: 12, lineHeight: 18 },
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderColor: '#e5e8ed' },
   footerText: { color: '#363d47', fontSize: 13, fontWeight: '600' },
   coordinates: { color: '#626b78', fontSize: 12, fontVariant: ['tabular-nums'] },

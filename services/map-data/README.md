@@ -24,7 +24,7 @@ This is a first self-hosted basemap implementation, not a production-tuned repla
 
 ## POI Source Strategy and Model
 
-The POI foundation is separate from the osm2pgsql-owned basemap. `V2__poi_source_catalog_and_model.sql` adds the `places` model and source-catalog metadata only: it does not fetch external APIs, copy existing OSM POIs, populate canonical places, deduplicate providers, publish POI tiles, or change the frontend. Future POI enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment step in `setup`/`start`.
+The POI foundation is separate from the osm2pgsql-owned basemap. V2 defines source/provenance tables, V3 adds explicit record reconciliation and review, and V4 publishes a separate POI tile layer. These migrations do not fetch external APIs or populate a real enriched dataset. Future enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment/reconciliation step in `setup`/`start`.
 
 ### Initial Sources
 
@@ -45,30 +45,66 @@ Romanian municipal/open-data APIs can be added as provider entries after choosin
 | `places.providers` | Source identity, documentation/API URLs, license and terms references, attribution, and approval/review metadata. This migration seeds the three candidates above, not actual POIs. |
 | `places.pois` | Stable UUID canonical places, optional display name and multilingual names, normalized category/subtype, location, optional address/website, active/inactive status, importance, and minimum display zoom. |
 | `places.poi_records` | Provider-specific identities and curated observations, unique by `(provider_code, external_id)`. Keeps source URL, source timestamp, first/last observation times, license/attribution snapshots, and optional run provenance. |
-| `places.poi_links` | At most one canonical assignment per provider record. Records proposed/confirmed matching, method/confidence, and which canonical fields the record contributed. Multiple provider records may describe the same canonical POI. No matching algorithm is implemented. |
+| `places.poi_links` | At most one canonical assignment per provider record. Records proposed/confirmed matching, method/confidence, contributed fields, and explicit reviewer/time when a proposal is confirmed. Multiple provider records may describe the same canonical POI. |
 | `places.import_runs` | Audit model for future manual runs: provider, operator identifier, status, timestamps, counts, and sanitized error summary. The trigger mode is constrained to `manual`; this table itself runs nothing. |
 
-Canonical and source coordinates use `geometry(Point,4326)` in longitude/latitude order, with nonempty/valid/range checks and GiST indexes. They intentionally retain geographic coordinates from providers; a future tile function should select against a geographic tile envelope and transform selected geometries to EPSG:3857 for MVT generation. This does not change the existing EPSG:3857 `osm.features` table.
+Canonical and source coordinates use `geometry(Point,4326)` in longitude/latitude order, with nonempty/valid/range checks and GiST indexes. The POI tile function selects against a geographic tile envelope and transforms selected canonical geometries to EPSG:3857 for MVT generation. Distance-based reconciliation uses geography distances in meters and an expression index. This does not change the existing EPSG:3857 `osm.features` table.
 
 The initial normalized categories are `food_drink`, `healthcare`, `shopping`, `transport`, `public_service`, `culture`, `tourism`, `recreation`, `accommodation`, `education`, `utilities`, and `other`. Provider categories must be mapped deliberately rather than copied as new canonical category values. Null names support unnamed useful amenities; future map styling can fall back to category labels. Inactive is not proof of permanent closure, and absence from a failed/incomplete source run must not automatically withdraw data.
 
 `curated_attributes` is an object for selected, permitted provider fields, not blanket permission to retain raw API responses. The source-record license and attribution fields preserve provenance even when provider catalog metadata changes. The model does not yet track per-field conflict resolution or automatically validate license compatibility; future job code must enforce provider approval and publication policies.
 
-`map_import` owns the POI tables. `map_tiles` can read canonical POIs and only the explicitly granted public provider identity/license/attribution columns. Reviewer identities/notes, source records, links, and run metadata are not granted to it. Martin still auto-publishes nothing and exposes only the existing basemap function, so no POI HTTP layer is added here. There are no foreign keys into the Application API database.
+`map_import` owns the POI tables. `map_tiles` can read canonical POIs, the filtered publication views, and explicitly granted public provider identity/license/attribution columns. Reviewer identities/notes, source records, links, run metadata, and mutation functions are not granted to it. Martin auto-publish remains disabled and explicitly exposes `basemap` and `pois` only. There are no foreign keys into the Application API database.
+
+### Manual Deduplication
+
+V3 adds normalized source category/subtype, geographic country/address/website fields, and an `identifiers` object to provider records. Identifiers must be trusted normalized strings from an approved source, for example `{"wikidata":"Q123","osm":"node/456"}`. OSM references use exactly `node/<id>`, `way/<id>`, or `relation/<id>`. A private `poi_identifiers` table makes `(namespace,value)` unique across canonical POIs.
+
+Run reconciliation only when intentionally requested, after migrations and after approved source records have been inserted through an authorized manual workflow:
+
+```sh
+node services/map-data/manage.mjs reconcile-pois
+```
+
+This command fetches no providers. It processes existing unconfirmed records in deterministic source order and prints outcome counts plus proposed links for review. It can take time for large batches; concurrent reconciliation is serialized by a transaction-level advisory lock. No canonical-to-canonical bulk merge is performed, and a reviewed link is never silently reassigned.
+
+Matching rules are deliberately conservative:
+
+- Only current records from approved providers with matching license IDs and either no run or a successful run are eligible. Missing normalized category yields `unclassified`.
+- Existing confirmed source links return `linked`; repeated processing does not create another POI. Automatic matching does not overwrite existing canonical display fields.
+- A shared explicit identifier can return `matched` only for one active, same-category canonical POI, with compatible country and within 250 meters. Conflicting identities or an implausible location/category return `identifier_conflict` without linking.
+- An exact case/spacing/punctuation-normalized name, same category/subtype, compatible country, and distance within 50 meters produces a `proposed` link, not an automatic merge. More than one candidate returns `ambiguous`. Accent differences are not automatically folded.
+- If no candidate or known identifier exists, `created` establishes one canonical POI and confirmed originating record. Unnamed records require identifiers or explicit review to deduplicate reliably. These thresholds are initial conservative policies, not measured matching accuracy guarantees.
+
+Review proposals as the import role, not the tile role. An authorized operator can open `psql` using the module's Compose configuration (`docker compose --env-file .env --profile maintenance run --rm --entrypoint psql map-job -X`) and call `places.confirm_match(source_record_uuid, target_poi_uuid, reviewer_name)` with UUID/text arguments. Confirmation records the reviewer/time, checks eligibility, category/country/location and conflicting identities, and does not overwrite canonical fields. If the proposed target is wrong, create the correct canonical record explicitly before confirming it; there is no fuzzy auto-approval or review UI in this change. Do not mark a provider approved simply to make test markers visible.
+
+### Published POIs and Map Behavior
+
+`tiles.pois(z,x,y)` serves an MVT layer named `pois` at `/tiles/pois/{z}/{x}/{y}` and metadata at `/tiles/pois`. Its public fields are stable string `poi_id`, name, category, subtype, sources, attribution, licenses, and importance. Source payloads, reviewer fields, record IDs, and run metadata are not in the tiles.
+
+A canonical POI is visible only while it is active and has confirmed, current records from approved providers with matching licenses and no failed/in-progress import run. At least one eligible record must explicitly account for the canonical `name`, `category`, and `geom` in `contributed_fields`. Identity-only matches do not replace the field provenance of a withdrawn/rejected origin. Proposed matches and unapproved/withdrawn records do not contribute to publication or attribution. Losing eligible display-field provenance hides the canonical POI without deleting its history or identity; an operator must review/rederive those fields before republishing under another source's attribution.
+
+The POI source also includes baseline OSM POIs. A published canonical POI with an explicit OSM identity suppresses exactly that baseline object. If its eligible sources disappear, the OSM fallback returns. Nearby names alone never suppress an OSM marker, so unresolved cross-source duplicates can remain until reviewed; existing duplicate OSM node/area representations are not automatically conflated. The style draws POIs exclusively from the new source, rather than drawing the original basemap POIs a second time.
+
+Tiles are limited to 500 points, ordered by importance then stable ID. A viewport can contain several tiles; this is a per-tile bound, not a global point count. Server POI zooms are 4-18, canonical `min_zoom` defaults to 15, and labels begin at zoom 14. Baseline OSM points retain their existing minimum zoom. Dense areas can omit lower-ranked points; production performance/generalization still needs measurement.
+
+The web and native map adapters support selecting a marker/label. A small full-width detail band shows the public name/category/source/license fields as text; Close or an empty-map tap dismisses it. Third-party text is not rendered as HTML. The hosted OpenFreeMap prototype is unchanged; this POI contract belongs to the self-hosted style. No provider data is fetched on tap.
+
+Source attribution remains in the style and TileJSON and is also carried on features. The supplied style credits the initial source shortlist; review/update that credit set before enabling another provider. Provider approval is still an operator responsibility, not an automatic claim that licenses can be combined.
 
 ### Applying and Testing
 
-A small `map-schema` one-shot Compose service uses the database administrator only to create `places` owned by `map_import`. This supports both fresh and existing map database volumes without granting the import role global database CREATE or superuser rights. Flyway waits for that step and then applies V2 under the existing `tiles.flyway_schema_history`. The Application API's migrations are unaffected, and V1 is unchanged.
+A small `map-schema` one-shot Compose service uses the database administrator only to create `places` owned by `map_import`. This supports both fresh and existing map database volumes without granting the import role global database CREATE or superuser rights. Flyway waits for that step and applies pending V2-V4 migrations under the existing `tiles.flyway_schema_history`. The Application API's migrations are unaffected, and existing migrations are not rewritten.
 
 For an existing, completed regional setup, run `node services/map-data/manage.mjs start` to apply pending migrations and restart/verify the map stack. `setup` also includes the migration path. These commands apply schema/source-catalog changes only; they do not call third-party POI APIs. Review any application of migrations to non-local deployments with the team first.
 
-The Docker smoke test runs the POI model checks after migrations. They insert synthetic providers, POIs, provenance, and manual-run metadata inside a transaction, assert uniqueness/FK/coordinate/category/review/permission constraints, and roll everything back. No synthetic data remains in the database. The test can also be explicitly run from this module with:
+The Docker smoke test runs transactional POI model/reconciliation checks after migrations, then seeds canonical/duplicate source records only in its guarded disposable fixture stack and decodes the resulting POI tiles. It checks matching, repeatability, review, conflicts, rejection/withdrawal, attribution, zoom filtering, and explicit OSM suppression. Transactional test changes are rolled back; the HTTP fixture is removed with the smoke project's volumes. The transactional tests can also be explicitly run from this module with:
 
 ```sh
 docker compose --env-file .env --profile maintenance run --rm --no-deps map-job test-poi-model
 ```
 
-Run the lightweight contracts from the repository root with `node --test services/map-data/tests/contracts.test.mjs`. They check wiring, not real SQL execution. Docker was unavailable while this POI model was added, so executing V2 and the transactional PostGIS tests remains required on a Docker-enabled machine. Source selection/model work does not establish that enriched POIs render in the frontend; a POI tile/style integration check belongs to a later stage.
+Run the lightweight contracts from the repository root with `node --test services/map-data/tests/contracts.test.mjs`. They validate the real style and check wiring, not SQL execution. Docker was unavailable for this POI extension, so running pending migrations and the PostGIS/Martin smoke tests remains required on a Docker-enabled machine. Browser checks here used clearly labeled synthetic GeoJSON markers to exercise selection, source attribution, dismissal, and desktop/mobile layout; they do not prove real database deduplication or tile output. Native device testing remains required.
 
 Official references: [Wikidata licensing](https://www.wikidata.org/wiki/Wikidata:Licensing), [Wikidata data access](https://www.wikidata.org/wiki/Wikidata:Data_access), [GeoNames export/API terms](https://www.geonames.org/export/), [GeoNames web services](https://www.geonames.org/export/web-services.html), [OSM copyright](https://www.openstreetmap.org/copyright).
 

@@ -3,13 +3,15 @@ import { Map, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
+import { readPoi } from './poi';
 
-export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapCanvasProps) {
+export default function MapCanvas({ ref, style, onReady, onError, onMove, onPoiSelect }: MapCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<Map | null>(null);
   const ready = useEffectEvent(onReady);
   const failed = useEffectEvent(onError);
   const moved = useEffectEvent(onMove);
+  const selected = useEffectEvent(onPoiSelect);
   useImperativeHandle(ref, () => ({
     fitCoverage: () => { map.current?.fitBounds(ROMANIA_BOUNDS, { padding: 24, bearing: 0, pitch: 0, duration: 900 }); },
     goTo: position => { map.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }); },
@@ -34,6 +36,12 @@ export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapC
     instance.on('moveend', () => {
       const center = instance.getCenter();
       moved({ center: [center.lng, center.lat], zoom: instance.getZoom() });
+    });
+    instance.on('click', event => {
+      const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+      if (!layers.length) { selected(null); return; }
+      const features = instance.queryRenderedFeatures([[event.point.x - 12, event.point.y - 12], [event.point.x + 12, event.point.y + 12]], { layers });
+      selected(features.map(feature => readPoi(feature.properties)).find(poi => poi !== null) ?? null);
     });
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
