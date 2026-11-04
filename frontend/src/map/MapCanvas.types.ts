@@ -1,6 +1,7 @@
 import type { Ref } from 'react';
 import type { StyleSpecification } from 'maplibre-gl';
-import type { MapPoi } from './poi';
+import type { MapPoi, MapZone } from './poi';
+import type { FeatureCollection } from 'geojson';
 
 export type CameraPosition = { center: [number, number]; zoom: number };
 export type MapHandle = {
@@ -12,8 +13,10 @@ export type MapHandle = {
 export type MapCanvasProps = {
   ref?: Ref<MapHandle>;
   style: StyleSpecification;
+  dangerousZonesData?: FeatureCollection;
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
   onPoiSelect(poi: MapPoi | null): void;
+  onPress?(zone: MapZone | null): void;
 };

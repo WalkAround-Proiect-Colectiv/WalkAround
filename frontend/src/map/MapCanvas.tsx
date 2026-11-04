@@ -1,10 +1,10 @@
 import { useImperativeHandle, useRef } from 'react';
-import { Camera, Map, type CameraRef, type MapRef } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map, type CameraRef, type MapRef } from '@maplibre/maplibre-react-native';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
-import { readPoi } from './poi';
+import { selectMapHit } from './poi';
 
-export default function MapCanvas({ ref, style, onReady, onError, onMove, onPoiSelect }: MapCanvasProps) {
+export default function MapCanvas({ ref, style, dangerousZonesData, onReady, onError, onMove, onPoiSelect, onPress }: MapCanvasProps) {
   const map = useRef<MapRef>(null);
   const lastTap = useRef(0);
   const camera = useRef<CameraRef>(null);
@@ -21,12 +21,18 @@ export default function MapCanvas({ ref, style, onReady, onError, onMove, onPoiS
     onPress={async event => {
       const tap = ++lastTap.current;
       const layers = style.layers.filter(layer => ['poi-dot', 'poi-label'].includes(layer.id)).map(layer => layer.id);
-      if (!layers.length) { onPoiSelect(null); return; }
       const [horizontal, vertical] = event.nativeEvent.point;
       try {
-        const features = await map.current?.queryRenderedFeatures([[horizontal - 12, vertical - 12], [horizontal + 12, vertical + 12]], { layers });
-        if (map.current && tap === lastTap.current) onPoiSelect(features?.map(feature => readPoi(feature.properties)).find(poi => poi !== null) ?? null);
-      } catch { if (map.current && tap === lastTap.current) onPoiSelect(null); }
+        const poiFeatures = layers.length ? await map.current?.queryRenderedFeatures([[horizontal - 12, vertical - 12], [horizontal + 12, vertical + 12]], { layers }) : [];
+        const zoneFeatures = dangerousZonesData ? await map.current?.queryRenderedFeatures([horizontal, vertical], { layers: ['dangerous-zones-layer'] }) : [];
+        if (map.current && tap === lastTap.current) {
+          const hit = selectMapHit(poiFeatures ?? [], zoneFeatures ?? []);
+          onPoiSelect(hit.poi);
+          onPress?.(hit.zone);
+        }
+      } catch {
+        if (map.current && tap === lastTap.current) { onPoiSelect(null); onPress?.(null); }
+      }
     }}
     onDidFinishLoadingMap={onReady} onDidFailLoadingMap={onError}
     onRegionDidChange={event => {
@@ -35,5 +41,12 @@ export default function MapCanvas({ ref, style, onReady, onError, onMove, onPoiS
       onMove({ center: event.nativeEvent.center, zoom: event.nativeEvent.zoom });
     }}>
     <Camera ref={camera} initialViewState={{ bounds: [...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]], padding: { top: 24, right: 24, bottom: 24, left: 24 } }} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} />
+    {dangerousZonesData && <GeoJSONSource id="dangerous-zones-source" data={dangerousZonesData}>
+      <Layer id="dangerous-zones-layer" type="fill" paint={{
+        'fill-color': ['step', ['get', 'intensity'], '#FFF9C4', 3, '#FFEB3B', 5, '#FFC107', 10, '#FF9800', 15, '#D93838'],
+        'fill-opacity': 0.45,
+      }} />
+      <Layer id="dangerous-zones-borders" type="line" paint={{ 'line-color': '#d93838', 'line-width': 1, 'line-opacity': 0.6 }} />
+    </GeoJSONSource>}
   </Map>;
 }

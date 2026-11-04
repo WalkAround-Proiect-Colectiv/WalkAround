@@ -1,4 +1,22 @@
 export type MapPoi = { id: string; name: string; category: string; sources: string; attribution: string; licenses: string };
+export type MapZone = { h3Index: string; intensity: number; categories: string[] };
+
+export function selectMapHit(poiFeatures: { properties?: unknown }[], zoneFeatures: { properties?: unknown }[]) {
+  const poi = poiFeatures.map(feature => readPoi(feature.properties)).find(value => value !== null) ?? null;
+  if (poi) return { poi, zone: null };
+  for (const feature of zoneFeatures) {
+    const values = feature.properties as Record<string, unknown> | null;
+    if (!values || typeof values.h3Index !== 'string' || typeof values.intensity !== 'number' || !Number.isFinite(values.intensity)) continue;
+    let categories = values.topCategories;
+    if (typeof categories === 'string') {
+      try { categories = JSON.parse(categories); } catch { categories = []; }
+    }
+    const zone: MapZone = { h3Index: values.h3Index, intensity: values.intensity,
+      categories: Array.isArray(categories) ? categories.filter((value): value is string => typeof value === 'string') : [] };
+    return { poi: null, zone };
+  }
+  return { poi: null, zone: null };
+}
 
 export function readPoi(properties: unknown): MapPoi | null {
   if (!properties || typeof properties !== 'object') return null;
