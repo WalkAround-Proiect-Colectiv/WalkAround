@@ -1,10 +1,7 @@
 package services.routingservice.routecalculation.controllers;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import services.routingservice.routecalculation.dto.RouteRequestDto;
 import services.routingservice.routecalculation.service.RouteService;
 
@@ -13,17 +10,19 @@ import services.routingservice.routecalculation.service.RouteService;
 public class RouteController {
 
     private final RouteService routeService;
-    public RouteController(RouteService routeService)
-    {
+
+    public RouteController(RouteService routeService) {
         this.routeService = routeService;
     }
 
-    @GetMapping("/pedestrian")
-    public ResponseEntity<String> getPedestrianRoute(RouteRequestDto request)
+    @PostMapping("/pedestrian")
+    public ResponseEntity<String> getPedestrianRoute(@RequestBody RouteRequestDto request)
     {
-        try
-        {
-            String valhallaResponse = routeService.calculatePedestrianRoute(request.startLat(), request.startLng(), request.endLat(), request.endLng());
+        try {
+            String valhallaResponse = routeService.calculatePedestrianRoute(
+                    request.startLat(), request.startLng(),
+                    request.endLat(), request.endLng()
+            );
             return ResponseEntity.ok()
                     .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                     .body(valhallaResponse);

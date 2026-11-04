@@ -1,11 +1,11 @@
 import { useImperativeHandle, useRef } from 'react';
 import { Camera, Map, type CameraRef } from '@maplibre/maplibre-react-native';
 // @ts-ignore
-import { ShapeSource, FillLayer, LineLayer } from '@maplibre/maplibre-react-native';
+import { ShapeSource, FillLayer, LineLayer, CircleLayer } from '@maplibre/maplibre-react-native';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ ref, style, dangerousZonesData, onReady, onError, onMove, onPress }: MapCanvasProps) {
+export default function MapCanvas({ ref, style, dangerousZonesData, routeData, routePointsData, onReady, onError, onMove, onPress }: MapCanvasProps) {
   const camera = useRef<CameraRef>(null);
   const mapRef = useRef<any>(null);
   const zoom = useRef(PLACES[0].zoom);
@@ -27,8 +27,10 @@ export default function MapCanvas({ ref, style, dangerousZonesData, onReady, onE
              onMove({ center: event.nativeEvent.center, zoom: event.nativeEvent.zoom });
            }}
            onPress={async (event) => {
+               // @ts-ignore
+               const coords: [number, number] | undefined = event?.geometry?.coordinates;
              if (!onPress || !mapRef.current) {
-               if (onPress) onPress(null);
+               if (onPress) onPress(null, coords);
                return;
              }
              try {
@@ -40,9 +42,9 @@ export default function MapCanvas({ ref, style, dangerousZonesData, onReady, onE
                );
 
                if (featureCollection && featureCollection.features.length > 0) {
-                 onPress(featureCollection.features[0].properties);
+                 onPress(featureCollection.features[0].properties, coords);
                } else {
-                 onPress(null);
+                 onPress(null, coords);
                }
              }
              catch (err) {
@@ -75,6 +77,21 @@ export default function MapCanvas({ ref, style, dangerousZonesData, onReady, onE
               />
             </ShapeSource>
         )}
+          {routeData && (
+              <ShapeSource id="route-source" shape={routeData}>
+                  <LineLayer id="route-layer" style={{ lineColor: '#9b59b6', lineWidth: 5, lineCap: 'round', lineJoin: 'round' }} />
+              </ShapeSource>
+          )}
+          {routePointsData && (
+              <ShapeSource id="route-points-source" shape={routePointsData}>
+                  <CircleLayer id="route-points-layer" style={{
+                      circleColor: ['match', ['get', 'type'], 'start', '#0065EB', 'end', '#d93838', '#000'],
+                      circleRadius: 7,
+                      circleStrokeWidth: 2,
+                      circleStrokeColor: '#ffffff'
+                  }} />
+              </ShapeSource>
+          )}
       </Map>
   );
 }

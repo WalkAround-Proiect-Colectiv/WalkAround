@@ -69,6 +69,8 @@ app:
       jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
       issuers: https://accounts.google.com,accounts.google.com
     allowed-origins: ${REGISTRATION_ALLOWED_ORIGINS:}
+  routing-service:
+    url: ${ROUTING_SERVICE_URL}
 
   trip-plan:
     city-provider: ${CITY_PROVIDER:geonames}
