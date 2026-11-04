@@ -84,3 +84,15 @@ app:
     flight-search-max-date-range-days: ${FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS:7}
     accommodation-provider: ${ACCOMMODATION_PROVIDER:serpapi}
     accommodation-search-max-results: ${ACCOMMODATION_SEARCH_MAX_RESULTS:3}
+    attraction-provider: ${ATTRACTION_PROVIDER:serpapi}
+    safety-provider: ${SAFETY_PROVIDER:travel-risk-api}
+    travel-risk-api-key: ${TRAVEL_RISK_API_KEY:}
+    travel-risk-api-base-url: ${TRAVEL_RISK_API_BASE_URL:https://api.travelriskapi.com}
+    travel-risk-api-timeout: ${TRAVEL_RISK_API_TIMEOUT:PT8S}
+    safety-nearby-radius-km: ${SAFETY_NEARBY_RADIUS_KM:100}
+    safety-max-results: ${SAFETY_MAX_RESULTS:10}
+    news-provider: ${NEWS_PROVIDER:currents}
+    currents-api-key: ${CURRENTS_API_KEY:}
+    currents-api-base-url: ${CURRENTS_API_BASE_URL:https://api.currentsapi.services}
+    currents-api-timeout: ${CURRENTS_API_TIMEOUT:PT8S}
+    news-page-size: ${NEWS_PAGE_SIZE:20}

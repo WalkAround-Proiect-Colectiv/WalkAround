@@ -2,19 +2,25 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
-import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, X, type LucideIcon } from 'lucide-react-native';
+import { useSession } from '../login/components/SessionProvider';
+import * as Location from 'expo-location';
+import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
 import { MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
 import { useUserLocalization } from './userLocalization';
+import DangerousZoneButton from '../dangerous-zone/components/DangerousZoneButton';
+import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal';
+import { cellToBoundary } from 'h3-js';
+import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
 
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
-    onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
-    onPress={onPress} style={({ pressed }) => [styles.tool, (disabled || pressed) && styles.dim]}>
+                    onHoverIn={() => setHovered(true)} onHoverOut={() => setHovered(false)}
+                    onPress={onPress} style={({ pressed }) => [styles.tool, (disabled || pressed) && styles.dim]}>
     <Icon size={21} color={disabled ? '#9aa3ae' : '#0065EB'} />
     {hovered && <Text style={styles.tooltip}>{label}</Text>}
   </Pressable>;
@@ -24,6 +30,7 @@ export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const map = useRef<MapHandle>(null);
+  const { session } = useSession();
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [loading, setLoading] = useState(true);
@@ -32,6 +39,102 @@ export default function MapScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const displayedError = error ?? locationError;
+  const [isSelectingLocation, setIsSelectingLocation] = useState(false);
+  const [zoneModalVisible, setZoneModalVisible] = useState(false);
+  const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [selectedZoneInfo, setSelectedZoneInfo] = useState<{ categories: string[], intensity: number } | null>(null);
+  const [dangerousZonesData, setDangerousZonesData] = useState<any>({
+    type: 'FeatureCollection',
+    features: []
+  });
+  
+  useEffect(() => {
+    if (!style) return;
+    async function loadZones() {
+      try {
+        const heatmapData = await fetchDangerousZonesHeatmap();
+        const features = heatmapData.map(zone => {
+          const boundary = cellToBoundary(zone.h3Index, true);
+          return {
+            type: 'Feature',
+            geometry: { type: 'Polygon', coordinates: [boundary] },
+            properties: { h3Index: zone.h3Index, intensity: zone.intensity, topCategories: zone.topCategories }
+          };
+        });
+        setDangerousZonesData({
+          type: 'FeatureCollection',
+          features: features
+        });
+      }
+      catch (e) {
+        console.error("Could not load dangerous zones", e);
+      }
+    }
+    loadZones();
+  }, [session, style]);
+  
+  useEffect(() => {
+    const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
+    if (!wsUrl) {
+      console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
+      return;
+    }
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => {
+      console.log('Connected to real-time service');
+    };
+    ws.onmessage = (event) => {
+      try {
+        const newZoneEvent = JSON.parse(event.data);
+        setDangerousZonesData((prevData: any) => {
+          const currentFeatures = prevData?.features ? [...prevData.features] : [];
+          const existingFeatureIndex = currentFeatures.findIndex(
+              (f: any) => f.properties.h3Index === newZoneEvent.h3Index
+          );
+
+          if (existingFeatureIndex !== -1) {
+            const existingFeature = { ...currentFeatures[existingFeatureIndex] };
+            existingFeature.properties = { ...existingFeature.properties };
+            existingFeature.properties.intensity += 1;
+
+            if (newZoneEvent.topCategories && newZoneEvent.topCategories.length > 0) {
+              const newCategories = newZoneEvent.topCategories[0];
+              if (!existingFeature.properties.topCategories.includes(newCategories)) {
+                existingFeature.properties.topCategories.push(newCategories);
+              }
+            }
+            currentFeatures[existingFeatureIndex] = existingFeature;
+          } else {
+            const boundary = cellToBoundary(newZoneEvent.h3Index, true);
+            const newFeature = {
+              type: 'Feature',
+              geometry: { type: 'Polygon', coordinates: [boundary] },
+              properties: {
+                h3Index: newZoneEvent.h3Index,
+                intensity: newZoneEvent.intensity || 1,
+                topCategories: newZoneEvent.topCategories
+              }
+            };
+            currentFeatures.push(newFeature);
+          }
+          return {
+            type: 'FeatureCollection',
+            features: currentFeatures
+          };
+        });
+      } catch (e) {
+        console.error("Error when processing realtime event", e);
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('WebSocket Error: ', error);
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
@@ -59,27 +162,89 @@ export default function MapScreen() {
     return () => clearTimeout(timeout);
   }, [style, loading]);
 
+  async function locate() {
+    if (locating) return;
+    setLocating(true);
+    setError(null);
+    try {
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (!permission.granted) throw new Error('Location permission was denied. You can still browse the map.');
+      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { longitude, latitude } = position.coords;
+      if (!isInCoverage(longitude, latitude)) throw new Error('Your location is outside the Romania prototype area.');
+      map.current?.goTo({ center: [longitude, latitude], zoom: 15 });
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not find your location.'); }
+    finally { setLocating(false); }
+  }
+
+  function handleReportPress() {
+    if (!session) {
+      router.push('/login');
+      return;
+    }
+    setIsSelectingLocation(true);
+  }
+
+  function handleConfirmLocation() {
+    setReportLocation({ lat: camera.center[1], lng: camera.center[0] });
+    setIsSelectingLocation(false);
+    setZoneModalVisible(true);
+  }
+
   return <View style={styles.screen}>
     <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.heading}>
         <Compass size={28} color="#0065EB" />
         <Text style={styles.brand}>WalkAround</Text>
       </View>
-      <Link href="/login" accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
+      <Link href={session ? '/home' : '/login'} accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
     </View>
     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presets} contentContainerStyle={styles.presetContent}>
       {PLACES.map(place => <Pressable key={place.name} accessibilityRole="button" accessibilityLabel={`View ${place.name}`}
-        disabled={!style || loading} onPress={() => place.name === 'Romania' ? map.current?.fitCoverage() : map.current?.goTo(place)} style={styles.place}>
+                                      disabled={!style || loading} onPress={() => place.name === 'Romania' ? map.current?.fitCoverage() : map.current?.goTo(place)} style={styles.place}>
         <Text style={styles.placeText}>{place.name}</Text>
       </Pressable>)}
     </ScrollView>
     <View style={styles.map}>
-      {style && <MapCanvas key={attempt} ref={map} style={style} userLocation={userLocation} zoom={camera.zoom} onMove={setCamera}
-        onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }} />}
+{style && (
+  <MapCanvas
+    key={attempt}
+    ref={map}
+    style={style}
+    userLocation={userLocation}
+    zoomLevel={camera.zoom}
+    dangerousZonesData={dangerousZonesData}
+    onMove={setCamera}
+    onReady={() => setLoading(false)}
+    onError={() => {
+      setLoading(false);
+      setError('Some map resources could not load. Check your connection or retry.');
+    }}
+    onPress={properties => {
+      if (properties) {
+        setSelectedZoneInfo({
+          intensity: properties.intensity,
+          categories: typeof properties.topCategories === 'string'
+            ? JSON.parse(properties.topCategories)
+            : properties.topCategories,
+        });
+      } else {
+        setSelectedZoneInfo(null);
+      }
+    }}
+  />
+)}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
+
+      {isSelectingLocation && (
+          <View style={styles.centerPin} pointerEvents="none">
+            <MapPin size={42} color="#d93838" />
+          </View>
+      )}
+      
       <View style={styles.mapMenu}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
-          accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
+                   accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
           {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
         </Pressable>
         {menuOpen && <View style={styles.menuPanel}>
@@ -90,12 +255,13 @@ export default function MapScreen() {
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
-            accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
+                     accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
             <Heart size={20} color="#8c96a4" /><Text style={styles.menuItemTextDisabled}>My future</Text>
             <Text style={styles.menuComingSoon}>Coming soon</Text>
           </Pressable>
         </View>}
       </View>
+
       <View style={styles.tools}>
         <Tool label="Zoom in" icon={Plus} disabled={!style || loading} onPress={() => map.current?.zoomBy(1)} />
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
@@ -106,6 +272,50 @@ export default function MapScreen() {
         {error && <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />}
       </View>}
     </View>
+
+    {selectedZoneInfo && (
+        <View style={styles.infoCard}>
+          <Text style={styles.infoCardTitle}>
+            Dangerous Zone (Intensity: {selectedZoneInfo.intensity})
+          </Text>
+          <Text style={styles.infoCardText}>
+            Reported for: {selectedZoneInfo.categories.join(', ')}
+          </Text>
+          <Pressable onPress={() => setSelectedZoneInfo(null)} style={styles.closeInfoButton}>
+            <Text style={styles.closeInfoText}>Close</Text>
+          </Pressable>
+        </View>
+    )}
+
+    <View style={styles.bottomOverlayArea}>
+      {isSelectingLocation ? (
+          <View style={styles.actionButtonsRow}>
+            <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}>
+              <Text style={styles.cancelText}>Cancel</Text>
+            </Pressable>
+            <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}>
+              <Text style={styles.confirmText}>Confirm Location</Text>
+            </Pressable>
+          </View>
+      ) : (
+          <DangerousZoneButton onPress={handleReportPress} />
+      )}
+    </View>
+
+    {reportLocation && (
+        <DangerousZoneModal
+            visible={zoneModalVisible}
+            onClose={() => {
+              setZoneModalVisible(false);
+              setReportLocation(null);
+            }}
+            currentLat={reportLocation.lat}
+            currentLng={reportLocation.lng}
+            onSuccess={() => {
+              console.log('Dangerous zone reported successfully!');
+            }}
+        />
+    )}
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <Text style={styles.footerText}>Romania</Text>
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
@@ -143,4 +353,16 @@ const styles = StyleSheet.create({
   footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderColor: '#e5e8ed' },
   footerText: { color: '#363d47', fontSize: 13, fontWeight: '600' },
   coordinates: { color: '#626b78', fontSize: 12, fontVariant: ['tabular-nums'] },
+  centerPin: { position: 'absolute', top: '50%', left: '50%', marginLeft: -21, marginTop: -42, zIndex: 10, alignItems: 'center', justifyContent: 'center' },
+  bottomOverlayArea: { position: 'absolute', right: 20, bottom: 80, zIndex: 100, alignItems: 'flex-end' },
+  actionButtonsRow: { flexDirection: 'row', gap: 12 },
+  confirmButton: { backgroundColor: '#d93838', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+  confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+  cancelButton: { backgroundColor: '#fff', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
+  cancelText: { color: '#363d47', fontWeight: '700', fontSize: 15 },
+  infoCard: { position: 'absolute', bottom: 150, left: 20, right: 20, backgroundColor: '#ffffff', padding: 16, borderRadius: 12, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, zIndex: 110 },
+  infoCardTitle: { fontWeight: '700', fontSize: 16, color: '#d93838', marginBottom: 8 },
+  infoCardText: { color: '#363d47', fontSize: 14 },
+  closeInfoButton: { marginTop: 12, paddingVertical: 8 },
+  closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 }
 });

@@ -28,6 +28,7 @@ public class SecurityConfiguration {
                                 "/api/sessions/google", "/api/sessions/refresh", "/api/sessions/logout",
                                 "/api/mobile/sessions/google", "/api/mobile/sessions/refresh", "/api/mobile/sessions/logout").permitAll()
                         .requestMatchers(HttpMethod.GET,"/actuator/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/dangerous-zones").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(jwt -> jwt.decoder(jwtDecoder)));

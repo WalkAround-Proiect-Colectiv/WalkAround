@@ -2,3 +2,4 @@
 .env
 AGENTS.md
 frontend/public/maplibre/
+valhalla_custom_data/
