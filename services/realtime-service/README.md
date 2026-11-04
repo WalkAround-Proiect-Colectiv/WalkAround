@@ -1,20 +1,21 @@
 # Realtime Service
 
-This is a separate Spring Boot service intended to host realtime functionality. Its dependencies include Spring WebSocket and Kafka, and its security configuration is stateless and requires authentication for non-actuator routes.
+This is a separate Spring Boot service dedicated to hosting real-time functionality and live data broadcasting. It acts as a bridge between the backend event streams and the mobile frontend.
 
 ## Current State
 
-The source currently contains the Spring Boot application entry point and security configuration, but no WebSocket message mappings, STOMP broker configuration, Kafka listeners, or Kafka producers. Treat this service as a scaffold: there is not yet a realtime API or message flow for the frontend to use.
+The service currently implements the real-time broadcasting flow for the dangerous zones feature. Its primary responsibilities are:
+1. **Kafka Consumer**: Listens to the `dangerous-zones-topic` for newly reported zones.
+2. **WebSocket Broadcaster**: Pushes these live updates to all actively connected clients via a raw WebSocket endpoint (`/ws/dangerous-zones`).
 
-The root `docker-compose.yaml` provides a local Kafka broker. PostgreSQL is currently owned by the Application API; the realtime service has no persistence integration in source.
+Security is configured to allow open WebSocket handshakes for seamless frontend connectivity. This service operates completely statelessly and relies entirely on the Kafka broker for data input, with no direct database persistence (PostgreSQL is managed by the application and routing APIs).
 
 ## Run and Test
 
-Use Java 25. From `services/realtime-service/`:
+Use Java 25. Ensure your local Kafka broker is running via the root `docker-compose.yaml` before starting this service.
+
+From `services/realtime-service/`:
 
 ```sh
 ./mvnw spring-boot:run
 ./mvnw test
-```
-
-On Windows, use `mvnw.cmd` in place of `./mvnw`. Kafka connectivity and authenticated realtime endpoints will require configuration and implementation before this service can deliver product behavior.

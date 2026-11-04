@@ -11,7 +11,9 @@ export type MapHandle = {
 export type MapCanvasProps = {
   ref?: Ref<MapHandle>;
   style: StyleSpecification;
+  dangerousZonesData?: any;
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
+  onPress?(featureProperties: any | null): void;
 };
