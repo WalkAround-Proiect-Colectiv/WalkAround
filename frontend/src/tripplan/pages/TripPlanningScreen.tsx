@@ -14,11 +14,12 @@ import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import SafetyInformationCard from '../components/SafetyInformationCard';
 import CountryHotlinesCard from '../components/CountryHotlinesCard';
+import DestinationNewsCard from '../components/DestinationNewsCard';
 import {
-  getCityAirports, getCountryHotlines, getDestinationSafety, getPlaceRecommendations, saveTripPlan,
+  getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getPlaceRecommendations, saveTripPlan,
   searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type CountryHotlines, type DestinationSafety, type PlaceCategory, type PlaceRecommendationPage,
+  type CountryHotlines, type DestinationSafety, type NewsArticle, type PlaceCategory, type PlaceRecommendationPage,
   type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
@@ -331,6 +332,8 @@ export default function TripPlanningScreen() {
   const safetyRequestId = useRef(0);
   const safetyPending = useRef(false);
   const hotlinesRequestId = useRef(0);
+  const newsRequestId = useRef(0);
+  const newsPending = useRef(false);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -374,6 +377,38 @@ export default function TripPlanningScreen() {
   const [hotlines, setHotlines] = useState<CountryHotlines | null>(null);
   const [hotlinesBusy, setHotlinesBusy] = useState(false);
   const [hotlinesError, setHotlinesError] = useState<string | null>(null);
+  const [news, setNews] = useState<NewsArticle[] | null>(null);
+  const [newsBusy, setNewsBusy] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+
+  function clearNews() {
+    newsRequestId.current += 1;
+    newsPending.current = false;
+    setNews(null);
+    setNewsBusy(false);
+    setNewsError(null);
+  }
+
+  async function loadNews() {
+    if (!destinationCity || newsPending.current) return;
+
+    const requestId = ++newsRequestId.current;
+    newsPending.current = true;
+    setNewsBusy(true);
+    setNewsError(null);
+
+    try {
+      const result = await getCityNews(destinationCity);
+      if (newsRequestId.current === requestId) setNews(result);
+    } catch (reason) {
+      if (newsRequestId.current === requestId) setNewsError(message(reason));
+    } finally {
+      if (newsRequestId.current === requestId) {
+        newsPending.current = false;
+        setNewsBusy(false);
+      }
+    }
+  }
 
   function clearHotlines() {
     hotlinesRequestId.current += 1;
@@ -480,6 +515,7 @@ export default function TripPlanningScreen() {
     clearPlaces();
     clearSafety();
     clearHotlines();
+    clearNews();
     setDestinationCity(city);
     clearTickets();
     clearAccommodations();
@@ -491,6 +527,7 @@ export default function TripPlanningScreen() {
     clearPlaces();
     clearSafety();
     clearHotlines();
+    clearNews();
     setDestinationCity(null);
     clearTickets();
     clearAccommodations();
@@ -793,7 +830,7 @@ export default function TripPlanningScreen() {
           city={destinationCity} data={hotlines} busy={hotlinesBusy}
           error={hotlinesError} onRetry={() => { if (destinationCity) void loadHotlines(destinationCity); }} />
 
-        <SafetyInformationCard key={`${destinationCity?.lookupName}-${destinationCity?.countryCode}`}
+        <SafetyInformationCard key={`safety-${destinationCity?.lookupName}-${destinationCity?.countryCode}`}
           city={destinationCity} safety={safety} busy={safetyBusy}
           error={safetyError} onCheck={checkSafety} />
 
@@ -982,6 +1019,10 @@ export default function TripPlanningScreen() {
             <Text style={styles.helper}>Recommendations can include nearby places. Check opening times and details before visiting.</Text>
           </>}
         </View>
+
+        <DestinationNewsCard key={`news-${destinationCity?.lookupName}-${destinationCity?.countryCode}`}
+          city={destinationCity} articles={news} busy={newsBusy}
+          error={newsError} onLoad={() => { void loadNews(); }} />
       </View>
     </ScrollView>
   </View>;

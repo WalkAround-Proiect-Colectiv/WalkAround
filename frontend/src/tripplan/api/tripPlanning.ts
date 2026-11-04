@@ -119,6 +119,18 @@ export interface CountryHotlines {
   hotlines: CountryHotline[];
 }
 
+export interface NewsArticle {
+  id: string | null;
+  title: string;
+  description: string | null;
+  url: string;
+  imageUrl: string | null;
+  author: string | null;
+  language: string | null;
+  categories: string[];
+  publishedAt: string | null;
+}
+
 export type PlaceCategory = 'attractions' | 'restaurants' | 'museums' | 'coffee-shops';
 
 export type TicketOption = 'ROUND_TRIP' | 'TWO_ONE_WAY';
@@ -280,6 +292,12 @@ export function getDestinationSafety(city: CitySuggestion): Promise<DestinationS
 
 export function getCountryHotlines(countryCode: string): Promise<CountryHotlines> {
   return send(`/api/trip-plans/countries/${encodeURIComponent(countryCode)}/hotlines`);
+}
+
+export function getCityNews(city: CitySuggestion): Promise<NewsArticle[]> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/news?countryCode=${country}`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
