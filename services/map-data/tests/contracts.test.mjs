@@ -29,3 +29,18 @@ test('Martin and the tile function share their explicit, versioned schema contra
   assert.match(config, /cache: disable/);
   assert.match(config, /schema: tiles\s+function: basemap/);
 });
+
+test('POI model keeps manual enrichment separate from OSM-owned tables and limits map-role access', async () => {
+  const sql = await read('../database/migrations/V2__poi_source_catalog_and_model.sql');
+  for (const table of ['providers', 'pois', 'import_runs', 'poi_records', 'poi_links']) {
+    assert.match(sql, new RegExp(`CREATE TABLE places\\.${table}\\b`));
+  }
+  assert.match(sql, /CHECK \(trigger_mode = 'manual'\)/);
+  assert.match(sql, /UNIQUE \(provider_code, external_id\)/);
+  assert.match(sql, /REFERENCES places\.import_runs\(id, provider_code\)/);
+  assert.match(sql, /GRANT SELECT ON places\.pois TO map_tiles/);
+  assert.match(sql, /GRANT SELECT \(code, name, documentation_url, license_id, license_url, terms_url, attribution, approval_status\)\s+ON places\.providers TO map_tiles/);
+  assert.doesNotMatch(sql, /(?:ALTER|INSERT INTO|UPDATE|DELETE FROM) osm\./i);
+  assert.doesNotMatch(sql, /CREATE FUNCTION tiles\.pois/);
+  assert.match(sql, /'pending_review'/);
+});

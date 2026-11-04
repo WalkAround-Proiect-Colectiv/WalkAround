@@ -39,6 +39,7 @@ try {
   compose(['run', '--rm', '--no-deps', 'map-job', 'import']);
   compose(['up', '--build', '-d', '--wait', 'map-gateway']);
   compose(['run', '--rm', '--no-deps', 'map-job', 'verify']);
+  compose(['run', '--rm', '--no-deps', 'map-job', 'test-poi-model']);
   const address = compose(['port', 'map-gateway', '8080'], true);
   const base = `http://${address}`;
   const style = await (await fetch(`${base}/style.json`)).json();

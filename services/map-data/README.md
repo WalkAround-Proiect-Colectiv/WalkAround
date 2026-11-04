@@ -22,6 +22,58 @@ flowchart LR
 
 This is a first self-hosted basemap implementation, not a production-tuned replacement for a mature global map style. It includes roads, inland water, waterways, land cover, building footprints, place/road/POI labels, administrative boundary lines, and coastline lines. Sea polygon generation, rail/transit styling, detailed bridge/tunnel ordering, and pre-generalized low-zoom layers are not included. Coastline lines alone do not fill the Black Sea; that needs a processed coastline polygon dataset or a separate coastline-build step. Geometry selection uses display-oriented zoom thresholds, not a comprehensive mapping of every OSM tag.
 
+## POI Source Strategy and Model
+
+The POI foundation is separate from the osm2pgsql-owned basemap. `V2__poi_source_catalog_and_model.sql` adds the `places` model and source-catalog metadata only: it does not fetch external APIs, copy existing OSM POIs, populate canonical places, deduplicate providers, publish POI tiles, or change the frontend. Future POI enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment step in `setup`/`start`.
+
+### Initial Sources
+
+| Source | Intended contribution | Licensing and usage guardrail |
+| --- | --- | --- |
+| OpenStreetMap | Baseline amenities, shops, tourism facilities, and useful walking stops from the existing regional extract | ODbL 1.0; preserve attribution and assess derived-database obligations before combination/distribution. Reuse the extract rather than bulk-querying the public editing API. |
+| Wikidata | First external API candidate for stable identifiers, multilingual labels, and notable cultural/tourism places | Structured entity data is CC0. Non-structured pages and linked media have different terms. Confirm API usage policy and bound requests before implementing an adapter. |
+| GeoNames | Second external API candidate for complementary named geographic places | The official export/API page states CC-BY terms and requires attribution. The exact version and endpoint/account conditions remain a review item; the catalog deliberately contains an unresolved license marker. It is not a comprehensive local-business directory. |
+
+These are candidates, not an assertion that every possible merge/distribution is legally approved. All seeded rows start `pending_review`; approval requires review time and reviewer, and unresolved license markers cannot be approved. Before a future adapter is used, record the exact license, approved fields, attribution, storage/redistribution requirements, service terms, quotas, and selection scope. Changing the data or terms being used requires revisiting that approval. Free API access alone is not permission to redistribute a dataset.
+
+Romanian municipal/open-data APIs can be added as provider entries after choosing a specific dataset and verifying its own license and API stability. No speculative generic municipal provider is seeded. Do not copy proprietary map/place directories without explicit compatible rights. Do not store API keys or credential-bearing URLs in any POI table.
+
+### Tables and Ownership
+
+| Table | Responsibility |
+| --- | --- |
+| `places.providers` | Source identity, documentation/API URLs, license and terms references, attribution, and approval/review metadata. This migration seeds the three candidates above, not actual POIs. |
+| `places.pois` | Stable UUID canonical places, optional display name and multilingual names, normalized category/subtype, location, optional address/website, active/inactive status, importance, and minimum display zoom. |
+| `places.poi_records` | Provider-specific identities and curated observations, unique by `(provider_code, external_id)`. Keeps source URL, source timestamp, first/last observation times, license/attribution snapshots, and optional run provenance. |
+| `places.poi_links` | At most one canonical assignment per provider record. Records proposed/confirmed matching, method/confidence, and which canonical fields the record contributed. Multiple provider records may describe the same canonical POI. No matching algorithm is implemented. |
+| `places.import_runs` | Audit model for future manual runs: provider, operator identifier, status, timestamps, counts, and sanitized error summary. The trigger mode is constrained to `manual`; this table itself runs nothing. |
+
+Canonical and source coordinates use `geometry(Point,4326)` in longitude/latitude order, with nonempty/valid/range checks and GiST indexes. They intentionally retain geographic coordinates from providers; a future tile function should select against a geographic tile envelope and transform selected geometries to EPSG:3857 for MVT generation. This does not change the existing EPSG:3857 `osm.features` table.
+
+The initial normalized categories are `food_drink`, `healthcare`, `shopping`, `transport`, `public_service`, `culture`, `tourism`, `recreation`, `accommodation`, `education`, `utilities`, and `other`. Provider categories must be mapped deliberately rather than copied as new canonical category values. Null names support unnamed useful amenities; future map styling can fall back to category labels. Inactive is not proof of permanent closure, and absence from a failed/incomplete source run must not automatically withdraw data.
+
+`curated_attributes` is an object for selected, permitted provider fields, not blanket permission to retain raw API responses. The source-record license and attribution fields preserve provenance even when provider catalog metadata changes. The model does not yet track per-field conflict resolution or automatically validate license compatibility; future job code must enforce provider approval and publication policies.
+
+`map_import` owns the POI tables. `map_tiles` can read canonical POIs and only the explicitly granted public provider identity/license/attribution columns. Reviewer identities/notes, source records, links, and run metadata are not granted to it. Martin still auto-publishes nothing and exposes only the existing basemap function, so no POI HTTP layer is added here. There are no foreign keys into the Application API database.
+
+### Applying and Testing
+
+A small `map-schema` one-shot Compose service uses the database administrator only to create `places` owned by `map_import`. This supports both fresh and existing map database volumes without granting the import role global database CREATE or superuser rights. Flyway waits for that step and then applies V2 under the existing `tiles.flyway_schema_history`. The Application API's migrations are unaffected, and V1 is unchanged.
+
+For an existing, completed regional setup, run `node services/map-data/manage.mjs start` to apply pending migrations and restart/verify the map stack. `setup` also includes the migration path. These commands apply schema/source-catalog changes only; they do not call third-party POI APIs. Review any application of migrations to non-local deployments with the team first.
+
+The Docker smoke test runs the POI model checks after migrations. They insert synthetic providers, POIs, provenance, and manual-run metadata inside a transaction, assert uniqueness/FK/coordinate/category/review/permission constraints, and roll everything back. No synthetic data remains in the database. The test can also be explicitly run from this module with:
+
+```sh
+docker compose --env-file .env --profile maintenance run --rm --no-deps map-job test-poi-model
+```
+
+Run the lightweight contracts from the repository root with `node --test services/map-data/tests/contracts.test.mjs`. They check wiring, not real SQL execution. Docker was unavailable while this POI model was added, so executing V2 and the transactional PostGIS tests remains required on a Docker-enabled machine. Source selection/model work does not establish that enriched POIs render in the frontend; a POI tile/style integration check belongs to a later stage.
+
+Official references: [Wikidata licensing](https://www.wikidata.org/wiki/Wikidata:Licensing), [Wikidata data access](https://www.wikidata.org/wiki/Wikidata:Data_access), [GeoNames export/API terms](https://www.geonames.org/export/), [GeoNames web services](https://www.geonames.org/export/web-services.html), [OSM copyright](https://www.openstreetmap.org/copyright).
+
+The existing OSM basemap replication workflow below is independent of POI enrichment; its cadence is not changed by this manual-only POI decision.
+
 ## Prerequisites
 
 Run Docker with Linux containers, Docker Compose v2 with `--wait` support, internet access for images/data, and SSD storage. A country import needs several GB of RAM plus significantly more disk space than the compressed PBF; start with at least 4 GB assigned to Docker and monitor actual usage. The 512 MB importer cache is not its total memory limit. Do not download the full planet for this stack.
