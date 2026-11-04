@@ -1,9 +1,9 @@
 import { useImperativeHandle, useRef } from 'react';
-import { Camera, Map, type CameraRef } from '@maplibre/maplibre-react-native';
+import { Camera, GeoJSONSource, Layer, Map, type CameraRef } from '@maplibre/maplibre-react-native';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapCanvasProps) {
+export default function MapCanvas({ ref, style, userLocation, onReady, onError, onMove }: MapCanvasProps) {
   const camera = useRef<CameraRef>(null);
   const zoom = useRef(PLACES[0].zoom);
   const center = useRef(PLACES[0].center);
@@ -22,5 +22,17 @@ export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapC
       onMove({ center: event.nativeEvent.center, zoom: event.nativeEvent.zoom });
     }}>
     <Camera ref={camera} initialViewState={{ bounds: [...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]], padding: { top: 24, right: 24, bottom: 24, left: 24 } }} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} />
+    {userLocation && <GeoJSONSource id="user-location" shape={{
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: userLocation },
+      properties: {},
+    }}>
+      <Layer id="user-location-dot" type="Circle" style={{
+        circleRadius: 8,
+        circleColor: '#0065EB',
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 3,
+      }} />
+    </GeoJSONSource>}
   </Map>;
 }

@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
-import * as Location from 'expo-location';
 import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
-import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
+import { MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
+import { useUserLocalization } from './userLocalization';
 
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
@@ -28,9 +28,10 @@ export default function MapScreen() {
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [locating, setLocating] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
+  const displayedError = error ?? locationError;
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
@@ -58,21 +59,6 @@ export default function MapScreen() {
     return () => clearTimeout(timeout);
   }, [style, loading]);
 
-  async function locate() {
-    if (locating) return;
-    setLocating(true);
-    setError(null);
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) throw new Error('Location permission was denied. You can still browse the map.');
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { longitude, latitude } = position.coords;
-      if (!isInCoverage(longitude, latitude)) throw new Error('Your location is outside the Romania prototype area.');
-      map.current?.goTo({ center: [longitude, latitude], zoom: 15 });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not find your location.'); }
-    finally { setLocating(false); }
-  }
-
   return <View style={styles.screen}>
     <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
       <View style={styles.heading}>
@@ -88,7 +74,7 @@ export default function MapScreen() {
       </Pressable>)}
     </ScrollView>
     <View style={styles.map}>
-      {style && <MapCanvas key={attempt} ref={map} style={style} onMove={setCamera}
+      {style && <MapCanvas key={attempt} ref={map} style={style} userLocation={userLocation} onMove={setCamera}
         onReady={() => setLoading(false)} onError={() => { setLoading(false); setError('Some map resources could not load. Check your connection or retry.'); }} />}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
       <View style={styles.mapMenu}>
@@ -116,8 +102,8 @@ export default function MapScreen() {
         <Tool label="Reset north" icon={Compass} disabled={!style || loading} onPress={() => map.current?.resetNorth()} />
         <Tool label="My location" icon={LocateFixed} disabled={!style || loading || locating} onPress={locate} />
       </View>
-      {error && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>
-        <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />
+      {displayedError && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{displayedError}</Text>
+        {error && <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />}
       </View>}
     </View>
     <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>

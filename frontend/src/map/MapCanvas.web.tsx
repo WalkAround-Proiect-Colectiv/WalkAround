@@ -1,12 +1,13 @@
 import { useEffect, useEffectEvent, useImperativeHandle, useRef } from 'react';
-import { Map, ScaleControl, setWorkerUrl } from 'maplibre-gl';
+import { Map, Marker, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapCanvasProps) {
+export default function MapCanvas({ ref, style, userLocation, onReady, onError, onMove }: MapCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<Map | null>(null);
+  const locationMarker = useRef<Marker | null>(null);
   const ready = useEffectEvent(onReady);
   const failed = useEffectEvent(onError);
   const moved = useEffectEvent(onMove);
@@ -39,5 +40,26 @@ export default function MapCanvas({ ref, style, onReady, onError, onMove }: MapC
     observer.observe(container.current);
     return () => { observer.disconnect(); instance.remove(); map.current = null; };
   }, [style]);
+  useEffect(() => {
+    locationMarker.current?.remove();
+    locationMarker.current = null;
+    if (!map.current || !userLocation) return;
+    const element = document.createElement('div');
+    Object.assign(element.style, {
+      width: '18px',
+      height: '18px',
+      borderRadius: '50%',
+      backgroundColor: '#0065EB',
+      border: '3px solid #FFFFFF',
+      boxSizing: 'border-box',
+      boxShadow: '0 1px 4px rgba(0, 0, 0, 0.45)',
+    });
+    const marker = new Marker({ element, anchor: 'center' }).setLngLat(userLocation).addTo(map.current);
+    locationMarker.current = marker;
+    return () => {
+      marker.remove();
+      if (locationMarker.current === marker) locationMarker.current = null;
+    };
+  }, [userLocation]);
   return <div ref={container} aria-label="Map of Romania" style={{ position: 'absolute', inset: 0 }} />;
 }
