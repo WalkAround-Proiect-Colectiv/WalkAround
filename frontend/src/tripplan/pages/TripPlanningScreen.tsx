@@ -12,10 +12,14 @@ import { useSession } from '../../login/components/SessionProvider';
 import CalendarPicker from '../components/CalendarPicker';
 import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
+import SafetyInformationCard from '../components/SafetyInformationCard';
+import CountryHotlinesCard from '../components/CountryHotlinesCard';
 import {
-  getCityAirports, getPlaceRecommendations, saveTripPlan, searchAccommodations, searchCities, searchFlights,
+  getCityAirports, getCountryHotlines, getDestinationSafety, getPlaceRecommendations, saveTripPlan,
+  searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type PlaceCategory, type PlaceRecommendationPage, type SavedTripPlan, type TicketOption,
+  type CountryHotlines, type DestinationSafety, type PlaceCategory, type PlaceRecommendationPage,
+  type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
@@ -324,6 +328,9 @@ export default function TripPlanningScreen() {
   const savePending = useRef(false);
   const placeRequestId = useRef(0);
   const placePending = useRef(false);
+  const safetyRequestId = useRef(0);
+  const safetyPending = useRef(false);
+  const hotlinesRequestId = useRef(0);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -361,6 +368,63 @@ export default function TripPlanningScreen() {
   const [placesBusy, setPlacesBusy] = useState(false);
   const [loadingPlacePage, setLoadingPlacePage] = useState<number | null>(null);
   const [placesError, setPlacesError] = useState<string | null>(null);
+  const [safety, setSafety] = useState<DestinationSafety | null>(null);
+  const [safetyBusy, setSafetyBusy] = useState(false);
+  const [safetyError, setSafetyError] = useState<string | null>(null);
+  const [hotlines, setHotlines] = useState<CountryHotlines | null>(null);
+  const [hotlinesBusy, setHotlinesBusy] = useState(false);
+  const [hotlinesError, setHotlinesError] = useState<string | null>(null);
+
+  function clearHotlines() {
+    hotlinesRequestId.current += 1;
+    setHotlines(null);
+    setHotlinesBusy(false);
+    setHotlinesError(null);
+  }
+
+  async function loadHotlines(city: CitySuggestion) {
+    const requestId = ++hotlinesRequestId.current;
+    setHotlinesBusy(true);
+    setHotlinesError(null);
+
+    try {
+      const result = await getCountryHotlines(city.countryCode);
+      if (hotlinesRequestId.current === requestId) setHotlines(result);
+    } catch (reason) {
+      if (hotlinesRequestId.current === requestId) setHotlinesError(message(reason));
+    } finally {
+      if (hotlinesRequestId.current === requestId) setHotlinesBusy(false);
+    }
+  }
+
+  function clearSafety() {
+    safetyRequestId.current += 1;
+    safetyPending.current = false;
+    setSafety(null);
+    setSafetyBusy(false);
+    setSafetyError(null);
+  }
+
+  async function checkSafety() {
+    if (!destinationCity || safetyPending.current) return;
+
+    const requestId = ++safetyRequestId.current;
+    safetyPending.current = true;
+    setSafetyBusy(true);
+    setSafetyError(null);
+
+    try {
+      const result = await getDestinationSafety(destinationCity);
+      if (safetyRequestId.current === requestId) setSafety(result);
+    } catch (reason) {
+      if (safetyRequestId.current === requestId) setSafetyError(message(reason));
+    } finally {
+      if (safetyRequestId.current === requestId) {
+        safetyPending.current = false;
+        setSafetyBusy(false);
+      }
+    }
+  }
 
   function clearPlaces() {
     placeRequestId.current += 1;
@@ -414,14 +478,19 @@ export default function TripPlanningScreen() {
 
   function selectDestination(city: CitySuggestion) {
     clearPlaces();
+    clearSafety();
+    clearHotlines();
     setDestinationCity(city);
     clearTickets();
     clearAccommodations();
     void loadPlaces(city, PLACE_CATEGORIES[0].id);
+    void loadHotlines(city);
   }
 
   function changeDestination() {
     clearPlaces();
+    clearSafety();
+    clearHotlines();
     setDestinationCity(null);
     clearTickets();
     clearAccommodations();
@@ -719,6 +788,14 @@ export default function TripPlanningScreen() {
           <CityPicker label="Going to" hint="Choose your destination city"
             selected={destinationCity} onSelect={selectDestination} onChange={changeDestination} />
         </View>
+
+        <CountryHotlinesCard key={destinationCity?.countryCode || 'none'}
+          city={destinationCity} data={hotlines} busy={hotlinesBusy}
+          error={hotlinesError} onRetry={() => { if (destinationCity) void loadHotlines(destinationCity); }} />
+
+        <SafetyInformationCard key={`${destinationCity?.lookupName}-${destinationCity?.countryCode}`}
+          city={destinationCity} safety={safety} busy={safetyBusy}
+          error={safetyError} onCheck={checkSafety} />
 
         <View style={styles.card}>
           <View style={styles.stepRow}><Text style={styles.stepNumber}>02</Text><Text style={styles.stepLabel}>MAKE IT YOURS</Text></View>

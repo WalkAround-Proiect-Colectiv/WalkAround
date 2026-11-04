@@ -1,0 +1,3 @@
+# Emergency number model
+
+`EmergencyNumber` maps the `emergency_numbers` table created by Flyway V5. Each row is one number and one contact channel (`voice`, `sms`, `text`, or `short_code`), not an entire hotline. `source_record_id` is the World Hotlines stable ID; synthetic `general-emergency:{countryCode}` IDs preserve general numbers that have no matching emergency hotline. The `source` column is the API hostname. `languages` and `source_links` are PostgreSQL JSONB arrays; `last_verified` is a date supplied by the provider, not a live availability check. Rows reference `countries.code`, so import EU countries first.
