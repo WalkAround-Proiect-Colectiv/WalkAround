@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from
 import { Map, Marker, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
@@ -171,5 +172,6 @@ export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLA
     });
     marker.setLngLat(userLocation.coordinates);
   }, [userLocation, zoomLevel]);
-  return <div ref={container} aria-label="Map of Romania" style={{ position: 'absolute', inset: 0 }} />;
+  return <div ref={container} className="walkaround-map" aria-label="Map of Romania"
+    style={{ position: 'absolute', inset: 0 }} />;
 }

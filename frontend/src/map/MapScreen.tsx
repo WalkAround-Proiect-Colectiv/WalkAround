@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
 import { CalendarDays, Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
@@ -51,6 +51,7 @@ export default function MapScreen() {
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [loading, setLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -62,6 +63,13 @@ export default function MapScreen() {
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
+  const locateRef = useRef(locate);
+  locateRef.current = locate;
+
+  useFocusEffect(useCallback(() => {
+    if (mapReady) void locateRef.current();
+  }, [mapReady]));
+
   const displayedError = error ?? locationError;
 
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
@@ -173,6 +181,7 @@ export default function MapScreen() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
     setLoading(true);
+    setMapReady(false);
     setError(null);
     setStyle(null);
     fetch(MAP_STYLE_URL, { signal: controller.signal }).then(async response => {
@@ -265,19 +274,6 @@ export default function MapScreen() {
   }
 
   return <View style={styles.screen}>
-    <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-      <View style={styles.heading}>
-        <Compass size={28} color="#0065EB" />
-        <Text style={styles.brand}>WalkAround</Text>
-      </View>
-      <Link href={session ? '/home' : '/login'} accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
-    </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presets} contentContainerStyle={styles.presetContent}>
-      {PLACES.map(place => <Pressable key={place.name} accessibilityRole="button" accessibilityLabel={`View ${place.name}`}
-                                      disabled={!style || loading} onPress={() => place.name === 'Romania' ? map.current?.fitCoverage() : map.current?.goTo(place)} style={styles.place}>
-        <Text style={styles.placeText}>{place.name}</Text>
-      </Pressable>)}
-    </ScrollView>
     <View style={styles.map}>
       {style && (
           <MapCanvas
@@ -290,9 +286,13 @@ export default function MapScreen() {
               routeData={routeGeoJSON}
               routePointsData={routePointsData}
               onMove={setCamera}
-              onReady={() => setLoading(false)}
+              onReady={() => {
+                setLoading(false);
+                setMapReady(true);
+              }}
               onError={() => {
                 setLoading(false);
+                setMapReady(false);
                 setError('Some map resources could not load. Check your connection or retry.');
               }}
               onPress={handleMapClick}
@@ -307,7 +307,7 @@ export default function MapScreen() {
       )}
 
       {routeMode && (
-          <View style={styles.routeOverlay}>
+          <View style={[styles.routeOverlay, { top: Math.max(insets.top, 12) + 64 }]}>
             <Text style={styles.routeOverlayTitle}>Plan your route</Text>
 
             <Pressable onPress={() => setActiveRouteField('start')} style={[styles.routeInput, activeRouteField === 'start' && styles.routeInputActive]}>
@@ -333,7 +333,7 @@ export default function MapScreen() {
           </View>
       )}
 
-      <View style={styles.mapMenu}>
+      <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
                    accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
           {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
@@ -377,7 +377,7 @@ export default function MapScreen() {
         </View>}
       </View>
 
-      <View style={styles.tools}>
+      <View style={[styles.tools, { top: Math.max(insets.top, 12) + 4 }]}>
         <Tool label="Zoom in" icon={Plus} disabled={!style || loading} onPress={() => map.current?.zoomBy(1)} />
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
         <Tool label="Reset north" icon={Compass} disabled={!style || loading} onPress={() => map.current?.resetNorth()} />
@@ -402,7 +402,7 @@ export default function MapScreen() {
         </View>
     )}
 
-    <View style={styles.bottomOverlayArea}>
+    <View style={[styles.bottomOverlayArea, { bottom: Math.max(insets.bottom, 12) + 64 }]}>
       {isSelectingLocation ? (
           <View style={styles.actionButtonsRow}>
             <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
@@ -425,8 +425,8 @@ export default function MapScreen() {
             }}
         />
     )}
-    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      <Text style={styles.footerText}>Romania</Text>
+    <View pointerEvents="none" style={[styles.coordinateBadge, { bottom: Math.max(insets.bottom, 12) + 10 }]}>
+      <MapPin size={13} color="#0065EB" />
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
       {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
     </View>
@@ -435,22 +435,11 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#ffffff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#e5e8ed' },
-  heading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mapMenu: { position: 'absolute', left: 12, top: 16, zIndex: 5, alignItems: 'flex-start' },
   menuButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   menuPanel: { width: 242, marginTop: 8, padding: 7, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', gap: 2, elevation: 5, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   menuItem: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
   menuItemText: { color: '#263241', fontSize: 15, fontWeight: '700' },
-  menuItemDisabled: { opacity: 0.72 },
-  menuItemTextDisabled: { color: '#758091', fontSize: 15, fontWeight: '700' },
-  menuComingSoon: { marginLeft: 'auto', color: '#8c96a4', fontSize: 11, fontWeight: '600' },
-  brand: { fontSize: 22, fontWeight: '700', color: '#0065EB' },
-  account: { padding: 10 },
-  presets: { flexGrow: 0, flexShrink: 0, height: 54, borderBottomWidth: 1, borderColor: '#e5e8ed' },
-  presetContent: { alignItems: 'center', paddingHorizontal: 12, gap: 6 },
-  place: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 6, backgroundColor: '#eef5ff' },
-  placeText: { color: '#0065EB', fontWeight: '600', fontSize: 13 },
   map: { flex: 1, position: 'relative', backgroundColor: '#edf0f3', overflow: 'hidden' },
   tools: { position: 'absolute', right: 12, top: 16, gap: 8 },
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
@@ -459,11 +448,13 @@ const styles = StyleSheet.create({
   loading: { position: 'absolute', top: 18, left: 76, backgroundColor: '#ffffff', padding: 12, borderRadius: 6 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 44, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ff0000', borderRadius: 6 },
   errorText: { flex: 1, color: '#a60000', fontSize: 14 },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderColor: '#e5e8ed' },
-  footerText: { color: '#363d47', fontSize: 13, fontWeight: '600' },
-  coordinates: { color: '#626b78', fontSize: 12, fontVariant: ['tabular-nums'] },
+  coordinateBadge: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center',
+    gap: 6, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 18, backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14,
+    shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+  coordinates: { color: '#263241', fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   centerPin: { position: 'absolute', top: '50%', left: '50%', marginLeft: -21, marginTop: -42, zIndex: 10, alignItems: 'center', justifyContent: 'center' },
-  bottomOverlayArea: { position: 'absolute', right: 20, bottom: 80, zIndex: 100, alignItems: 'flex-end' },
+  bottomOverlayArea: { position: 'absolute', right: 20, zIndex: 100, alignItems: 'flex-end' },
   actionButtonsRow: { flexDirection: 'row', gap: 12 },
   confirmButton: { backgroundColor: '#d93838', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
@@ -477,7 +468,6 @@ const styles = StyleSheet.create({
 
   routeOverlay: {
     position: 'absolute',
-    top: 76,
     left: 12,
     width: 300,
     backgroundColor: '#ffffff',

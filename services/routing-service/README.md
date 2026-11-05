@@ -30,18 +30,22 @@ To initialize the Valhalla routing engine locally:
 docker-compose up -d valhalla
 ```
 
-Wait for the build process: On its first run, the container will automatically create the valhalla_custom_data/ folder, download the OpenStreetMap data for Romania, and build the routing tiles. (Note: This building process may take several minutes depending on your CPU).
+Wait for the build process: On its first run, the container will automatically create the valhalla_custom_data/ folder, download the OpenStreetMap data for Romania, and build the routing tiles. (Note: This building process may take several minutes depending on your CPU). The Compose service limits Valhalla to `VALHALLA_SERVER_THREADS=2` by default; increasing it can exhaust Docker's open-file limit during server startup.
 
-Verify Valhalla is ready by checking its logs (wait until it starts listening on port 8003):
+Verify Valhalla is ready by checking its logs (the container listens on port 8002, mapped to `VALHALLA_HOST_PORT` on the host):
 
 ```sh
-docker logs -f valhalla
+docker logs -f walkaround-valhalla
 ```
 
 ## Run and Test
 Use Java 25. Ensure your PostgreSQL databases (application-api-db and routing-api-db), local Kafka broker, and Valhalla engine are running (via the root docker-compose.yaml).
 
 Don't forget to configure your local .db.env and .env files based on the .example files provided.
+
+Set `VALHALLA_URL` to the Valhalla route endpoint, for example `http://localhost:8022/route` when the root Compose file maps the container's port 8002 to host port 8022. The routing service sends its pedestrian request directly to this URL. A URL ending at the host root sends `POST /` and cannot calculate a route. Restart the routing Spring service after changing its `.env`.
+
+The route service sends a JSON-serialized request to Valhalla. This avoids malformed coordinate values from locale-dependent number formatting. Route-provider HTTP failures are logged by status; the application API proxy returns a generic upstream error instead of claiming every failure is a connection problem. See the [route service package](src/main/java/services/routingservice/routecalculation/service/README.md).
 
 From `services/routing-service/`:
 
