@@ -96,3 +96,13 @@ app:
     currents-api-base-url: ${CURRENTS_API_BASE_URL:https://api.currentsapi.services}
     currents-api-timeout: ${CURRENTS_API_TIMEOUT:PT8S}
     news-page-size: ${NEWS_PAGE_SIZE:20}
+
+recommendation:
+  default-radius-meters: ${RECOMMENDATION_DEFAULT_RADIUS_METERS:0}
+  max-radius-meters: ${RECOMMENDATION_MAX_RADIUS_METERS:2000}
+  default-limit: ${RECOMMENDATION_DEFAULT_LIMIT:15}
+  max-limit: ${RECOMMENDATION_MAX_LIMIT:50}
+  cache-ttl: ${RECOMMENDATION_CACHE_TTL:PT15M}
+  poi-database-url: ${POI_DATABASE_URL:}
+  poi-database-username: ${POI_DATABASE_USERNAME:map_tiles}
+  poi-database-password: ${POI_DATABASE_PASSWORD:}
