@@ -45,14 +45,14 @@ export async function signOut() {
 }
 
 // Future feature API clients can use this helper; requests are retried only once.
-export async function authenticatedRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function authenticatedRequest<T>(path: string, options: RequestInit = {}, responseType: 'json' | 'blob' = 'json'): Promise<T> {
   let session = current;
   if (!session || Date.parse(session.expiresAt) <= Date.now() + 30000) session = await refreshSession();
   if (!session) throw new ApiError(401, 'Please sign in again.');
   const send = (token: string) => {
     const headers = new Headers(options.headers);
     headers.set('Authorization', 'Bearer ' + token);
-    return request<T>(path, { ...options, headers });
+    return request<T>(path, { ...options, headers }, responseType);
   };
   try { return await send(session.accessToken); }
   catch (error) {
@@ -65,4 +65,8 @@ export async function authenticatedRequest<T>(path: string, options: RequestInit
 
 export function getCurrentUser() {
   return authenticatedRequest<RegisteredUser>('/api/users/me');
+}
+
+export function updateSessionUser(user: RegisteredUser) {
+  if (current?.user.id === user.id) publish({ ...current, user });
 }
