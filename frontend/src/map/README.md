@@ -1,6 +1,6 @@
 # Map feature
 
-`MapScreen` renders the map at `/map` using the platform-specific `MapCanvas` implementation. It loads the configured map style, adapts its resources in `style.ts`, and exposes zoom, reset-north, and current-location controls. Pressing the location control requests foreground permission, centers on the current position, and starts a location watcher. Later presses recenter on the latest position without stopping the watcher. The watcher is removed when the map screen loses focus. Map loading and location failures stay visible on the map so users can retry.
+`MapScreen` renders the map at `/map` using the platform-specific `MapCanvas` implementation. It loads the configured map style, adapts its resources in `style.ts`, and exposes zoom, reset-north, and current-location controls. Once the map is ready, the page automatically requests foreground location permission and centers at zoom 15 on a location inside the Romania coverage. It does this again when the page regains focus. If permission or location is unavailable, the Romania overview remains available. Pressing the location control later recenters on the latest position without stopping the watcher. The watcher is removed when the map screen loses focus. Map loading and location failures stay visible on the map so users can retry.
 
 The web canvas still registers MapLibre's metric `ScaleControl` so it continues to update its scale calculation as the map moves. `mapCanvas.web.css` hides only that control's visual element. The native canvas has no scale control.
 

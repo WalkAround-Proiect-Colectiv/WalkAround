@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
 import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
@@ -51,6 +51,7 @@ export default function MapScreen() {
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [loading, setLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -62,6 +63,13 @@ export default function MapScreen() {
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
+  const locateRef = useRef(locate);
+  locateRef.current = locate;
+
+  useFocusEffect(useCallback(() => {
+    if (mapReady) void locateRef.current();
+  }, [mapReady]));
+
   const displayedError = error ?? locationError;
 
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
@@ -173,6 +181,7 @@ export default function MapScreen() {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
     setLoading(true);
+    setMapReady(false);
     setError(null);
     setStyle(null);
     fetch(MAP_STYLE_URL, { signal: controller.signal }).then(async response => {
@@ -277,9 +286,13 @@ export default function MapScreen() {
               routeData={routeGeoJSON}
               routePointsData={routePointsData}
               onMove={setCamera}
-              onReady={() => setLoading(false)}
+              onReady={() => {
+                setLoading(false);
+                setMapReady(true);
+              }}
               onError={() => {
                 setLoading(false);
+                setMapReady(false);
                 setError('Some map resources could not load. Check your connection or retry.');
               }}
               onPress={handleMapClick}
