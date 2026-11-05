@@ -39,6 +39,18 @@ services:
       retries: 10
     restart: unless-stopped
 
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: walkaround-valhalla
+    ports:
+      - "${VALHALLA_HOST_PORT}:${VALHALLA_CONTAINER_PORT}"
+    environment:
+      - tile_urls=https://download.geofabrik.de/europe/romania-latest.osm.pbf
+      - build_tar=True
+      - serve_tiles=True
+    volumes:
+      - ./valhalla_custom_data:/custom_files
+
   kafka:
     image: apache/kafka:4.1.1
     container_name: kafka

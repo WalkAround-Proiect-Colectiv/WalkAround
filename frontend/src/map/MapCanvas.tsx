@@ -3,7 +3,7 @@ import {Camera,GeoJSONSource,Layer,Map,type CameraRef,type MapRef,} from '@mapli
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ ref,style,userLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,onReady,onError,onMove,onPress,}: MapCanvasProps) {
+export default function MapCanvas({ ref,style,userLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,routeData, routePointsData,onReady,onError,onMove,onPress,}: MapCanvasProps) {
   const camera = useRef<CameraRef>(null);
   const nativeMap = useRef<MapRef>(null);
   const currentZoom = useRef(PLACES[0].zoom);
@@ -14,7 +14,7 @@ export default function MapCanvas({ ref,style,userLocation = null,zoomLevel = PL
     zoomBy: delta => camera.current?.zoomTo(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom.current + delta)), { duration: 250 }),
     resetNorth: () => camera.current?.easeTo({ center: center.current, bearing: 0, pitch: 0, duration: 250 }),
   }), []);
-const accuracyRadius = userLocation
+  const accuracyRadius = userLocation
     ? Math.max(
         10,
         Math.min(
@@ -28,116 +28,113 @@ const accuracyRadius = userLocation
     : 0;
 
   return (
-    <Map
-      ref={nativeMap}
-      mapStyle={style}
-      style={{ flex: 1 }}
-      touchPitch={false}
-      attribution
-      logo={false}
-      tintColor="#0065EB"
-      attributionPosition={{ bottom: 8, right: 8 }}
-      onDidFinishLoadingMap={onReady}
-      onDidFailLoadingMap={onError}
-      onRegionDidChange={event => {
-        currentZoom.current = event.nativeEvent.zoom;
-        center.current = event.nativeEvent.center;
-        onMove({
-          center: event.nativeEvent.center,
-          zoom: event.nativeEvent.zoom,
-        });
-      }}
-      onPress={async event => {
-        if (!onPress) return;
-
-        try {
-          const [x, y] = event.nativeEvent.point;
-          const features = await nativeMap.current?.queryRenderedFeatures(
-            [x, y],
-            { layers: ['dangerous-zones-layer'] },
-          );
-          onPress(features?.[0]?.properties ?? null);
-        } catch {
-          onPress(null);
-        }
-      }}
-    >
-      <Camera
-        ref={camera}
-        initialViewState={{
-          bounds: [...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]],
-          padding: { top: 24, right: 24, bottom: 24, left: 24 },
-        }}
-        minZoom={MIN_ZOOM}
-        maxZoom={MAX_ZOOM}
-      />
-
-      {dangerousZonesData && (
-        <GeoJSONSource
-          id="dangerous-zones-source"
-          data={dangerousZonesData}
-        >
-          <Layer
-            id="dangerous-zones-layer"
-            type="fill"
-            style={{
-              fillColor: [
-                'step',
-                ['get', 'intensity'],
-                '#FFF9C4',
-                3, '#FFEB3B',
-                5, '#FFC107',
-                10, '#FF9800',
-                15, '#D93838',
-              ],
-              fillOpacity: 0.45,
-            }}
-          />
-          <Layer
-            id="dangerous-zones-borders"
-            type="line"
-            style={{
-              lineColor: '#d93838',
-              lineWidth: 1,
-              lineOpacity: 0.6,
-            }}
-          />
-        </GeoJSONSource>
-      )}
-
-      {userLocation && (
-        <GeoJSONSource
-          id="user-location"
-          data={{
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: userLocation.coordinates,
-            },
-            properties: { accuracy: userLocation.accuracy },
-          }}
-        >
-          <Layer
-            id="user-location-accuracy"
-            type="circle"
-            style={{
-              circleRadius: accuracyRadius,
-              circleColor: '#0065EB',
-              circleOpacity: 0.18,
-            }}
-          />
-          <Layer
-            id="user-location-dot"
-            type="circle"
-            style={{
-              circleRadius: 8,
-              circleColor: '#0065EB',
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeWidth: 3,
-            }}
-          />
-        </GeoJSONSource>
-      )}
-    </Map>
+      <Map ref={nativeMap} mapStyle={style} style={{ flex: 1 }} touchPitch={false} attribution logo={false}
+           tintColor="#0065EB" attributionPosition={{ bottom: 8, right: 8 }}
+           onDidFinishLoadingMap={onReady} onDidFailLoadingMap={onError}
+           onRegionDidChange={event => {
+             currentZoom.current = event.nativeEvent.zoom;
+             center.current = event.nativeEvent.center;
+             onMove({ center: event.nativeEvent.center, zoom: event.nativeEvent.zoom });
+           }}
+           onPress={async (event) => {
+               // @ts-ignore
+               const coords: [number, number] | undefined = event?.geometry?.coordinates;
+               if (!onPress) return;
+               try {
+                 const [x, y] = event.nativeEvent.point;
+                 const features = await nativeMap.current?.queryRenderedFeatures(
+                     [x, y],
+                     { layers: ['dangerous-zones-layer'] },
+                 );
+                 onPress(features?.[0]?.properties ?? null, coords);
+               }
+               catch {
+                   onPress(null, coords);
+               }
+           }}
+      >
+          <Camera ref={camera} initialViewState={{ bounds: [...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]], padding: { top: 24, right: 24, bottom: 24, left: 24 } }} minZoom={MIN_ZOOM} maxZoom={MAX_ZOOM} />
+          {dangerousZonesData && (
+              <GeoJSONSource id="dangerous-zones-source" data={dangerousZonesData}>
+                  <Layer
+                      id="dangerous-zones-layer"
+                      type="fill"
+                      style={{
+                          fillColor: [
+                              'step',
+                              ['get', 'intensity'],
+                              '#FFF9C4', 3, '#FFEB3B', 5, '#FFC107', 10, '#FF9800', 15, '#D93838',
+                          ],
+                          fillOpacity: 0.45,
+                      }}
+                  />
+                  <Layer
+                      id="dangerous-zones-borders"
+                      type="line"
+                      style={{
+                          lineColor: '#d93838',
+                          lineWidth: 1,
+                          lineOpacity: 0.6,
+                      }}
+                  />
+              </GeoJSONSource>
+          )}
+          {routeData && (
+              <GeoJSONSource id="route-source" data={routeData}>
+                  <Layer
+                      id="route-layer"
+                      type="line"
+                      style={{ lineColor: '#a855f7', lineWidth: 6, lineCap: 'round', lineJoin: 'round' }}
+                  />
+              </GeoJSONSource>
+          )}
+          {routePointsData && (
+              <GeoJSONSource id="route-points-source" data={routePointsData}>
+                  <Layer
+                      id="route-points-layer"
+                      type="circle"
+                      style={{
+                          circleColor: ['match', ['get', 'type'], 'start', '#0065EB', 'end', '#d93838', '#000'],
+                          circleRadius: 7,
+                          circleStrokeWidth: 2,
+                          circleStrokeColor: '#ffffff'
+                      }}
+                  />
+              </GeoJSONSource>
+          )}
+          {userLocation && (
+              <GeoJSONSource
+                  id="user-location"
+                  data={{
+                      type: 'Feature',
+                      geometry: {
+                          type: 'Point',
+                          coordinates: userLocation.coordinates,
+                      },
+                      properties: { accuracy: userLocation.accuracy },
+                  }}
+              >
+                  <Layer
+                      id="user-location-accuracy"
+                      type="circle"
+                      style={{
+                          circleRadius: accuracyRadius,
+                          circleColor: '#0065EB',
+                          circleOpacity: 0.18,
+                      }}
+                  />
+                  <Layer
+                      id="user-location-dot"
+                      type="circle"
+                      style={{
+                          circleRadius: 8,
+                          circleColor: '#0065EB',
+                          circleStrokeColor: '#FFFFFF',
+                          circleStrokeWidth: 3,
+                      }}
+                  />
+              </GeoJSONSource>
+          )}
+      </Map>
   );
 }

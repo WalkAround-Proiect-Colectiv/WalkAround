@@ -15,8 +15,10 @@ export type MapCanvasProps = {
   userLocation?: UserLocation;
   zoomLevel?: number;
   dangerousZonesData?: any;
+  routeData?: any;
+  routePointsData?: any;
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
-  onPress?(featureProperties: any | null): void;
+  onPress?(featureProperties: any | null, coordinates?: [number, number]): void;
 };
