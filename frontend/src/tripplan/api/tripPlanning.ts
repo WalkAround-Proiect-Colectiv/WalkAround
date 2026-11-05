@@ -103,6 +103,32 @@ export interface DestinationWeather {
   days: WeatherDay[];
 }
 
+export interface HistoricalWeatherDay {
+  date: string;
+  weatherCode: number | null;
+  temperatureMaxC: number | null;
+  temperatureMinC: number | null;
+  precipitationMm: number | null;
+  windSpeedMaxKmh: number | null;
+}
+
+export interface HistoricalWeatherYear {
+  year: number;
+  startDate: string;
+  endDate: string;
+  days: HistoricalWeatherDay[];
+}
+
+export interface HistoricalWeather {
+  city: string;
+  country: string;
+  countryCode: string;
+  timezone: string;
+  checkInDate: string;
+  stayingNights: number;
+  years: HistoricalWeatherYear[];
+}
+
 export interface HotlineNumber {
   value: string;
   type: 'voice' | 'sms' | 'text' | 'short_code';
@@ -312,6 +338,15 @@ export function getDestinationWeather(city: CitySuggestion): Promise<Destination
   const name = encodeURIComponent(city.lookupName || city.name);
   const country = encodeURIComponent(city.countryCode);
   return send(`/api/trip-plans/cities/${name}/weather?countryCode=${country}`);
+}
+
+export function getHistoricalWeather(
+  city: CitySuggestion, checkInDate: string, stayingNights: number,
+): Promise<HistoricalWeather> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  const date = encodeURIComponent(checkInDate);
+  return send(`/api/trip-plans/cities/${name}/historical-weather?countryCode=${country}&checkInDate=${date}&stayingNights=${stayingNights}`);
 }
 
 export function getCountryHotlines(countryCode: string): Promise<CountryHotlines> {

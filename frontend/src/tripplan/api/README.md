@@ -7,3 +7,4 @@
 `getCityNews` calls `GET /api/trip-plans/cities/{city}/news?countryCode=...` only when the user presses the news button or refreshes it. It uses the selected GeoNames city and country, URL-encodes both values, and receives one page of article metadata with publisher links. The key and Currents request stay on the backend.
 
 `getDestinationWeather` calls `GET /api/trip-plans/cities/{city}/weather?countryCode=...` only when the user requests or refreshes the forecast. It uses the selected GeoNames destination, URL-encodes the city and country code, and receives local daily dates, conditions, Celsius temperatures, precipitation, wind, and timezone. Open-Meteo is called only by the backend.
+`getHistoricalWeather` sends the selected destination, check-in date, and stay length to the backend only after the user requests past weather. The response includes complete daily periods for each comparison year; the client does not call Open-Meteo directly.

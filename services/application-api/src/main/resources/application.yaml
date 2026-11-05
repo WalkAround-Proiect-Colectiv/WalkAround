@@ -108,3 +108,5 @@ app:
     open-meteo-base-url: ${OPEN_METEO_BASE_URL:https://api.open-meteo.com}
     open-meteo-timeout: ${OPEN_METEO_TIMEOUT:PT8S}
     weather-forecast-days: ${WEATHER_FORECAST_DAYS:14}
+    open-meteo-archive-base-url: ${OPEN_METEO_ARCHIVE_BASE_URL:https://archive-api.open-meteo.com}
+    weather-history-years: ${WEATHER_HISTORY_YEARS:3}

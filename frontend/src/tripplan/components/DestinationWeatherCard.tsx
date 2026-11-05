@@ -4,7 +4,7 @@ import {
   ArrowRight, Cloud, CloudDrizzle, CloudFog, CloudLightning, CloudRain,
   CloudSnow, CloudSun, Droplets, RefreshCw, Sun, Wind, type LucideIcon,
 } from 'lucide-react-native';
-import type { CitySuggestion, DestinationWeather, WeatherDay } from '../api/tripPlanning';
+import type { CitySuggestion, DestinationWeather, HistoricalWeather, WeatherDay } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
 const PURPLE = '#23012C';
@@ -51,18 +51,26 @@ function precipitation(value: number | null): string {
 }
 
 export default function DestinationWeatherCard({
-  city, weather, busy, error, checkInDate, stayingNights, onLoad,
+  city, weather, busy, error, history, historyBusy, historyError,
+  checkInDate, stayingNights, onLoad, onLoadHistory,
 }: {
   city: CitySuggestion | null;
   weather: DestinationWeather | null;
   busy: boolean;
   error: string | null;
+  history: HistoricalWeather | null;
+  historyBusy: boolean;
+  historyError: string | null;
   checkInDate: string;
   stayingNights: string;
   onLoad(): void;
+  onLoadHistory(): void;
 }) {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedHistoryYear, setSelectedHistoryYear] = useState<number | null>(null);
   const nights = Number(stayingNights);
+  const validStay = /^\d{4}-\d{2}-\d{2}$/.test(checkInDate)
+    && /^\d+$/.test(stayingNights) && nights >= 1 && nights <= 365;
   const tripEnd = /^\d{4}-\d{2}-\d{2}$/.test(checkInDate)
     && Number.isInteger(nights) && nights > 0 ? addDays(checkInDate, nights) : null;
   const days = weather?.days ?? [];
@@ -73,6 +81,17 @@ export default function DestinationWeatherCard({
   const tripOutsideForecast = tripEnd && lastDate && checkInDate > lastDate;
   const tripPartiallyCovered = tripEnd && lastDate && checkInDate <= lastDate
     && tripEnd > addDays(lastDate, 1);
+  const historicalYear = history?.years.find((year) => year.year === selectedHistoryYear)
+    ?? history?.years[0];
+  const historicalDays = historicalYear?.days ?? [];
+  const highTemperatures = historicalDays.flatMap((day) => day.temperatureMaxC == null ? [] : [day.temperatureMaxC]);
+  const averageHigh = highTemperatures.length
+    ? Math.round(highTemperatures.reduce((sum, value) => sum + value, 0) / highTemperatures.length)
+    : null;
+  const rainTotals = historicalDays.map((day) => day.precipitationMm);
+  const totalRain = rainTotals.every((value) => value != null)
+    ? rainTotals.reduce<number>((sum, value) => sum + (value ?? 0), 0)
+    : null;
 
   return <View style={styles.card}>
     <View style={styles.heading}>
@@ -145,6 +164,65 @@ export default function DestinationWeatherCard({
         <Text style={styles.sourceLink}>About this forecast</Text>
       </Pressable>
     </>}
+
+    {city && <View style={styles.historySection}>
+      <View style={styles.historyHeading}>
+        <Text style={styles.sectionLabel}>PAST STAYS</Text>
+        <Text style={styles.historyTitle}>What was it like in previous years?</Text>
+        <Text style={styles.tripNote}>Compare every day of your selected stay with the same period in past years.</Text>
+      </View>
+
+      {validStay ? <Pressable accessibilityRole="button" disabled={historyBusy} onPress={onLoadHistory}
+        style={[styles.historyButton, historyBusy && styles.disabled]}>
+        {historyBusy ? <ActivityIndicator color={BLUE} /> : <RefreshCw size={16} color={BLUE} />}
+        <Text style={styles.historyButtonText}>{historyBusy ? 'Loading past weather…'
+          : history ? 'Refresh past years' : 'Compare past years'}</Text>
+      </Pressable> : <Text style={styles.tripNote}>
+        Choose a check-in date and 1 to 365 nights to compare past weather.
+      </Text>}
+      {historyError && <Text accessibilityRole="alert" style={styles.error}>{historyError}</Text>}
+
+      {history && <>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.historyTabs}>
+          {history.years.map((year) => <Pressable key={year.startDate} accessibilityRole="button"
+            accessibilityState={{ selected: historicalYear?.startDate === year.startDate }}
+            onPress={() => setSelectedHistoryYear(year.year)}
+            style={[styles.historyTab, historicalYear?.startDate === year.startDate && styles.historyTabActive]}>
+            <Text style={[styles.historyTabText, historicalYear?.startDate === year.startDate && styles.historyTabTextActive]}>
+              {year.year}
+            </Text>
+          </Pressable>)}
+        </ScrollView>
+
+        {historicalYear && <>
+          <View style={styles.historySummary}>
+            <Text style={styles.historyRange}>{historicalYear.startDate} to {historicalYear.endDate}</Text>
+            <View style={styles.historyStats}>
+              <Text style={styles.historyStat}>{temperature(averageHigh)} average high</Text>
+              <Text style={styles.historyStat}>{precipitation(totalRain)} total rain</Text>
+            </View>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.days}>
+            {historicalDays.map((day) => {
+              const { Icon, label } = condition(day.weatherCode);
+              return <View key={day.date} accessibilityLabel={`${dayLabel(day.date)}, ${label}`}
+                style={styles.historyDayTile}>
+                <Text style={styles.dayName}>{dayLabel(day.date)}</Text>
+                <Icon size={23} color={BLUE} />
+                <Text style={styles.dayTemperature}>{temperature(day.temperatureMaxC)}</Text>
+                <Text style={styles.dayLow}>{temperature(day.temperatureMinC)} low</Text>
+                <Text style={styles.historyDayMetric}>{precipitation(day.precipitationMm)} rain</Text>
+                <Text style={styles.historyDayMetric}>{measure(day.windSpeedMaxKmh, 'km/h')} wind</Text>
+              </View>;
+            })}
+          </ScrollView>
+          <Text style={styles.source}>Historical reanalysis by Open-Meteo · Past weather does not predict your trip.</Text>
+          <Pressable accessibilityRole="link" onPress={() => { void Linking.openURL('https://open-meteo.com/en/docs/historical-weather-api'); }}>
+            <Text style={styles.sourceLink}>About historical data</Text>
+          </Pressable>
+        </>}
+      </>}
+    </View>}
   </View>;
 }
 
@@ -183,4 +261,23 @@ const styles = StyleSheet.create({
   tripNote: { color: '#455267', fontSize: 12, lineHeight: 18 },
   source: { color: '#7A8595', fontSize: 11 },
   sourceLink: { color: BLUE, fontSize: 12, fontWeight: '800' },
+  historySection: { borderTopWidth: 1, borderTopColor: '#E5E7F0', paddingTop: 17, gap: 12 },
+  historyHeading: { gap: 4 },
+  historyTitle: { color: INK, fontSize: 16, fontWeight: '800' },
+  historyButton: { minHeight: 43, borderRadius: 13, borderWidth: 1, borderColor: BLUE,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  historyButtonText: { color: BLUE, fontSize: 13, fontWeight: '800' },
+  historyTabs: { gap: 8, paddingRight: 4 },
+  historyTab: { minWidth: 68, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 18,
+    backgroundColor: '#F2F6FC', alignItems: 'center' },
+  historyTabActive: { backgroundColor: PURPLE },
+  historyTabText: { color: PURPLE, fontSize: 12, fontWeight: '800' },
+  historyTabTextActive: { color: '#fff' },
+  historySummary: { backgroundColor: '#F2F6FC', borderRadius: 15, padding: 13, gap: 6 },
+  historyRange: { color: INK, fontSize: 12, fontWeight: '800' },
+  historyStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  historyStat: { color: '#455267', fontSize: 12, fontWeight: '700' },
+  historyDayTile: { minWidth: 100, borderRadius: 15, backgroundColor: '#F2F6FC',
+    paddingVertical: 11, paddingHorizontal: 9, alignItems: 'center', gap: 5 },
+  historyDayMetric: { color: '#455267', fontSize: 10 },
 });
