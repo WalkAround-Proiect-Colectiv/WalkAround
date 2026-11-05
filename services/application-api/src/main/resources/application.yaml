@@ -77,6 +77,14 @@ app:
       jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
       issuers: https://accounts.google.com,accounts.google.com
     allowed-origins: ${REGISTRATION_ALLOWED_ORIGINS:}
+  events:
+    provider: ${EVENTS_PROVIDER:serpapi}
+    serp-api-key: ${EVENTS_SERP_API_KEY:}
+    cache-ttl: ${EVENTS_CACHE_TTL:PT24H}
+    time-zone: ${EVENTS_TIME_ZONE:Europe/Bucharest}
+    nominatim-user-agent: ${EVENTS_NOMINATIM_USER_AGENT:WalkAround-university-project/1.0 (upcoming events)}
+    reminders-enabled: ${EVENTS_REMINDERS_ENABLED:true}
+    reminder-topic: ${EVENTS_REMINDER_TOPIC:event-reminders-topic}
   routing-service:
     url: ${ROUTING_SERVICE_URL}
 

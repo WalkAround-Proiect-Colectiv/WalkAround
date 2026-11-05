@@ -16,6 +16,7 @@ This Spring Boot service owns account registration, login/session issuance, JWT-
 - `POST /api/sessions/google`, `/refresh`, `/logout`: web session endpoints using an HttpOnly cookie.
 - `POST /api/mobile/sessions/google`, `/refresh`, `/logout`: mobile session endpoints using a refresh token in JSON.
 - `GET /api/users/me`: return the current authenticated user's profile.
+- `/api/events/...`: upcoming events near the user, marked events, and reminders. See the [events README](src/main/java/services/applicationapi/events/README.md).
 
 Web session endpoints also check the request Origin. CORS is restricted to configured allowed origins. The API is stateless for access-token authentication.
 

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CalendarDays, Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -361,6 +361,13 @@ export default function MapScreen() {
             setActiveRouteField('end');
           }} style={styles.menuItem}>
             <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => {
+            setMenuOpen(false);
+            // The map centre is the fallback position when location access is unavailable.
+            router.push({ pathname: '/events', params: { lat: String(camera.center[1]), lng: String(camera.center[0]) } });
+          }} style={styles.menuItem}>
+            <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
                      accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
