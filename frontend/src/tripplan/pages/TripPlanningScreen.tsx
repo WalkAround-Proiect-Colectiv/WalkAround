@@ -15,11 +15,14 @@ import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import SafetyInformationCard from '../components/SafetyInformationCard';
 import CountryHotlinesCard from '../components/CountryHotlinesCard';
 import DestinationNewsCard from '../components/DestinationNewsCard';
+import DestinationWeatherCard from '../components/DestinationWeatherCard';
 import {
-  getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getPlaceRecommendations, saveTripPlan,
+  getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getDestinationWeather,
+  getPlaceRecommendations, saveTripPlan,
   searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type CountryHotlines, type DestinationSafety, type NewsArticle, type PlaceCategory, type PlaceRecommendationPage,
+  type CountryHotlines, type DestinationSafety, type DestinationWeather, type NewsArticle,
+  type PlaceCategory, type PlaceRecommendationPage,
   type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
@@ -334,6 +337,8 @@ export default function TripPlanningScreen() {
   const hotlinesRequestId = useRef(0);
   const newsRequestId = useRef(0);
   const newsPending = useRef(false);
+  const weatherRequestId = useRef(0);
+  const weatherPending = useRef(false);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -380,6 +385,38 @@ export default function TripPlanningScreen() {
   const [news, setNews] = useState<NewsArticle[] | null>(null);
   const [newsBusy, setNewsBusy] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
+  const [weather, setWeather] = useState<DestinationWeather | null>(null);
+  const [weatherBusy, setWeatherBusy] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+
+  function clearWeather() {
+    weatherRequestId.current += 1;
+    weatherPending.current = false;
+    setWeather(null);
+    setWeatherBusy(false);
+    setWeatherError(null);
+  }
+
+  async function loadWeather() {
+    if (!destinationCity || weatherPending.current) return;
+
+    const requestId = ++weatherRequestId.current;
+    weatherPending.current = true;
+    setWeatherBusy(true);
+    setWeatherError(null);
+
+    try {
+      const result = await getDestinationWeather(destinationCity);
+      if (weatherRequestId.current === requestId) setWeather(result);
+    } catch (reason) {
+      if (weatherRequestId.current === requestId) setWeatherError(message(reason));
+    } finally {
+      if (weatherRequestId.current === requestId) {
+        weatherPending.current = false;
+        setWeatherBusy(false);
+      }
+    }
+  }
 
   function clearNews() {
     newsRequestId.current += 1;
@@ -516,6 +553,7 @@ export default function TripPlanningScreen() {
     clearSafety();
     clearHotlines();
     clearNews();
+    clearWeather();
     setDestinationCity(city);
     clearTickets();
     clearAccommodations();
@@ -528,6 +566,7 @@ export default function TripPlanningScreen() {
     clearSafety();
     clearHotlines();
     clearNews();
+    clearWeather();
     setDestinationCity(null);
     clearTickets();
     clearAccommodations();
@@ -825,6 +864,10 @@ export default function TripPlanningScreen() {
           <CityPicker label="Going to" hint="Choose your destination city"
             selected={destinationCity} onSelect={selectDestination} onChange={changeDestination} />
         </View>
+
+        <DestinationWeatherCard key={`weather-${destinationCity?.lookupName}-${destinationCity?.countryCode}`}
+          city={destinationCity} weather={weather} busy={weatherBusy} error={weatherError}
+          checkInDate={checkInDate} stayingNights={nights} onLoad={() => { void loadWeather(); }} />
 
         <CountryHotlinesCard key={destinationCity?.countryCode || 'none'}
           city={destinationCity} data={hotlines} busy={hotlinesBusy}

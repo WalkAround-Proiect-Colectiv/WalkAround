@@ -1,0 +1,7 @@
+# Destination weather forecast
+
+`WeatherForecastService` validates a destination city and two-letter country code, then reuses the GeoNames city validator to obtain trusted coordinates. Invalid city input or an unmatched city/country pair returns `400`; unavailable GeoNames or Open-Meteo data returns a generic `502`. The client receives no upstream error body.
+
+`WeatherForecastProvider` keeps the service independent of a weather source. The Open-Meteo implementation requests `/v1/forecast` once per user action with `latitude`, `longitude`, `timezone=auto`, and configured `forecast_days` (default and maximum 14). It reads daily weather code, maximum/minimum Celsius temperature, maximum precipitation probability, precipitation total in millimeters, and maximum wind speed in km/h. It requires aligned daily arrays and valid ISO dates. The response preserves the destination timezone and daily dates for local-day display.
+
+The API always returns the next forecast days from the destination's present local date, regardless of any trip date. The frontend highlights the selected check-in date and staying nights only where they overlap the returned window and explains when a trip is later or only partly covered. No historical or long-range climate estimate is substituted for a missing forecast. The free Open-Meteo endpoint needs no API key. See [Open-Meteo forecast documentation](https://open-meteo.com/en/docs) and [usage terms](https://open-meteo.com/en/pricing).
