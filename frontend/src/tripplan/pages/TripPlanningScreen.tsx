@@ -1011,7 +1011,10 @@ export default function TripPlanningScreen() {
               key={`${place.name}-${place.mapsUrl}-${index}`} place={place} />)}
             {placesByCategory[placeCategory]?.nextPage != null && !placesError &&
               <Pressable accessibilityRole="button" disabled={placesBusy}
-                onPress={() => loadPlaces(destinationCity, placeCategory, placesByCategory[placeCategory].nextPage!)}
+                onPress={() => {
+                  const nextPage = placesByCategory[placeCategory]?.nextPage;
+                  if (nextPage != null) loadPlaces(destinationCity, placeCategory, nextPage);
+                }}
                 style={[styles.placeLoadMore, placesBusy && styles.disabled]}>
                 {placesBusy ? <ActivityIndicator color={BLUE} size="small" /> : <ArrowRight size={17} color={BLUE} />}
                 <Text style={styles.placeLoadMoreText}>{placesBusy ? 'Loading more places…' : 'Load more places'}</Text>

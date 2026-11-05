@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import * as Location from 'expo-location';
 import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
@@ -161,21 +160,6 @@ export default function MapScreen() {
     }, 20000);
     return () => clearTimeout(timeout);
   }, [style, loading]);
-
-  async function locate() {
-    if (locating) return;
-    setLocating(true);
-    setError(null);
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) throw new Error('Location permission was denied. You can still browse the map.');
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { longitude, latitude } = position.coords;
-      if (!isInCoverage(longitude, latitude)) throw new Error('Your location is outside the Romania prototype area.');
-      map.current?.goTo({ center: [longitude, latitude], zoom: 15 });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not find your location.'); }
-    finally { setLocating(false); }
-  }
 
   function handleReportPress() {
     if (!session) {
