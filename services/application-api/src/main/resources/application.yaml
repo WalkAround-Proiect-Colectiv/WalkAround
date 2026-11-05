@@ -58,6 +58,11 @@ logging:
     root: info
 
 app:
+  place-search:
+    provider: ${PLACE_SEARCH_PROVIDER:photon}
+    base-url: ${PLACE_SEARCH_BASE_URL:https://photon.komoot.io}
+    timeout: ${PLACE_SEARCH_TIMEOUT:PT3S}
+    max-results: ${PLACE_SEARCH_MAX_RESULTS:5}
   profile:
     picture-max-bytes: ${PROFILE_PICTURE_MAX_BYTES:5242880}
     picture-max-pixels: ${PROFILE_PICTURE_MAX_PIXELS:16000000}

@@ -13,10 +13,12 @@ export type MapCanvasProps = {
   ref?: Ref<MapHandle>;
   style: StyleSpecification;
   userLocation?: UserLocation;
+  searchedLocation?: [longitude: number, latitude: number] | null;
   zoomLevel?: number;
   dangerousZonesData?: any;
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
   onPress?(featureProperties: any | null): void;
+  onCoordinateSelect?(coordinates: [longitude: number, latitude: number]): void;
 };
