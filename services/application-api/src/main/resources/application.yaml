@@ -104,3 +104,9 @@ app:
     currents-api-base-url: ${CURRENTS_API_BASE_URL:https://api.currentsapi.services}
     currents-api-timeout: ${CURRENTS_API_TIMEOUT:PT8S}
     news-page-size: ${NEWS_PAGE_SIZE:20}
+    weather-provider: ${WEATHER_PROVIDER:open-meteo}
+    open-meteo-base-url: ${OPEN_METEO_BASE_URL:https://api.open-meteo.com}
+    open-meteo-timeout: ${OPEN_METEO_TIMEOUT:PT8S}
+    weather-forecast-days: ${WEATHER_FORECAST_DAYS:14}
+    open-meteo-archive-base-url: ${OPEN_METEO_ARCHIVE_BASE_URL:https://archive-api.open-meteo.com}
+    weather-history-years: ${WEATHER_HISTORY_YEARS:3}

@@ -73,11 +73,12 @@ export default function MapScreen() {
   }, [session, style]);
   
   useEffect(() => {
-    const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
-    if (!wsUrl) {
+    const wsBaseUrl = process.env.EXPO_PUBLIC_WS_URL?.trim();
+    if (!wsBaseUrl) {
       console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
       return;
     }
+    const wsUrl = `${wsBaseUrl.replace(/\/+$/, '')}/ws/dangerous-zones`;
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       console.log('Connected to real-time service');
