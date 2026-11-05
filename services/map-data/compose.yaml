@@ -9,6 +9,8 @@ x-database-client: &database-client
 
 services:
   map-db:
+    ports:
+      - "15434:5432"
     image: postgis/postgis:17-3.5
     environment:
       POSTGRES_DB: map
