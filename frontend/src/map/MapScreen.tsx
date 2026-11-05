@@ -3,7 +3,6 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import * as Location from 'expo-location';
 import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
@@ -198,7 +197,8 @@ export default function MapScreen() {
 
   useEffect(() => {
     if (routeStart && routeEnd) {
-      const fetchUrl = `http://localhost:8000/api/v1/routes/pedestrian`;
+      const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+      const fetchUrl = `${baseUrl}/api/v1/routes/pedestrian`;
       fetch(fetchUrl, {
         method: 'POST',
         headers: {
@@ -228,21 +228,6 @@ export default function MapScreen() {
           });
     }
   }, [routeStart, routeEnd]);
-
-  async function locate() {
-    if (locating) return;
-    setLocating(true);
-    setError(null);
-    try {
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (!permission.granted) throw new Error('Location permission was denied. You can still browse the map.');
-      const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      const { longitude, latitude } = position.coords;
-      if (!isInCoverage(longitude, latitude)) throw new Error('Your location is outside the Romania prototype area.');
-      map.current?.goTo({ center: [longitude, latitude], zoom: 15 });
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Could not find your location.'); }
-    finally { setLocating(false); }
-  }
 
   function handleMapClick(properties: any, coords?: [number, number]) {
     if (routeMode && activeRouteField && coords) {
@@ -359,18 +344,19 @@ export default function MapScreen() {
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={async () => {
+          <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
             setRouteMode(true);
-            try {
-              const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-              setRouteStart({ lat: position.coords.latitude, lng: position.coords.longitude });
-              map.current?.goTo({ center: [position.coords.longitude, position.coords.latitude], zoom: 15 });
+            if (userLocation)
+            {
+              setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+              map.current?.goTo({ center: [userLocation.coordinates[0], userLocation.coordinates[1]], zoom: 15 });
             }
-            catch (e)
+            else
             {
               setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
             }
+
             setActiveRouteField('end');
           }} style={styles.menuItem}>
             <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
