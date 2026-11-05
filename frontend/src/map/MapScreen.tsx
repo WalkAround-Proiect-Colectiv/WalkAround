@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CalendarDays, Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -369,10 +369,10 @@ export default function MapScreen() {
           }} style={styles.menuItem}>
             <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
-                     accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
-            <Heart size={20} color="#8c96a4" /><Text style={styles.menuItemTextDisabled}>My future</Text>
-            <Text style={styles.menuComingSoon}>Coming soon</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Account' : 'Sign in'}
+            onPress={() => { setMenuOpen(false); router.push(session ? '/home' : '/login'); }} style={styles.menuItem}>
+            <UserRound size={20} color="#0065EB" />
+            <Text style={styles.menuItemText}>{session ? 'Account' : 'Sign in'}</Text>
           </Pressable>
         </View>}
       </View>
