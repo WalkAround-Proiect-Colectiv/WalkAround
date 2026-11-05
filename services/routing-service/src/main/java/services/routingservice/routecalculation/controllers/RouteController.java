@@ -19,10 +19,7 @@ public class RouteController {
     public ResponseEntity<String> getPedestrianRoute(@RequestBody RouteRequestDto request)
     {
         try {
-            String valhallaResponse = routeService.calculatePedestrianRoute(
-                    request.startLat(), request.startLng(),
-                    request.endLat(), request.endLng()
-            );
+            String valhallaResponse = routeService.calculatePedestrianRoute(request);
             return ResponseEntity.ok()
                     .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                     .body(valhallaResponse);
