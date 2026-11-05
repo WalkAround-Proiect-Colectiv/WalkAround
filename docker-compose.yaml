@@ -48,6 +48,7 @@ services:
       - tile_urls=https://download.geofabrik.de/europe/romania-latest.osm.pbf
       - build_tar=True
       - serve_tiles=True
+      - server_threads=${VALHALLA_SERVER_THREADS:-2}
     volumes:
       - ./valhalla_custom_data:/custom_files
 
