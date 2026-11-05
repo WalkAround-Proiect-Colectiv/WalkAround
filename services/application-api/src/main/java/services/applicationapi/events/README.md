@@ -2,6 +2,24 @@
 
 This feature lists upcoming events in the town the user is in, lets signed-in users mark events they are interested in, and sends in-app reminders before marked events. All endpoints require a signed-in user.
 
+## In short
+
+```mermaid
+flowchart LR
+	App["App: /events"] -- "lat, lng" --> API["Application API<br/>events module"]
+	API -- "rounded position" --> OSM["OpenStreetMap Nominatim<br/>which town?"]
+	API -- "only on cache miss" --> Serp["SerpApi<br/>Google Events"]
+	API <--> DB[("Postgres<br/>town snapshots,<br/>marked events")]
+	API -- "due reminders" --> Kafka
+	Kafka --> RT["Realtime service<br/>/ws/notifications"]
+	RT -- "only to that user" --> App
+```
+
+- **Which events?** The backend finds the town that contains the user's position and shows the events Google Events lists for that town. There is no radius search: the provider only works per town.
+- **When is the provider called?** Only when the town's list is not cached or is older than 24 hours. Lists are kept in memory and in the database, so restarts and repeat visits cost nothing.
+- **What is stored?** One cached list per town (as JSON), and the events users mark. There is no table with one row per event.
+- **Terms used below:** a *locality* is the town, city or commune from OpenStreetMap; its *locality key* looks like `RO/cluj/cluj-napoca`. An *event key* is a stable ID the backend computes for each event (see [Event keys and dates](#event-keys-and-dates)).
+
 ## Where to start
 
 | Concern | Package / class | Main responsibility |
@@ -75,6 +93,36 @@ The realtime service delivers the message only to that user's open `/ws/notifica
 - The public Nominatim service allows at most one request per second for the whole app, requires caching and an identifying User-Agent, and must not receive exact personal positions. `NominatimLocalityResolver` serializes calls, caches results and sends rounded coordinates. See the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 - Responses include an attribution line for Google Events via SerpApi and OpenStreetMap; the app shows it under the list.
 
+## Try it locally
+
+1. Start Postgres and Kafka from the repository root: `docker compose up -d application-api-db kafka`.
+2. In `services/application-api/.env` set `EVENTS_PROVIDER=recorded`. No SerpApi key is needed in this mode.
+3. In `services/realtime-service/.env` set the same `JWT_SIGNING_SECRET`, `JWT_ISSUER` and `JWT_AUDIENCE` as the Application API.
+4. Start the Application API and the realtime service with their `.env` values loaded (Spring Boot does not read `.env` files by itself; use your IDE's run configuration or export the variables first), then the frontend with `npm run web`.
+5. Sign in, open the map's **Upcoming events** menu item, or go straight to `http://localhost:8081/events?lat=46.7712&lng=23.5899`. The `lat`/`lng` parameters are used when the browser does not share its location; these coordinates are in Cluj-Napoca, which has recorded data.
+6. Mark an event that starts within a week and choose **1 week before**. That time has already passed, so the reminder banner appears within about a minute.
+
+To use live data, set `EVENTS_PROVIDER=serpapi` and `EVENTS_SERP_API_KEY` to your own key. Each new town costs two searches; marking an event costs one.
+
+## Troubleshooting
+
+| Symptom | Likely cause |
+| --- | --- |
+| `503 Events are temporarily unavailable` | `EVENTS_PROVIDER=serpapi` without `EVENTS_SERP_API_KEY`, an exhausted SerpApi quota, or Nominatim unreachable. Use `recorded` for development. |
+| Empty list in `recorded` mode | Only Cluj-Napoca, Bucharest, Brașov and Florești have recordings; other towns return no events. |
+| Old events missing from a recording | Past events are hidden. The recordings date from 2026-11-05, so they empty out over time; record new ones or use live mode. |
+| No reminder banner | The realtime service is not running, `EXPO_PUBLIC_WS_URL` is not set in the frontend, or its `JWT_*` values differ from the Application API's, so the connection is rejected with 401. |
+| `404 This event is no longer available` when marking | The town's cached list no longer contains the event, for example after a refresh. Reload the list. |
+
 ## Tests
 
-Unit tests in `src/test/java/services/applicationapi/events` cover date parsing, de-duplication and past-event filtering, cache order and stale fallback, reminder timing, and the recorded responses. They need no Docker and make no API calls.
+| Test | What it checks |
+| --- | --- |
+| `EventDateParserTest` | List and details date formats, missing years, time ranges, invalid dates. |
+| `EventListBuilderTest` | De-duplication across the two searches, past-event filtering, sorting, stable event keys. |
+| `EventsServiceTest` | Memory cache, database snapshot after a restart, refresh after the TTL, stale fallback, no locality. |
+| `EventInterestReminderTest` | Reminder times, immediate reminders, clearing and changing reminders. |
+| `RecordedEventSourceTest` | The recorded responses load and clean up as expected. |
+| `EventsFlowIntegrationTest` | The whole HTTP flow against a real Postgres (Testcontainers): nearby list, marking, reminders sent once, unseen and seen reminders, unmarking, sign-in required. Needs Docker; skipped without it. |
+
+The unit tests need no Docker, and no test makes real SerpApi or Nominatim calls.
