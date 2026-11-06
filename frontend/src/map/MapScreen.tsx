@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
@@ -7,13 +7,41 @@ import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, M
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
-import { MAP_STYLE_URL, PLACES } from './config';
+import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
 import { useUserLocalization } from './userLocalization';
 import DangerousZoneButton from '../dangerous-zone/components/DangerousZoneButton';
 import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal';
 import { cellToBoundary } from 'h3-js';
 import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
+import { environment } from '../config/environment';
+
+type PoiSearchResult = {
+  name: string;
+  detail: string;
+  coordinates: [longitude: number, latitude: number];
+};
+
+async function lookupPlaces(query: string, camera: { center: [number, number]; zoom: number }, signal: AbortSignal) {
+  const params = new URLSearchParams({
+    q: query,
+    limit: '5',
+    lat: String(camera.center[1]),
+    lon: String(camera.center[0]),
+    zoom: String(Math.round(camera.zoom)),
+  });
+  const response = await fetch(`${environment.apiBaseUrl}/api/places/search?${params.toString()}`, { signal });
+  if (!response.ok) throw new Error('Place search unavailable');
+  const result = await response.json();
+  return (result as { name: string; detail: string; latitude: number; longitude: number }[])
+    .filter(place => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+    .filter(place => isInCoverage(place.longitude, place.latitude))
+    .map(place => ({
+      name: place.name || query,
+      detail: place.detail || '',
+      coordinates: [place.longitude, place.latitude] as [number, number],
+    }));
+}
 
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
@@ -50,6 +78,17 @@ export default function MapScreen() {
   const { session } = useSession();
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
+  const [coordinateQuery, setCoordinateQuery] = useState('');
+  const [searchedLocation, setSearchedLocation] = useState<[number, number] | null>(null);
+  const [coordinateError, setCoordinateError] = useState<string | null>(null);
+  const [poiResults, setPoiResults] = useState<PoiSearchResult[]>([]);
+  const [searchingPoi, setSearchingPoi] = useState(false);
+  const [poiSearchNonce, setPoiSearchNonce] = useState(0);
+  const poiSearchRequest = useRef(0);
+  const immediatePoiQuery = useRef('');
+  const suppressPoiQuery = useRef('');
+  const currentCamera = useRef(camera);
+  currentCamera.current = camera;
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +111,95 @@ export default function MapScreen() {
 
   const displayedError = error ?? locationError;
 
+  function searchCoordinates() {
+    const query = coordinateQuery.trim();
+    const parts = query.split(',').map(value => value.trim());
+    const values = parts.map(value => Number(value));
+    const isCoordinatePair = parts.length === 2 && parts.every(value => value !== '')
+      && values.every(value => Number.isFinite(value));
+    setCoordinateError(null);
+    setPoiResults([]);
+
+    if (isCoordinatePair) {
+      const [latitude, longitude] = values;
+      if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        setCoordinateError('Latitude must be between -90 and 90, and longitude between -180 and 180.');
+        return;
+      }
+      if (!isInCoverage(longitude, latitude)) {
+        setCoordinateError('That location is outside the downloaded map coverage (Romania).');
+        return;
+      }
+      setSearchedLocation([longitude, latitude]);
+      setSelectedZoneInfo(null);
+      map.current?.goTo({ center: [longitude, latitude], zoom: 14 });
+      return;
+    }
+
+    if (!query) {
+      setCoordinateError('Enter coordinates or a place name to search.');
+      return;
+    }
+
+    if (poiResults.length > 0) {
+      selectPoiResult(poiResults[0]);
+      return;
+    }
+    immediatePoiQuery.current = query;
+    setPoiSearchNonce(value => value + 1);
+  }
+
+  function handleMapCoordinateSelect([longitude, latitude]: [number, number]) {
+    poiSearchRequest.current += 1;
+    setSearchingPoi(false);
+    setPoiResults([]);
+    setSearchedLocation([longitude, latitude]);
+    setCoordinateQuery(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
+    setCoordinateError(null);
+    setSelectedZoneInfo(null);
+  }
+
+  function selectPoiResult(result: PoiSearchResult) {
+    suppressPoiQuery.current = result.name;
+    handleMapCoordinateSelect(result.coordinates);
+    setCoordinateQuery(result.name);
+    map.current?.goTo({ center: result.coordinates, zoom: 15 });
+  }
+
+  useEffect(() => {
+    const query = coordinateQuery.trim();
+    const isPartialCoordinatePair = /^[-+]?\d*\.?\d*\s*,\s*[-+]?\d*\.?\d*$/.test(query);
+    const requestId = ++poiSearchRequest.current;
+    if (query.length < 2 || isPartialCoordinatePair || suppressPoiQuery.current === query) {
+      if (suppressPoiQuery.current === query) suppressPoiQuery.current = '';
+      setPoiResults([]);
+      setSearchingPoi(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const delay = immediatePoiQuery.current === query ? 0 : 300;
+    if (delay === 0) immediatePoiQuery.current = '';
+    setCoordinateError(null);
+    setPoiResults([]);
+    setSearchingPoi(true);
+    const timeout = setTimeout(async () => {
+      try {
+        const matches = await lookupPlaces(query, currentCamera.current, controller.signal);
+        if (requestId !== poiSearchRequest.current) return;
+        setPoiResults(matches);
+        if (matches.length === 0) setCoordinateError(`No places found for “${query}”.`);
+      } catch {
+        if (requestId === poiSearchRequest.current && !controller.signal.aborted) {
+          setCoordinateError('Place search failed. Check your connection and try again.');
+        }
+      } finally {
+        if (requestId === poiSearchRequest.current) setSearchingPoi(false);
+      }
+    }, delay);
+
+    return () => { clearTimeout(timeout); controller.abort(); };
+  }, [coordinateQuery, poiSearchNonce]);
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
   const [zoneModalVisible, setZoneModalVisible] = useState(false);
   const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -275,29 +403,31 @@ export default function MapScreen() {
 
   return <View style={styles.screen}>
     <View style={styles.map}>
-      {style && (
-          <MapCanvas
-              key={attempt}
-              ref={map}
-              style={style}
-              userLocation={userLocation}
-              zoomLevel={camera.zoom}
-              dangerousZonesData={dangerousZonesData}
-              routeData={routeGeoJSON}
-              routePointsData={routePointsData}
-              onMove={setCamera}
-              onReady={() => {
-                setLoading(false);
-                setMapReady(true);
-              }}
-              onError={() => {
-                setLoading(false);
-                setMapReady(false);
-                setError('Some map resources could not load. Check your connection or retry.');
-              }}
-              onPress={handleMapClick}
-          />
-      )}
+{style && (
+  <MapCanvas
+    key={attempt}
+    ref={map}
+    style={style}
+    userLocation={userLocation}
+    searchedLocation={searchedLocation}
+    zoomLevel={camera.zoom}
+    dangerousZonesData={dangerousZonesData}
+    routeData={routeGeoJSON}
+    routePointsData={routePointsData}
+    onMove={setCamera}
+    onCoordinateSelect={handleMapCoordinateSelect}
+    onReady={() => {
+      setLoading(false);
+      setMapReady(true);
+    }}
+    onError={() => {
+      setLoading(false);
+      setMapReady(false);
+      setError('Some map resources could not load. Check your connection or retry.');
+    }}
+    onPress={handleMapClick}
+  />
+)}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
 
       {isSelectingLocation && (
@@ -379,6 +509,50 @@ export default function MapScreen() {
       {displayedError && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{displayedError}</Text>
         {error && <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />}
       </View>}
+    </View>
+
+    <View style={styles.searchArea}>
+      <View style={styles.searchRow}>
+        <TextInput
+          accessibilityLabel="Search coordinates or places"
+          accessibilityHint="Enter latitude and longitude, or a place name, then press Enter"
+          value={coordinateQuery}
+          onChangeText={value => { setCoordinateQuery(value); setCoordinateError(null); setPoiResults([]); }}
+          onSubmitEditing={searchCoordinates}
+          placeholder="Coordinates or place / POI name"
+          placeholderTextColor="#788493"
+          returnKeyType="search"
+          editable
+          autoCapitalize="none"
+          autoCorrect={false}
+          style={styles.searchInput}
+        />
+        {searchingPoi ? <ActivityIndicator size="small" color="#0065EB" style={styles.searchSpinner} /> : searchedLocation && <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Remove map marker"
+          onPress={() => { setSearchedLocation(null); setCoordinateQuery(''); setPoiResults([]); setCoordinateError(null); }}
+          style={styles.clearMarkerButton}
+        ><X size={20} color="#0065EB" /></Pressable>}
+      </View>
+      {poiResults.length > 0 && <View style={styles.poiResults}>
+        {poiResults.map((result, index) => <Pressable
+          key={`${result.name}-${result.coordinates[0]}-${result.coordinates[1]}-${index}`}
+          accessibilityRole="button"
+          accessibilityLabel={`Select ${result.name}${result.detail ? `, ${result.detail}` : ''}`}
+          onPress={() => {
+            selectPoiResult(result);
+          }}
+          style={[styles.poiResult, index > 0 && styles.poiResultBorder]}
+        >
+          <MapPin size={17} color="#0065EB" />
+          <View style={styles.poiResultText}>
+            <Text numberOfLines={1} style={styles.poiResultName}>{result.name}</Text>
+            {!!result.detail && <Text numberOfLines={1} style={styles.poiResultDetail}>{result.detail}</Text>}
+          </View>
+        </Pressable>)}
+        <Text style={styles.poiAttribution}>Place search by Photon · © OpenStreetMap contributors</Text>
+      </View>}
+      {coordinateError && <Text accessibilityRole="alert" style={styles.coordinateError}>{coordinateError}</Text>}
     </View>
 
     {selectedZoneInfo && !routeMode && (

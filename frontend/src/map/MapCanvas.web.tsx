@@ -6,7 +6,21 @@ import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,routeData, routePointsData,onReady,onError,onMove,onPress,}: MapCanvasProps) {
+export default function MapCanvas({
+  ref,
+  style,
+  userLocation = null,
+  searchedLocation = null,
+  zoomLevel = PLACES[0].zoom,
+  dangerousZonesData,
+  routeData,
+  routePointsData,
+  onReady,
+  onError,
+  onMove,
+  onPress,
+  onCoordinateSelect,
+}: MapCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<Map | null>(null);
   const locationMarker = useRef<Marker | null>(null);
@@ -92,6 +106,10 @@ export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLA
         pressed(null, coords);
       }
     });
+    instance.on('dblclick', event => {
+      event.preventDefault();
+      onCoordinateSelect?.([event.lngLat.lng, event.lngLat.lat]);
+    });
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
     return () => {
@@ -172,6 +190,24 @@ export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLA
     });
     marker.setLngLat(userLocation.coordinates);
   }, [userLocation, zoomLevel]);
-  return <div ref={container} className="walkaround-map" aria-label="Map of Romania"
-    style={{ position: 'absolute', inset: 0 }} />;
+useEffect(() => {
+    if (!map.current || !searchedLocation) return;
+
+    const marker = new Marker({ color: '#0065EB' })
+      .setLngLat(searchedLocation)
+      .addTo(map.current);
+
+    return () => {
+      marker.remove();
+    };
+  }, [searchedLocation]);
+
+  return (
+    <div
+      ref={container}
+      className="walkaround-map"
+      aria-label="Map of Romania"
+      style={{ position: 'absolute', inset: 0 }}
+    />
+  );
 }
