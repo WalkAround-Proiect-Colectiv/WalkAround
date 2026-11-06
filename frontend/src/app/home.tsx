@@ -1,1 +1,1 @@
-export { default } from '../login/pages/AccountScreen';
+export { default } from '../profile/pages/ProfileScreen';

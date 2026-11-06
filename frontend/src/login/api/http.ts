@@ -1,10 +1,10 @@
 import { environment } from '../../config/environment';
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, message: string) { super(message); }
+  constructor(public readonly status: number, message: string, public readonly detail?: string) { super(message); }
 }
 
-export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}, responseType: 'json' | 'blob' = 'json'): Promise<T> {
   if (!environment.apiBaseUrl) throw new Error('Sign-in is currently unavailable.');
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
@@ -18,9 +18,11 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
         404: 'No account found. Please create your WalkAround account first.',
         503: 'Sign-in is currently unavailable. Please try again later.',
       };
-      throw new ApiError(response.status, messages[response.status] ?? 'The request failed. Please try again.');
+      const problem = await response.json().catch(() => null);
+      throw new ApiError(response.status, messages[response.status] ?? 'The request failed. Please try again.',
+        typeof problem?.detail === 'string' ? problem.detail : undefined);
     }
-    return response.status === 204 ? undefined as T : await response.json();
+    return response.status === 204 ? undefined as T : responseType === 'blob' ? await response.blob() as T : await response.json();
   } catch (error) {
     if (controller.signal.aborted) throw new Error('The request timed out. Please try again.');
     if (error instanceof TypeError) throw new Error('Could not reach WalkAround. Check your connection.');

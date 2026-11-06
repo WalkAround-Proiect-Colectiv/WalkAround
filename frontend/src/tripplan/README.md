@@ -21,3 +21,7 @@ A country hotlines card appears immediately after the destination choice, before
 A separate safety card appears after the hotlines card. The user checks safety explicitly, so selecting a city does not spend Travel Risk API requests. The backend validates the city with GeoNames, then retrieves country advisories and reports near the city. The card separates these geographic scopes, shows source links and the check time, and clears its data when the destination changes. Safety information is not saved with the trip preset.
 
 An optional destination news card follows places at the bottom of the page. It makes one backend news request only after the user presses its button, preserves article links and metadata, and clears its results when the destination changes. The backend keeps the Currents API key private.
+
+The destination weather widget sits after the destination selector and before the hotlines and safety cards. Its button requests the next 14 local forecast days from the backend's Open-Meteo integration; selecting a city alone makes no weather call. It highlights known check-in nights within the forecast window and explains when a future trip has no available forecast yet.
+
+With a check-in date and stay length, a separate button requests historical weather for the entire stay in each of the three most recent completed comparable years. The comparison is optional and available even when the forecast covers every trip day. Changing the city or stay clears historical results.

@@ -3,18 +3,19 @@ import {Camera,GeoJSONSource,Layer,Map,type CameraRef,type MapRef,} from '@mapli
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ ref,style,userLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,onReady,onError,onMove,onPress,}: MapCanvasProps) {
+export default function MapCanvas({ref,style,userLocation = null,searchedLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,routeData,routePointsData,onReady,onError,onMove,onPress,onCoordinateSelect,}: MapCanvasProps) {
   const camera = useRef<CameraRef>(null);
   const nativeMap = useRef<MapRef>(null);
   const currentZoom = useRef(PLACES[0].zoom);
   const center = useRef(PLACES[0].center);
+  const lastPress = useRef<{ time: number; point: [number, number] } | null>(null);
   useImperativeHandle(ref, () => ({
     fitCoverage: () => camera.current?.fitBounds([...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]], { padding: { top: 24, right: 24, bottom: 24, left: 24 }, duration: 900, bearing: 0, pitch: 0 }),
     goTo: position => camera.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }),
     zoomBy: delta => camera.current?.zoomTo(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom.current + delta)), { duration: 250 }),
     resetNorth: () => camera.current?.easeTo({ center: center.current, bearing: 0, pitch: 0, duration: 250 }),
   }), []);
-const accuracyRadius = userLocation
+  const accuracyRadius = userLocation
     ? Math.max(
         10,
         Math.min(
@@ -28,11 +29,12 @@ const accuracyRadius = userLocation
     : 0;
 
   return (
-    <Map
+<Map
       ref={nativeMap}
       mapStyle={style}
       style={{ flex: 1 }}
       touchPitch={false}
+      doubleTapZoom={false}
       attribution
       logo={false}
       tintColor="#0065EB"
@@ -48,17 +50,34 @@ const accuracyRadius = userLocation
         });
       }}
       onPress={async event => {
+        const { lngLat, point } = event.nativeEvent;
+        const now = Date.now();
+        const previousPress = lastPress.current;
+
+        if (
+          previousPress &&
+          now - previousPress.time < 350 &&
+          Math.hypot(
+            point[0] - previousPress.point[0],
+            point[1] - previousPress.point[1],
+          ) < 30
+        ) {
+          lastPress.current = null;
+          onCoordinateSelect?.(lngLat);
+        } else {
+          lastPress.current = { time: now, point };
+        }
+
         if (!onPress) return;
 
         try {
-          const [x, y] = event.nativeEvent.point;
           const features = await nativeMap.current?.queryRenderedFeatures(
-            [x, y],
+            [point[0], point[1]],
             { layers: ['dangerous-zones-layer'] },
           );
-          onPress(features?.[0]?.properties ?? null);
+          onPress(features?.[0]?.properties ?? null, lngLat);
         } catch {
-          onPress(null);
+          onPress(null, lngLat);
         }
       }}
     >
@@ -85,10 +104,14 @@ const accuracyRadius = userLocation
                 'step',
                 ['get', 'intensity'],
                 '#FFF9C4',
-                3, '#FFEB3B',
-                5, '#FFC107',
-                10, '#FF9800',
-                15, '#D93838',
+                3,
+                '#FFEB3B',
+                5,
+                '#FFC107',
+                10,
+                '#FF9800',
+                15,
+                '#D93838',
               ],
               fillOpacity: 0.45,
             }}
@@ -100,6 +123,44 @@ const accuracyRadius = userLocation
               lineColor: '#d93838',
               lineWidth: 1,
               lineOpacity: 0.6,
+            }}
+          />
+        </GeoJSONSource>
+      )}
+
+      {routeData && (
+        <GeoJSONSource id="route-source" data={routeData}>
+          <Layer
+            id="route-layer"
+            type="line"
+            style={{
+              lineColor: '#a855f7',
+              lineWidth: 6,
+              lineCap: 'round',
+              lineJoin: 'round',
+            }}
+          />
+        </GeoJSONSource>
+      )}
+
+      {routePointsData && (
+        <GeoJSONSource id="route-points-source" data={routePointsData}>
+          <Layer
+            id="route-points-layer"
+            type="circle"
+            style={{
+              circleColor: [
+                'match',
+                ['get', 'type'],
+                'start',
+                '#0065EB',
+                'end',
+                '#d93838',
+                '#000',
+              ],
+              circleRadius: 7,
+              circleStrokeWidth: 2,
+              circleStrokeColor: '#ffffff',
             }}
           />
         </GeoJSONSource>
@@ -131,6 +192,31 @@ const accuracyRadius = userLocation
             type="circle"
             style={{
               circleRadius: 8,
+              circleColor: '#0065EB',
+              circleStrokeColor: '#FFFFFF',
+              circleStrokeWidth: 3,
+            }}
+          />
+        </GeoJSONSource>
+      )}
+
+      {searchedLocation && (
+        <GeoJSONSource
+          id="searched-location"
+          data={{
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: searchedLocation,
+            },
+            properties: {},
+          }}
+        >
+          <Layer
+            id="searched-location-marker"
+            type="circle"
+            style={{
+              circleRadius: 9,
               circleColor: '#0065EB',
               circleStrokeColor: '#FFFFFF',
               circleStrokeWidth: 3,
