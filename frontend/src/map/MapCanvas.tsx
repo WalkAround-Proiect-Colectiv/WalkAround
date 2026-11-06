@@ -91,15 +91,24 @@ export default function MapCanvas({ ref,style,userLocation = null,zoomLevel = PL
           {routePointsData && (
               <GeoJSONSource id="route-points-source" data={routePointsData}>
                   <Layer
-                      id="route-points-layer"
-                      type="circle"
-                      style={{
-                          circleColor: ['match', ['get', 'type'], 'start', '#0065EB', 'end', '#d93838', '#000'],
-                          circleRadius: 7,
-                          circleStrokeWidth: 2,
-                          circleStrokeColor: '#ffffff'
-                      }}
-                  />
+                    id="route-points-layer"
+                    type="circle"
+                    style={{
+                        circleColor: ['match', ['get', 'type'],
+                            'start', '#0065EB',
+                            'stop', '#f5a623',
+                            'end', '#d93838',
+                            '#000'],
+                        circleRadius: ['match', ['get', 'type'],
+                            'stop', 5,
+                            7],
+                        circleSortKey: ['match', ['get', 'type'],
+                            'stop', 2,
+                            1],
+                        circleStrokeWidth: 2,
+                        circleStrokeColor: '#ffffff'
+                    }}
+                />
               </GeoJSONSource>
           )}
           {userLocation && (
