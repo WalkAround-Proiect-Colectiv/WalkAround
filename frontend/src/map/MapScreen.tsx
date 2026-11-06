@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Link, useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, type LucideIcon } from 'lucide-react-native';
+import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -53,6 +53,24 @@ function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string;
   </Pressable>;
 }
 
+function decodePolyline(str: string, precision = 6) {
+  let index = 0, lat = 0, lng = 0, coordinates = [];
+  let shift = 0, result = 0, byte = null;
+  let latitude_change, longitude_change;
+  const factor = Math.pow(10, precision);
+  while (index < str.length) {
+    byte = null; shift = 0; result = 0;
+    do { byte = str.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    latitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    shift = result = 0;
+    do { byte = str.charCodeAt(index++) - 63; result |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+    longitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+    lat += latitude_change; lng += longitude_change;
+    coordinates.push([lng / factor, lat / factor]);
+  }
+  return coordinates;
+}
+
 export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -72,10 +90,25 @@ export default function MapScreen() {
   const currentCamera = useRef(camera);
   currentCamera.current = camera;
   const [loading, setLoading] = useState(true);
+  const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const [routeMode, setRouteMode] = useState(false);
+  const [activeRouteField, setActiveRouteField] = useState<'start' | 'end' | null>(null);
+  const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
+  const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
+  const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
+  const locateRef = useRef(locate);
+  locateRef.current = locate;
+
+  useFocusEffect(useCallback(() => {
+    if (mapReady) void locateRef.current();
+  }, [mapReady]));
+
   const displayedError = error ?? locationError;
 
   function searchCoordinates() {
@@ -175,7 +208,14 @@ export default function MapScreen() {
     type: 'FeatureCollection',
     features: []
   });
-  
+
+  const routePointsData = useMemo(() => {
+    const features = [];
+    if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
+    if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
+    return features.length > 0 ? { type: 'FeatureCollection', features } : null;
+  }, [routeStart, routeEnd]);
+
   useEffect(() => {
     if (!style) return;
     async function loadZones() {
@@ -202,11 +242,12 @@ export default function MapScreen() {
   }, [session, style]);
   
   useEffect(() => {
-    const wsUrl = process.env.EXPO_PUBLIC_WS_URL;
-    if (!wsUrl) {
+    const wsBaseUrl = process.env.EXPO_PUBLIC_WS_URL?.trim();
+    if (!wsBaseUrl) {
       console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
       return;
     }
+    const wsUrl = `${wsBaseUrl.replace(/\/+$/, '')}/ws/dangerous-zones`;
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       console.log('Connected to real-time service');
@@ -263,10 +304,12 @@ export default function MapScreen() {
       ws.close();
     };
   }, []);
+
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
     setLoading(true);
+    setMapReady(false);
     setError(null);
     setStyle(null);
     fetch(MAP_STYLE_URL, { signal: controller.signal }).then(async response => {
@@ -290,6 +333,60 @@ export default function MapScreen() {
     return () => clearTimeout(timeout);
   }, [style, loading]);
 
+  useEffect(() => {
+    if (routeStart && routeEnd) {
+      const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+      const fetchUrl = `${baseUrl}/api/v1/routes/pedestrian`;
+      fetch(fetchUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          startLat: routeStart.lat,
+          startLng: routeStart.lng,
+          endLat: routeEnd.lat,
+          endLng: routeEnd.lng
+        })
+      })
+          .then(res => res.json())
+          .then(data => {
+            if (data && data.trip && data.trip.legs) {
+              const encodedShape = data.trip.legs[0].shape;
+              const decodedCoords = decodePolyline(encodedShape, 6);
+              setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: decodedCoords }});
+            } else {
+              console.log("No route found in response");
+              setRouteGeoJSON(null);
+            }
+          })
+          .catch(err => {
+            console.error("Failed to calculate route:", err);
+            setRouteGeoJSON(null);
+          });
+    }
+  }, [routeStart, routeEnd]);
+
+  function handleMapClick(properties: any, coords?: [number, number]) {
+    if (routeMode && activeRouteField && coords) {
+      const point = { lng: coords[0], lat: coords[1] };
+      if (activeRouteField === 'start') {
+        setRouteStart(point);
+        if (!routeEnd) setActiveRouteField('end');
+        else setActiveRouteField(null);
+      } else {
+        setRouteEnd(point);
+        setActiveRouteField(null);
+      }
+      return;
+    }
+    if (properties) {
+      setSelectedZoneInfo({ intensity: properties.intensity, categories: typeof properties.topCategories === 'string' ? JSON.parse(properties.topCategories) : properties.topCategories });
+    } else {
+      setSelectedZoneInfo(null);
+    }
+  }
+
   function handleReportPress() {
     if (!session) {
       router.push('/login');
@@ -305,19 +402,6 @@ export default function MapScreen() {
   }
 
   return <View style={styles.screen}>
-    <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
-      <View style={styles.heading}>
-        <Compass size={28} color="#0065EB" />
-        <Text style={styles.brand}>WalkAround</Text>
-      </View>
-      <Link href={session ? '/home' : '/login'} accessibilityLabel="Account" style={styles.account}><UserRound size={22} color="#0065EB" /></Link>
-    </View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.presets} contentContainerStyle={styles.presetContent}>
-      {PLACES.map(place => <Pressable key={place.name} accessibilityRole="button" accessibilityLabel={`View ${place.name}`}
-                                      disabled={!style || loading} onPress={() => place.name === 'Romania' ? map.current?.fitCoverage() : map.current?.goTo(place)} style={styles.place}>
-        <Text style={styles.placeText}>{place.name}</Text>
-      </Pressable>)}
-    </ScrollView>
     <View style={styles.map}>
 {style && (
   <MapCanvas
@@ -328,25 +412,20 @@ export default function MapScreen() {
     searchedLocation={searchedLocation}
     zoomLevel={camera.zoom}
     dangerousZonesData={dangerousZonesData}
+    routeData={routeGeoJSON}
+    routePointsData={routePointsData}
     onMove={setCamera}
     onCoordinateSelect={handleMapCoordinateSelect}
-    onReady={() => setLoading(false)}
+    onReady={() => {
+      setLoading(false);
+      setMapReady(true);
+    }}
     onError={() => {
       setLoading(false);
+      setMapReady(false);
       setError('Some map resources could not load. Check your connection or retry.');
     }}
-    onPress={properties => {
-      if (properties) {
-        setSelectedZoneInfo({
-          intensity: properties.intensity,
-          categories: typeof properties.topCategories === 'string'
-            ? JSON.parse(properties.topCategories)
-            : properties.topCategories,
-        });
-      } else {
-        setSelectedZoneInfo(null);
-      }
-    }}
+    onPress={handleMapClick}
   />
 )}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
@@ -356,8 +435,35 @@ export default function MapScreen() {
             <MapPin size={42} color="#d93838" />
           </View>
       )}
-      
-      <View style={styles.mapMenu}>
+
+      {routeMode && (
+          <View style={[styles.routeOverlay, { top: Math.max(insets.top, 12) + 64 }]}>
+            <Text style={styles.routeOverlayTitle}>Plan your route</Text>
+
+            <Pressable onPress={() => setActiveRouteField('start')} style={[styles.routeInput, activeRouteField === 'start' && styles.routeInputActive]}>
+              <View style={[styles.routeDot, { backgroundColor: '#0065EB' }]} />
+              <Text style={styles.routeInputText}>{routeStart ? `Start: ${routeStart.lat.toFixed(4)}, ${routeStart.lng.toFixed(4)}` : 'Tap map to select start point'}</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setActiveRouteField('end')} style={[styles.routeInput, activeRouteField === 'end' && styles.routeInputActive]}>
+              <View style={[styles.routeDot, { backgroundColor: '#d93838' }]} />
+              <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
+            </Pressable>
+
+            <View style={styles.routeActions}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); }}>
+                <Text style={styles.routeCloseText}>Cancel</Text>
+              </Pressable>
+              {routeGeoJSON && (
+                  <Pressable style={styles.routeStartBtn} onPress={() => console.log('Start navigation task coming next')}>
+                    <Text style={styles.routeStartText}>Start</Text>
+                  </Pressable>
+              )}
+            </View>
+          </View>
+      )}
+
+      <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
                    accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
           {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
@@ -369,15 +475,32 @@ export default function MapScreen() {
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
-                     accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
-            <Heart size={20} color="#8c96a4" /><Text style={styles.menuItemTextDisabled}>My future</Text>
-            <Text style={styles.menuComingSoon}>Coming soon</Text>
+          <Pressable accessibilityRole="button" onPress={() => {
+            setMenuOpen(false);
+            setRouteMode(true);
+            if (userLocation)
+            {
+              setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+              map.current?.goTo({ center: [userLocation.coordinates[0], userLocation.coordinates[1]], zoom: 15 });
+            }
+            else
+            {
+              setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
+            }
+
+            setActiveRouteField('end');
+          }} style={styles.menuItem}>
+            <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Account' : 'Sign in'}
+            onPress={() => { setMenuOpen(false); router.push(session ? '/home' : '/login'); }} style={styles.menuItem}>
+            <UserRound size={20} color="#0065EB" />
+            <Text style={styles.menuItemText}>{session ? 'Account' : 'Sign in'}</Text>
           </Pressable>
         </View>}
       </View>
 
-      <View style={styles.tools}>
+      <View style={[styles.tools, { top: Math.max(insets.top, 12) + 4 }]}>
         <Tool label="Zoom in" icon={Plus} disabled={!style || loading} onPress={() => map.current?.zoomBy(1)} />
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
         <Tool label="Reset north" icon={Compass} disabled={!style || loading} onPress={() => map.current?.resetNorth()} />
@@ -432,7 +555,7 @@ export default function MapScreen() {
       {coordinateError && <Text accessibilityRole="alert" style={styles.coordinateError}>{coordinateError}</Text>}
     </View>
 
-    {selectedZoneInfo && (
+    {selectedZoneInfo && !routeMode && (
         <View style={styles.infoCard}>
           <Text style={styles.infoCardTitle}>
             Dangerous Zone (Intensity: {selectedZoneInfo.intensity})
@@ -446,19 +569,13 @@ export default function MapScreen() {
         </View>
     )}
 
-    <View style={styles.bottomOverlayArea}>
+    <View style={[styles.bottomOverlayArea, { bottom: Math.max(insets.bottom, 12) + 64 }]}>
       {isSelectingLocation ? (
           <View style={styles.actionButtonsRow}>
-            <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}>
-              <Text style={styles.cancelText}>Cancel</Text>
-            </Pressable>
-            <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}>
-              <Text style={styles.confirmText}>Confirm Location</Text>
-            </Pressable>
+            <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+            <Pressable style={styles.confirmButton} onPress={() => { setReportLocation({ lat: camera.center[1], lng: camera.center[0] }); setIsSelectingLocation(false); setZoneModalVisible(true); }}><Text style={styles.confirmText}>Confirm Location</Text></Pressable>
           </View>
-      ) : (
-          <DangerousZoneButton onPress={handleReportPress} />
-      )}
+      ) : (!routeMode && <DangerousZoneButton onPress={() => session ? setIsSelectingLocation(true) : router.push('/login')} />)}
     </View>
 
     {reportLocation && (
@@ -475,8 +592,8 @@ export default function MapScreen() {
             }}
         />
     )}
-    <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 10) }]}>
-      <Text style={styles.footerText}>Romania</Text>
+    <View pointerEvents="none" style={[styles.coordinateBadge, { bottom: Math.max(insets.bottom, 12) + 10 }]}>
+      <MapPin size={13} color="#0065EB" />
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
       {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
     </View>
@@ -485,35 +602,11 @@ export default function MapScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#ffffff' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12, borderBottomWidth: 1, borderColor: '#e5e8ed' },
-  heading: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   mapMenu: { position: 'absolute', left: 12, top: 16, zIndex: 5, alignItems: 'flex-start' },
   menuButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
   menuPanel: { width: 242, marginTop: 8, padding: 7, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', gap: 2, elevation: 5, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   menuItem: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
   menuItemText: { color: '#263241', fontSize: 15, fontWeight: '700' },
-  menuItemDisabled: { opacity: 0.72 },
-  menuItemTextDisabled: { color: '#758091', fontSize: 15, fontWeight: '700' },
-  menuComingSoon: { marginLeft: 'auto', color: '#8c96a4', fontSize: 11, fontWeight: '600' },
-  brand: { fontSize: 22, fontWeight: '700', color: '#0065EB' },
-  account: { padding: 10 },
-  presets: { flexGrow: 0, flexShrink: 0, height: 54, borderBottomWidth: 1, borderColor: '#e5e8ed' },
-  searchArea: { paddingHorizontal: 14, paddingVertical: 9, borderTopWidth: 1, borderColor: '#e5e8ed', backgroundColor: '#fff' },
-  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  searchInput: { flex: 1, height: 42, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, paddingHorizontal: 13, color: '#263241', fontSize: 14 },
-  searchSpinner: { width: 42 },
-  clearMarkerButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, backgroundColor: '#fff' },
-  poiResults: { marginTop: 7, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, backgroundColor: '#fff', overflow: 'hidden' },
-  poiResult: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 7 },
-  poiResultBorder: { borderTopWidth: 1, borderColor: '#e5e8ed' },
-  poiResultText: { flex: 1 },
-  poiResultName: { color: '#263241', fontSize: 14, fontWeight: '600' },
-  poiResultDetail: { color: '#626b78', fontSize: 12, marginTop: 2 },
-  poiAttribution: { borderTopWidth: 1, borderColor: '#e5e8ed', paddingHorizontal: 12, paddingVertical: 6, color: '#626b78', fontSize: 10 },
-  coordinateError: { color: '#a60000', fontSize: 12, marginTop: 5 },
-  presetContent: { alignItems: 'center', paddingHorizontal: 12, gap: 6 },
-  place: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 6, backgroundColor: '#eef5ff' },
-  placeText: { color: '#0065EB', fontWeight: '600', fontSize: 13 },
   map: { flex: 1, position: 'relative', backgroundColor: '#edf0f3', overflow: 'hidden' },
   tools: { position: 'absolute', right: 12, top: 16, gap: 8 },
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
@@ -522,11 +615,13 @@ const styles = StyleSheet.create({
   loading: { position: 'absolute', top: 18, left: 76, backgroundColor: '#ffffff', padding: 12, borderRadius: 6 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 44, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ff0000', borderRadius: 6 },
   errorText: { flex: 1, color: '#a60000', fontSize: 14 },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, paddingHorizontal: 16, paddingTop: 10, borderTopWidth: 1, borderColor: '#e5e8ed' },
-  footerText: { color: '#363d47', fontSize: 13, fontWeight: '600' },
-  coordinates: { color: '#626b78', fontSize: 12, fontVariant: ['tabular-nums'] },
+  coordinateBadge: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center',
+    gap: 6, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 18, backgroundColor: '#fff',
+    borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14,
+    shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
+  coordinates: { color: '#263241', fontSize: 12, fontWeight: '600', fontVariant: ['tabular-nums'] },
   centerPin: { position: 'absolute', top: '50%', left: '50%', marginLeft: -21, marginTop: -42, zIndex: 10, alignItems: 'center', justifyContent: 'center' },
-  bottomOverlayArea: { position: 'absolute', right: 20, bottom: 80, zIndex: 100, alignItems: 'flex-end' },
+  bottomOverlayArea: { position: 'absolute', right: 20, zIndex: 100, alignItems: 'flex-end' },
   actionButtonsRow: { flexDirection: 'row', gap: 12 },
   confirmButton: { backgroundColor: '#d93838', paddingHorizontal: 20, paddingVertical: 14, borderRadius: 30, elevation: 5, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4 },
   confirmText: { color: '#fff', fontWeight: '700', fontSize: 15 },
@@ -536,5 +631,30 @@ const styles = StyleSheet.create({
   infoCardTitle: { fontWeight: '700', fontSize: 16, color: '#d93838', marginBottom: 8 },
   infoCardText: { color: '#363d47', fontSize: 14 },
   closeInfoButton: { marginTop: 12, paddingVertical: 8 },
-  closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 }
+  closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 },
+
+  routeOverlay: {
+    position: 'absolute',
+    left: 12,
+    width: 300,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 6,
+    shadowColor: '#14243f',
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    zIndex: 100
+  },
+  routeOverlayTitle: { fontSize: 16, fontWeight: '700', color: '#263241', marginBottom: 12 },
+  routeInput: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, marginBottom: 10, backgroundColor: '#f9f9fb' },
+  routeInputActive: { borderColor: '#9b59b6', backgroundColor: '#fdfaee' },
+  routeDot: { width: 10, height: 10, borderRadius: 5 },
+  routeInputText: { fontSize: 14, color: '#363d47', flex: 1 },
+  routeActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
+  routeCloseBtn: { paddingVertical: 10, paddingHorizontal: 12 },
+  routeCloseText: { color: '#758091', fontWeight: '600', fontSize: 15 },
+  routeStartBtn: { backgroundColor: '#9b59b6', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, elevation: 2 },
+  routeStartText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
 });

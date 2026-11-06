@@ -1,6 +1,6 @@
 # Trip planning backend
 
-This feature currently supports city suggestions, a local city-to-airports lookup, flight itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, and saved search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
+This feature currently supports city suggestions, a local city-to-airports lookup, flight itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, a 14-day weather forecast, and saved search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
 
 ## Where to start
 
@@ -14,6 +14,7 @@ This feature currently supports city suggestions, a local city-to-airports looku
 | Destination safety | [`service/safety`](service/safety/README.md) | Validate a European city and combine country advisories with nearby alerts and conflicts. |
 | Country hotlines | [`service/hotlines`](service/hotlines/README.md) | Validate an EU destination country and group locally imported hotline numbers. |
 | Destination news | [`service/newsfeed`](service/newsfeed/README.md) | Validate a destination and retrieve one Currents Search page of English-language city news. |
+| Destination weather | [`service/weather`](service/weather/README.md) | Validate a European city and retrieve destination-local daily forecasts and optional historical stay comparisons from Open-Meteo. |
 | Saved plans | [`service/savedplan`](service/savedplan/README.md) | Create and view user-owned search presets. |
 | Saved-plan model | [`model`](model/README.md) and [`repository`](repository/README.md) | Persist plans and scope reads by owner. |
 | Provider settings | [`configurations`](configurations/README.md) | Bind settings and create HTTP clients with timeouts. |
@@ -30,6 +31,7 @@ This feature currently supports city suggestions, a local city-to-airports looku
 - Safety checks use GeoNames to validate the selected city, then call three Travel Risk API feeds. Advisories apply to the country; geolocated alerts and conflicts are filtered by distance from the city center. Missing nearby reports do not establish safety.
 - Country hotlines use the selected destination's country code and local emergency-number rows. The importer in `scripts/emergency_numbers_data` owns the data. Verification labels and dates do not guarantee a number is reachable now.
 - Destination news requests use GeoNames city validation and one Currents Search call per explicit user action. The country filter narrows publisher sources, not the article's exact event location.
+- Destination weather uses validated GeoNames coordinates. The explicit forecast request makes one Open-Meteo call for at most 14 days. A separate historical request makes one archive call for each configured comparison year and covers every night of the selected stay, including trips outside the forecast window.
 - Saved plans store the selected departure city and country code alongside the origin airport, plus the other search inputs, title, and optional description. This lets the user query airports in the same departure city later. They do not store provider offers or an accommodation check-in date. A user can create a plan and view it by ID; list, edit, and delete are not implemented.
 - The API key and GeoNames username come from application settings. Keep real values in the local `.env`; keep `.env.example` keys synchronized when adding settings.
 

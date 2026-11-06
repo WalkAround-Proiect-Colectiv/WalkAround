@@ -2,10 +2,25 @@ import { useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from
 import { Map, Marker, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ref,style,userLocation = null,searchedLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,onReady,onError,onMove,onPress,onCoordinateSelect,}: MapCanvasProps) {
+export default function MapCanvas({
+  ref,
+  style,
+  userLocation = null,
+  searchedLocation = null,
+  zoomLevel = PLACES[0].zoom,
+  dangerousZonesData,
+  routeData,
+  routePointsData,
+  onReady,
+  onError,
+  onMove,
+  onPress,
+  onCoordinateSelect,
+}: MapCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<Map | null>(null);
   const locationMarker = useRef<Marker | null>(null);
@@ -14,7 +29,7 @@ export default function MapCanvas({ref,style,userLocation = null,searchedLocatio
   const ready = useEffectEvent(onReady);
   const failed = useEffectEvent(onError);
   const moved = useEffectEvent(onMove);
-  const pressed = useEffectEvent((props: any) => onPress && onPress(props));
+  const pressed = useEffectEvent((props: any, coords?: [number, number]) => onPress && onPress(props, coords));
   useImperativeHandle(ref, () => ({
     fitCoverage: () => { map.current?.fitBounds(ROMANIA_BOUNDS, { padding: 24, bearing: 0, pitch: 0, duration: 900 }); },
     goTo: position => { map.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }); },
@@ -67,6 +82,10 @@ export default function MapCanvas({ref,style,userLocation = null,searchedLocatio
           }
         });
       }
+      if (!instance.getSource('route-source')) instance.addSource('route-source', { type: 'geojson', data: routeData || { type: 'FeatureCollection', features: [] } });
+      if (!instance.getLayer('route-layer')) instance.addLayer({ id: 'route-layer', type: 'line', source: 'route-source', paint: { 'line-color': '#9b59b6', 'line-width': 5 }});
+      if (!instance.getSource('route-points-source')) instance.addSource('route-points-source', { type: 'geojson', data: routePointsData || { type: 'FeatureCollection', features: [] } });
+      if (!instance.getLayer('route-points-layer')) instance.addLayer({ id: 'route-points-layer', type: 'circle', source: 'route-points-source', paint: { 'circle-color': ['match', ['get', 'type'], 'start', '#0065EB', 'end', '#d93838', '#000'], 'circle-radius': 6, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }});
       ready();
       setMapLoaded(true);
     });
@@ -77,13 +96,14 @@ export default function MapCanvas({ref,style,userLocation = null,searchedLocatio
       moved({ center: [center.lng, center.lat], zoom: instance.getZoom() });
     });
     instance.on('click', (e) => {
+      const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
       const features = instance.queryRenderedFeatures(e.point, {
         layers: ['dangerous-zones-layer']
       });
       if (features.length > 0) {
         pressed(features[0].properties);
       } else {
-        pressed(null);
+        pressed(null, coords);
       }
     });
     instance.on('dblclick', event => {
@@ -92,7 +112,7 @@ export default function MapCanvas({ref,style,userLocation = null,searchedLocatio
     });
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
-return () => {
+    return () => {
       observer.disconnect();
       locationMarker.current?.remove();
       locationMarker.current = null;
@@ -104,14 +124,16 @@ return () => {
   }, [style]);
 
   useEffect(() => {
-    if (!mapLoaded || !map.current || !dangerousZonesData) return;
-
-    const source = map.current.getSource('dangerous-zones-source') as
-      | GeoJSONSource
-      | undefined;
-
-    source?.setData(dangerousZonesData);
-  }, [dangerousZonesData, mapLoaded]);
+    if (mapLoaded && map.current) {
+      const updateSrc = (id: string, data: any) => {
+        const src = map.current?.getSource(id) as GeoJSONSource | undefined;
+        if (src && data) src.setData(data);
+      };
+      updateSrc('dangerous-zones-source', dangerousZonesData);
+      updateSrc('route-source', routeData || { type: 'FeatureCollection', features: [] });
+      updateSrc('route-points-source', routePointsData || { type: 'FeatureCollection', features: [] });
+    }
+  }, [dangerousZonesData, routeData, routePointsData, mapLoaded]);
 
   useEffect(() => {
     if (!userLocation) {
@@ -147,8 +169,8 @@ return () => {
 
       element.appendChild(dot);
       locationMarker.current = new Marker({ element, anchor: 'center' })
-        .setLngLat(userLocation.coordinates)
-        .addTo(map.current);
+          .setLngLat(userLocation.coordinates)
+          .addTo(map.current);
       locationElement.current = element;
     }
 
@@ -157,9 +179,9 @@ return () => {
     if (!marker || !element) return;
 
     const metersPerPixel =
-      156543.03392 *
-      Math.cos(userLocation.coordinates[1] * Math.PI / 180) /
-      2 ** zoomLevel;
+        156543.03392 *
+        Math.cos(userLocation.coordinates[1] * Math.PI / 180) /
+        2 ** zoomLevel;
     const radius = Math.max(10, Math.min(80, userLocation.accuracy / metersPerPixel));
 
     Object.assign(element.style, {
@@ -168,10 +190,24 @@ return () => {
     });
     marker.setLngLat(userLocation.coordinates);
   }, [userLocation, zoomLevel]);
-  useEffect(() => {
+useEffect(() => {
     if (!map.current || !searchedLocation) return;
-    const marker = new Marker({ color: '#0065EB' }).setLngLat(searchedLocation).addTo(map.current);
-    return () => { marker.remove(); };
+
+    const marker = new Marker({ color: '#0065EB' })
+      .setLngLat(searchedLocation)
+      .addTo(map.current);
+
+    return () => {
+      marker.remove();
+    };
   }, [searchedLocation]);
-  return <div ref={container} aria-label="Map of Romania" style={{ position: 'absolute', inset: 0 }} />;
+
+  return (
+    <div
+      ref={container}
+      className="walkaround-map"
+      aria-label="Map of Romania"
+      style={{ position: 'absolute', inset: 0 }}
+    />
+  );
 }

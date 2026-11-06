@@ -16,9 +16,11 @@ export type MapCanvasProps = {
   searchedLocation?: [longitude: number, latitude: number] | null;
   zoomLevel?: number;
   dangerousZonesData?: any;
+  routeData?: any;
+  routePointsData?: any;
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
-  onPress?(featureProperties: any | null): void;
+  onPress?(featureProperties: any | null, coordinates?: [number, number]): void;
   onCoordinateSelect?(coordinates: [longitude: number, latitude: number]): void;
 };
