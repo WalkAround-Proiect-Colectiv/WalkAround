@@ -30,6 +30,10 @@ public class RouteService
     }
 
     public String calculatePedestrianRoute(RouteRequestDto request) {
+        log.info("Calculating pedestrian route with {} stops", request.stops().size());
+        log.debug("Route from ({}, {}) to ({}, {})",
+                request.startLat(), request.startLng(), request.endLat(), request.endLng());
+
         List<Map<String, Object>> locations = new ArrayList<>();
 
         locations.add(

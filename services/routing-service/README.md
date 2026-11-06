@@ -14,10 +14,23 @@ The service exposes secure REST APIs to manage pedestrian mobility and safety:
 - Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
 
 **2. Route Calculation**
-- Provides pedestrian-optimized route calculation (publicly accessible).
-- Receives start and end coordinates and acts as a client to the local Valhalla Docker container to compute paths specifically mapped for walkways and pedestrian infrastructure.
+- Provides pedestrian-optimized route calculation (publicly accessible) via `POST /api/v1/routes/pedestrian`.
+- Receives start and end coordinates plus an optional ordered list of intermediate stops. Routes with and without stops use the same endpoint.
+- Builds the Valhalla `locations` list as start → stops (in the order received) → end, and calls the local Valhalla container with `pedestrian` costing. Valhalla returns a single route covering all points, with one leg per segment.
 
-Security is configured to use stateless JWT authentication. Fetching routes and heatmaps is publicly accessible, while reporting a zone requires authentication.
+Example request body:
+
+    {
+      "startLat": 44.4268,
+      "startLng": 26.1025,
+      "endLat": 44.4378,
+      "endLng": 26.0969,
+      "stops": [
+        { "lat": 44.4323, "lng": 26.1063 }
+      ]
+    }
+
+`stops` may be an empty array for a direct route.
 
 ## Local Environment & Valhalla Setup
 
