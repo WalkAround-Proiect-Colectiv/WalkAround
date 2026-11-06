@@ -29,6 +29,7 @@ public class SecurityConfiguration {
                                 "/api/mobile/sessions/google", "/api/mobile/sessions/refresh", "/api/mobile/sessions/logout").permitAll()
                         .requestMatchers(HttpMethod.GET,"/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/dangerous-zones").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/places/search").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/routes/**").permitAll()
                         .anyRequest().authenticated()
                 )
