@@ -483,7 +483,7 @@ const routePointsData = useMemo(() => {
                 <Pressable
                   onPress={() => setActiveRouteField(stop.id)}
                   style={[styles.routeInput, styles.routeStopInput, activeRouteField === stop.id && styles.routeInputActive]}>
-                  <View style={[styles.routeDot, { backgroundColor: '#f5a623' }]} />
+                  <View style={[styles.routeDot, { backgroundColor: '#9157a2' }]} />
                   <Text style={styles.routeInputText}>
                     {`Stop ${index + 1}: ${stop.point.lat.toFixed(4)}, ${stop.point.lng.toFixed(4)}`}
                   </Text>

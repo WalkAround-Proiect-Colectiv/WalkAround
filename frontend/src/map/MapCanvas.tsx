@@ -96,7 +96,7 @@ export default function MapCanvas({ ref,style,userLocation = null,zoomLevel = PL
                     style={{
                         circleColor: ['match', ['get', 'type'],
                             'start', '#0065EB',
-                            'stop', '#f5a623',
+                            'stop', '#9157a2',
                             'end', '#d93838',
                             '#000'],
                         circleRadius: ['match', ['get', 'type'],

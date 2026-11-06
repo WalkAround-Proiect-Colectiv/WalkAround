@@ -95,7 +95,7 @@ export default function MapCanvas({
         paint: {
           'circle-color': ['match', ['get', 'type'],
             'start', '#0065EB',
-            'stop', '#f5a623',
+            'stop', '#9157a2',
             'end', '#d93838',
             '#000'],
           'circle-radius': ['match', ['get', 'type'], 'stop', 4, 6],
