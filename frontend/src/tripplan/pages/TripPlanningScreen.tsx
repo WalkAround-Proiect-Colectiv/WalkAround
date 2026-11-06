@@ -15,11 +15,15 @@ import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import SafetyInformationCard from '../components/SafetyInformationCard';
 import CountryHotlinesCard from '../components/CountryHotlinesCard';
 import DestinationNewsCard from '../components/DestinationNewsCard';
+import DestinationWeatherCard from '../components/DestinationWeatherCard';
 import {
-  getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getPlaceRecommendations, saveTripPlan,
+  getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getDestinationWeather,
+  getHistoricalWeather, getPlaceRecommendations, saveTripPlan,
   searchAccommodations, searchCities, searchFlights,
   type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
-  type CountryHotlines, type DestinationSafety, type NewsArticle, type PlaceCategory, type PlaceRecommendationPage,
+  type CountryHotlines, type DestinationSafety, type DestinationWeather, type HistoricalWeather,
+  type NewsArticle,
+  type PlaceCategory, type PlaceRecommendationPage,
   type SavedTripPlan, type TicketOption,
 } from '../api/tripPlanning';
 
@@ -334,6 +338,10 @@ export default function TripPlanningScreen() {
   const hotlinesRequestId = useRef(0);
   const newsRequestId = useRef(0);
   const newsPending = useRef(false);
+  const weatherRequestId = useRef(0);
+  const weatherPending = useRef(false);
+  const historyRequestId = useRef(0);
+  const historyPending = useRef(false);
   const [departureCity, setDepartureCity] = useState<CitySuggestion | null>(null);
   const [destinationCity, setDestinationCity] = useState<CitySuggestion | null>(null);
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -380,6 +388,73 @@ export default function TripPlanningScreen() {
   const [news, setNews] = useState<NewsArticle[] | null>(null);
   const [newsBusy, setNewsBusy] = useState(false);
   const [newsError, setNewsError] = useState<string | null>(null);
+  const [weather, setWeather] = useState<DestinationWeather | null>(null);
+  const [weatherBusy, setWeatherBusy] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [history, setHistory] = useState<HistoricalWeather | null>(null);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+
+  function clearHistory() {
+    historyRequestId.current += 1;
+    historyPending.current = false;
+    setHistory(null);
+    setHistoryBusy(false);
+    setHistoryError(null);
+  }
+
+  async function loadHistory() {
+    const stay = Number(nights);
+    if (!destinationCity || !/^\d{4}-\d{2}-\d{2}$/.test(checkInDate)
+        || !/^\d+$/.test(nights) || stay < 1 || stay > 365 || historyPending.current) return;
+
+    const requestId = ++historyRequestId.current;
+    historyPending.current = true;
+    setHistoryBusy(true);
+    setHistoryError(null);
+
+    try {
+      const result = await getHistoricalWeather(destinationCity, checkInDate, stay);
+      if (historyRequestId.current === requestId) setHistory(result);
+    } catch (reason) {
+      if (historyRequestId.current === requestId) setHistoryError(message(reason));
+    } finally {
+      if (historyRequestId.current === requestId) {
+        historyPending.current = false;
+        setHistoryBusy(false);
+      }
+    }
+  }
+
+  function clearWeather() {
+    clearHistory();
+    weatherRequestId.current += 1;
+    weatherPending.current = false;
+    setWeather(null);
+    setWeatherBusy(false);
+    setWeatherError(null);
+  }
+
+  async function loadWeather() {
+    if (!destinationCity || weatherPending.current) return;
+
+    const requestId = ++weatherRequestId.current;
+    weatherPending.current = true;
+    setWeatherBusy(true);
+    setWeatherError(null);
+
+    try {
+      const result = await getDestinationWeather(destinationCity);
+      if (weatherRequestId.current === requestId) setWeather(result);
+    } catch (reason) {
+      if (weatherRequestId.current === requestId) setWeatherError(message(reason));
+    } finally {
+      if (weatherRequestId.current === requestId) {
+        weatherPending.current = false;
+        setWeatherBusy(false);
+      }
+    }
+  }
 
   function clearNews() {
     newsRequestId.current += 1;
@@ -516,6 +591,7 @@ export default function TripPlanningScreen() {
     clearSafety();
     clearHotlines();
     clearNews();
+    clearWeather();
     setDestinationCity(city);
     clearTickets();
     clearAccommodations();
@@ -528,6 +604,7 @@ export default function TripPlanningScreen() {
     clearSafety();
     clearHotlines();
     clearNews();
+    clearWeather();
     setDestinationCity(null);
     clearTickets();
     clearAccommodations();
@@ -559,6 +636,7 @@ export default function TripPlanningScreen() {
     setSelectedTicket(null);
     setFormError(null);
     if (checkInSource === 'ticket') {
+      clearHistory();
       setCheckInDate('');
       setCheckInSource(null);
       clearAccommodations();
@@ -575,10 +653,12 @@ export default function TripPlanningScreen() {
     setSelectedTicket(index);
     const date = ticketArrivalDate(tickets?.[index]);
     if (date) {
+      if (date !== checkInDate) clearHistory();
       setCheckInDate(date);
       setCheckInSource('ticket');
       clearAccommodations();
     } else if (checkInSource === 'ticket') {
+      clearHistory();
       setCheckInDate('');
       setCheckInSource(null);
       clearAccommodations();
@@ -826,6 +906,12 @@ export default function TripPlanningScreen() {
             selected={destinationCity} onSelect={selectDestination} onChange={changeDestination} />
         </View>
 
+        <DestinationWeatherCard key={`weather-${destinationCity?.lookupName}-${destinationCity?.countryCode}`}
+          city={destinationCity} weather={weather} busy={weatherBusy} error={weatherError}
+          history={history} historyBusy={historyBusy} historyError={historyError}
+          checkInDate={checkInDate} stayingNights={nights} onLoad={() => { void loadWeather(); }}
+          onLoadHistory={() => { void loadHistory(); }} />
+
         <CountryHotlinesCard key={destinationCity?.countryCode || 'none'}
           city={destinationCity} data={hotlines} busy={hotlinesBusy}
           error={hotlinesError} onRetry={() => { if (destinationCity) void loadHotlines(destinationCity); }} />
@@ -846,7 +932,7 @@ export default function TripPlanningScreen() {
           <DateTimeFields label="Until" date={untilDate} time={untilTime} minimumDate={fromDate}
             onDate={(value) => { setUntilDate(value); clearTickets(); }} onTime={(value) => { setUntilTime(value); clearTickets(); }} />
           <NumberField label="Nights away" value={nights} placeholder="e.g. 3"
-            onChange={(value) => { setNights(value); clearTickets(); clearAccommodations(); }} />
+            onChange={(value) => { setNights(value); clearHistory(); clearTickets(); clearAccommodations(); }} />
           <Text style={styles.fieldLabel}>Ticket style</Text>
           <View style={styles.optionRow}>
             <Pressable accessibilityRole="radio" accessibilityState={{ selected: ticketOption === 'ROUND_TRIP' }}
@@ -901,6 +987,7 @@ export default function TripPlanningScreen() {
             {checkInSource === 'calendar' && checkInDate && <Text style={styles.sourceHint}>Date chosen from the calendar.</Text>}
             <CalendarPicker label="Check-in" description="Select the first night of your stay" value={checkInDate}
               visible={checkInCalendarOpen} onSelect={(date) => {
+                if (date !== checkInDate) clearHistory();
                 setCheckInDate(date);
                 setCheckInSource('calendar');
                 clearAccommodations();
