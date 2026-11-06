@@ -68,7 +68,8 @@ public class GeoNamesAccommodationCityValidator implements AccommodationCityVali
                 .filter(place -> countryCode.equalsIgnoreCase(place.countryCode()))
                 .filter(place -> place.name() != null && place.countryName() != null)
                 .filter(place -> matchesCity(place, cityKeys))
-                .map(place -> new ValidatedCity(place.name(), place.countryName()))
+                .map(place -> new ValidatedCity(
+                        place.name(), place.countryName(), place.latitude(), place.longitude()))
                 .findFirst()
                 .orElseThrow(() -> new InvalidAccommodationSearchException(
                         "Destination city was not found in the selected European country"));
@@ -98,7 +99,9 @@ public class GeoNamesAccommodationCityValidator implements AccommodationCityVali
             String asciiName,
             String countryName,
             String countryCode,
-            @JsonProperty("fcl") String featureClass
+            @JsonProperty("fcl") String featureClass,
+            @JsonProperty("lat") Double latitude,
+            @JsonProperty("lng") Double longitude
     ) {
     }
 }

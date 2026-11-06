@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${PROFILE_PICTURE_MAX_BYTES:5242880}B
+      max-request-size: ${PROFILE_PICTURE_REQUEST_MAX_BYTES:6291456}B
   application:
     name: application-api
 
@@ -54,6 +58,15 @@ logging:
     root: info
 
 app:
+  place-search:
+    provider: ${PLACE_SEARCH_PROVIDER:photon}
+    base-url: ${PLACE_SEARCH_BASE_URL:https://photon.komoot.io}
+    timeout: ${PLACE_SEARCH_TIMEOUT:PT10S}
+    max-results: ${PLACE_SEARCH_MAX_RESULTS:5}
+  profile:
+    picture-max-bytes: ${PROFILE_PICTURE_MAX_BYTES:5242880}
+    picture-max-pixels: ${PROFILE_PICTURE_MAX_PIXELS:16000000}
+    picture-output-size: ${PROFILE_PICTURE_OUTPUT_SIZE:512}
   login:
     signing-secret: ${JWT_SIGNING_SECRET:}
     issuer: ${JWT_ISSUER:walkaround}
@@ -69,6 +82,8 @@ app:
       jwk-set-uri: https://www.googleapis.com/oauth2/v3/certs
       issuers: https://accounts.google.com,accounts.google.com
     allowed-origins: ${REGISTRATION_ALLOWED_ORIGINS:}
+  routing-service:
+    url: ${ROUTING_SERVICE_URL}
 
   trip-plan:
     city-provider: ${CITY_PROVIDER:geonames}
@@ -84,3 +99,21 @@ app:
     flight-search-max-date-range-days: ${FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS:7}
     accommodation-provider: ${ACCOMMODATION_PROVIDER:serpapi}
     accommodation-search-max-results: ${ACCOMMODATION_SEARCH_MAX_RESULTS:3}
+    attraction-provider: ${ATTRACTION_PROVIDER:serpapi}
+    safety-provider: ${SAFETY_PROVIDER:travel-risk-api}
+    travel-risk-api-key: ${TRAVEL_RISK_API_KEY:}
+    travel-risk-api-base-url: ${TRAVEL_RISK_API_BASE_URL:https://api.travelriskapi.com}
+    travel-risk-api-timeout: ${TRAVEL_RISK_API_TIMEOUT:PT8S}
+    safety-nearby-radius-km: ${SAFETY_NEARBY_RADIUS_KM:100}
+    safety-max-results: ${SAFETY_MAX_RESULTS:10}
+    news-provider: ${NEWS_PROVIDER:currents}
+    currents-api-key: ${CURRENTS_API_KEY:}
+    currents-api-base-url: ${CURRENTS_API_BASE_URL:https://api.currentsapi.services}
+    currents-api-timeout: ${CURRENTS_API_TIMEOUT:PT8S}
+    news-page-size: ${NEWS_PAGE_SIZE:20}
+    weather-provider: ${WEATHER_PROVIDER:open-meteo}
+    open-meteo-base-url: ${OPEN_METEO_BASE_URL:https://api.open-meteo.com}
+    open-meteo-timeout: ${OPEN_METEO_TIMEOUT:PT8S}
+    weather-forecast-days: ${WEATHER_FORECAST_DAYS:14}
+    open-meteo-archive-base-url: ${OPEN_METEO_ARCHIVE_BASE_URL:https://archive-api.open-meteo.com}
+    weather-history-years: ${WEATHER_HISTORY_YEARS:3}
