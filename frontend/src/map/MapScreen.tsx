@@ -15,6 +15,9 @@ import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal'
 import { cellToBoundary } from 'h3-js';
 import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
 
+type LatLng = { lat: number; lng: number };
+type RouteStop = { id: string; point: LatLng };
+
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
   return <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled}
@@ -57,9 +60,11 @@ export default function MapScreen() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [routeMode, setRouteMode] = useState(false);
-  const [activeRouteField, setActiveRouteField] = useState<'start' | 'end' | null>(null);
   const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
   const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
+  const [activeRouteField, setActiveRouteField] = useState<string | null>(null);
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  const stopIdCounter = useRef(0);  
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
@@ -81,12 +86,13 @@ export default function MapScreen() {
     features: []
   });
 
-  const routePointsData = useMemo(() => {
-    const features = [];
-    if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
-    if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
-    return features.length > 0 ? { type: 'FeatureCollection', features } : null;
-  }, [routeStart, routeEnd]);
+const routePointsData = useMemo(() => {
+  const features: any[] = [];
+  if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
+  routeStops.forEach(stop => features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [stop.point.lng, stop.point.lat] }, properties: { type: 'stop' } }));
+  if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
+  return features.length > 0 ? { type: 'FeatureCollection', features } : null;
+}, [routeStart, routeStops, routeEnd]);
 
   useEffect(() => {
     if (!style) return;
@@ -206,38 +212,56 @@ export default function MapScreen() {
   }, [style, loading]);
 
   useEffect(() => {
-    if (routeStart && routeEnd) {
-      const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
-      const fetchUrl = `${baseUrl}/api/v1/routes/pedestrian`;
-      fetch(fetchUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          startLat: routeStart.lat,
-          startLng: routeStart.lng,
-          endLat: routeEnd.lat,
-          endLng: routeEnd.lng
-        })
+    if (!routeStart || !routeEnd) return;
+    const controller = new AbortController();
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
+
+    fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startLat: routeStart.lat,
+        startLng: routeStart.lng,
+        stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
+        endLat: routeEnd.lat,
+        endLng: routeEnd.lng
       })
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.trip && data.trip.legs) {
-              const encodedShape = data.trip.legs[0].shape;
-              const decodedCoords = decodePolyline(encodedShape, 6);
-              setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: decodedCoords }});
-            } else {
-              console.log("No route found in response");
-              setRouteGeoJSON(null);
-            }
-          })
-          .catch(err => {
-            console.error("Failed to calculate route:", err);
-            setRouteGeoJSON(null);
-          });
-    }
-  }, [routeStart, routeEnd]);
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.trip?.legs?.length) {
+          const coords = data.trip.legs.flatMap((leg: any) => decodePolyline(leg.shape, 6));
+          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
+        } else {
+          console.log('No route found in response');
+          setRouteGeoJSON(null);
+        }
+      })
+      .catch(err => {
+        if (err.name === 'AbortError') return;
+        console.error('Failed to calculate route:', err);
+        setRouteGeoJSON(null);
+      });
+
+    return () => controller.abort();
+  }, [routeStart, routeEnd, routeStops]);
+
+  function addStop() {
+    const id = `stop-${++stopIdCounter.current}`;
+    setRouteStops(stops => {
+      const previous = stops.length > 0
+        ? stops[stops.length - 1].point
+        : (routeStart ?? { lat: camera.center[1], lng: camera.center[0] });
+      return [...stops, { id, point: previous }];
+    });
+    setActiveRouteField(id); // următorul tap pe hartă mută noua oprire
+  }
+
+  function removeStop(id: string) {
+    setRouteStops(stops => stops.filter(s => s.id !== id));
+    setActiveRouteField(field => (field === id ? null : field));
+  }
 
   function handleMapClick(properties: any, coords?: [number, number]) {
     if (routeMode && activeRouteField && coords) {
@@ -246,8 +270,11 @@ export default function MapScreen() {
         setRouteStart(point);
         if (!routeEnd) setActiveRouteField('end');
         else setActiveRouteField(null);
-      } else {
+      } else if (activeRouteField === 'end') {
         setRouteEnd(point);
+        setActiveRouteField(null);
+      } else {
+        setRouteStops(stops => stops.map(s => (s.id === activeRouteField ? { ...s, point } : s)));
         setActiveRouteField(null);
       }
       return;
@@ -315,13 +342,38 @@ export default function MapScreen() {
               <Text style={styles.routeInputText}>{routeStart ? `Start: ${routeStart.lat.toFixed(4)}, ${routeStart.lng.toFixed(4)}` : 'Tap map to select start point'}</Text>
             </Pressable>
 
+            {routeStops.map((stop, index) => (
+              <View key={stop.id} style={styles.routeStopRow}>
+                <Pressable
+                  onPress={() => setActiveRouteField(stop.id)}
+                  style={[styles.routeInput, styles.routeStopInput, activeRouteField === stop.id && styles.routeInputActive]}>
+                  <View style={[styles.routeDot, { backgroundColor: '#f5a623' }]} />
+                  <Text style={styles.routeInputText}>
+                    {`Stop ${index + 1}: ${stop.point.lat.toFixed(4)}, ${stop.point.lng.toFixed(4)}`}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove stop ${index + 1}`}
+                  onPress={() => removeStop(stop.id)}
+                  style={styles.removeStopBtn}>
+                  <X size={18} color="#758091" />
+                </Pressable>
+              </View>
+            ))}
+
+            <Pressable accessibilityRole="button" accessibilityLabel="Add stop" onPress={addStop} style={styles.addStopBtn}>
+              <Plus size={16} color="#0065EB" />
+              <Text style={styles.addStopText}>Add stop</Text>
+            </Pressable>
+
             <Pressable onPress={() => setActiveRouteField('end')} style={[styles.routeInput, activeRouteField === 'end' && styles.routeInputActive]}>
               <View style={[styles.routeDot, { backgroundColor: '#d93838' }]} />
               <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); }}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteStops([]); setRouteGeoJSON(null); }}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
               {routeGeoJSON && (
@@ -475,6 +527,11 @@ const styles = StyleSheet.create({
   },
   routeOverlayTitle: { fontSize: 16, fontWeight: '700', color: '#263241', marginBottom: 12 },
   routeInput: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, marginBottom: 10, backgroundColor: '#f9f9fb' },
+  routeStopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  routeStopInput: { flex: 1, marginBottom: 0 },
+  removeStopBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 18 },
+  addStopBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 4, marginBottom: 10 },
+  addStopText: { color: '#0065EB', fontWeight: '600', fontSize: 14 },
   routeInputActive: { borderColor: '#9b59b6', backgroundColor: '#fdfaee' },
   routeDot: { width: 10, height: 10, borderRadius: 5 },
   routeInputText: { fontSize: 14, color: '#363d47', flex: 1 },
