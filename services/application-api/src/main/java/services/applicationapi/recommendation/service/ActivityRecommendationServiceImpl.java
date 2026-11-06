@@ -141,9 +141,16 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
                 .thenComparing(RankedActivityRecommendation::name, String.CASE_INSENSITIVE_ORDER)
                 .thenComparing(RankedActivityRecommendation::id));
 
-        List<RankedActivityRecommendation> topRecommendations = ranked.size() > limit
+        List<RankedActivityRecommendation> topRecommendations = new ArrayList<>(ranked.size() > limit
                 ? ranked.subList(0, limit)
-                : ranked;
+                : ranked);
+
+        // Top-N is picked by score; the returned list is ordered by distance (closest first).
+        topRecommendations.sort(Comparator
+                .comparingInt(RankedActivityRecommendation::distanceMeters)
+                .thenComparing(Comparator.comparingDouble(RankedActivityRecommendation::score).reversed())
+                .thenComparing(RankedActivityRecommendation::name, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(RankedActivityRecommendation::id));
 
         Double temperatureC = snapshot != null ? snapshot.temperatureC() : null;
         String summary = buildWeatherSummary(context, snapshot);
