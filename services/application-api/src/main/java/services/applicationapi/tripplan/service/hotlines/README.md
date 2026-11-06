@@ -1,0 +1,3 @@
+# Country hotline service
+
+`CountryHotlineService` accepts an ISO alpha-2 destination country code. The implementation validates its format, normalizes case, and requires a matching record in the existing EU `countries` table. It then reads local emergency-number rows and groups them by World Hotlines record ID. Each response hotline retains typed contact numbers, category, organization, scope, hours, target, geography, languages, verification state and date, source references, and web contact details. There is no live World Hotlines request when a user opens the trip page. A supported country with no imported numbers returns an empty `hotlines` list.

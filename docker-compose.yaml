@@ -19,6 +19,39 @@ services:
       retries: 10
     restart: unless-stopped
 
+  routing-api-db:
+    image: postgres:18
+    container_name: routing-api-db
+    env_file:
+      - "${ROUTING_API_DB_ENV_FILE_LOCATION}"
+    ports:
+      - "${ROUTING_API_DB_HOST_PORT}:${ROUTING_API_DB_CONTAINER_PORT}"
+    volumes:
+      - routing-api-db-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  valhalla:
+    image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
+    container_name: walkaround-valhalla
+    ports:
+      - "${VALHALLA_HOST_PORT}:${VALHALLA_CONTAINER_PORT}"
+    environment:
+      - tile_urls=https://download.geofabrik.de/europe/romania-latest.osm.pbf
+      - build_tar=True
+      - serve_tiles=True
+      - server_threads=${VALHALLA_SERVER_THREADS:-2}
+    volumes:
+      - ./valhalla_custom_data:/custom_files
+
   kafka:
     image: apache/kafka:4.1.1
     container_name: kafka
@@ -32,3 +65,4 @@ services:
 volumes:
   application-api-db-data:
   kafka-data:
+  routing-api-db-data:
