@@ -9,7 +9,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 public record PlaceSearchProperties(
         @DefaultValue("photon") String provider,
         @DefaultValue("https://photon.komoot.io") URI baseUrl,
-        @DefaultValue("PT3S") Duration timeout,
+        @DefaultValue("PT10S") Duration timeout,
         @DefaultValue("5") int maxResults
 ) {
 

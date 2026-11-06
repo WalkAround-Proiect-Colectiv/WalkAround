@@ -7,7 +7,7 @@ import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserR
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
-import { MAP_STYLE_URL, PLACES } from './config';
+import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
 import { useUserLocalization } from './userLocalization';
 import DangerousZoneButton from '../dangerous-zone/components/DangerousZoneButton';
@@ -35,6 +35,7 @@ async function lookupPlaces(query: string, camera: { center: [number, number]; z
   const result = await response.json();
   return (result as { name: string; detail: string; latitude: number; longitude: number }[])
     .filter(place => Number.isFinite(place.latitude) && Number.isFinite(place.longitude))
+    .filter(place => isInCoverage(place.longitude, place.latitude))
     .map(place => ({
       name: place.name || query,
       detail: place.detail || '',
@@ -90,6 +91,10 @@ export default function MapScreen() {
       const [latitude, longitude] = values;
       if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
         setCoordinateError('Latitude must be between -90 and 90, and longitude between -180 and 180.');
+        return;
+      }
+      if (!isInCoverage(longitude, latitude)) {
+        setCoordinateError('That location is outside the downloaded map coverage (Romania).');
         return;
       }
       setSearchedLocation([longitude, latitude]);

@@ -17,6 +17,11 @@ import services.applicationapi.placesearch.dto.PlaceSearchResult;
 public class PhotonPlaceSearchProvider implements PlaceSearchProvider {
 
     private static final Logger log = LoggerFactory.getLogger(PhotonPlaceSearchProvider.class);
+    // Keep search inside the same Romania coverage rectangle used by the map.
+    private static final double COVERAGE_WEST = 19.5;
+    private static final double COVERAGE_SOUTH = 43.4;
+    private static final double COVERAGE_EAST = 30.0;
+    private static final double COVERAGE_NORTH = 48.5;
     private final RestClient restClient;
 
     public PhotonPlaceSearchProvider(@Qualifier("photonRestClient") RestClient restClient) {
@@ -33,12 +38,16 @@ public class PhotonPlaceSearchProvider implements PlaceSearchProvider {
                             .queryParam("lat", latitude)
                             .queryParam("lon", longitude)
                             .queryParam("zoom", zoom)
+                            .queryParam("bbox", COVERAGE_WEST + "," + COVERAGE_SOUTH + ","
+                                    + COVERAGE_EAST + "," + COVERAGE_NORTH)
+                            .queryParam("countrycode", "ro")
                             .queryParam("limit", limit)
                             .build())
                     .retrieve()
                     .body(JsonNode.class);
         } catch (RestClientException exception) {
-            log.warn("Photon place search failed: {}", exception.getClass().getSimpleName());
+            Throwable cause = rootCause(exception);
+            log.warn("Photon place search transport failed; root cause: {}", cause.getClass().getSimpleName());
             throw new PlaceSearchUnavailableException("Place search is temporarily unavailable", exception);
         }
 
@@ -54,15 +63,33 @@ public class PhotonPlaceSearchProvider implements PlaceSearchProvider {
                     || !coordinates.get(0).isNumber() || !coordinates.get(1).isNumber()) {
                 continue;
             }
+            double resultLongitude = coordinates.get(0).asDouble();
+            double resultLatitude = coordinates.get(1).asDouble();
+            if (!isWithinCoverage(resultLongitude, resultLatitude)) continue;
 
             JsonNode properties = feature.path("properties");
+            String countryCode = text(properties, "countrycode");
+            if (countryCode == null || !"ro".equalsIgnoreCase(countryCode)) continue;
             String name = firstText(properties, "name", "street");
             if (name == null) name = query;
             String detail = detail(properties);
             results.add(new PlaceSearchResult(name, detail,
-                    coordinates.get(1).asDouble(), coordinates.get(0).asDouble()));
+                    resultLatitude, resultLongitude));
         }
         return List.copyOf(results);
+    }
+
+    private static boolean isWithinCoverage(double longitude, double latitude) {
+        return longitude >= COVERAGE_WEST && longitude <= COVERAGE_EAST
+                && latitude >= COVERAGE_SOUTH && latitude <= COVERAGE_NORTH;
+    }
+
+    private static Throwable rootCause(Throwable exception) {
+        Throwable cause = exception;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 
     private static String detail(JsonNode properties) {

@@ -11,7 +11,7 @@ Trip-planning properties bind under `app.trip-plan`; map place-search properties
 | `GEONAMES_TIMEOUT` | GeoNames connect/read timeout | `PT3S` |
 | `PLACE_SEARCH_PROVIDER` | Selects the map place-search provider | `photon` |
 | `PLACE_SEARCH_BASE_URL` | Place-search provider HTTPS base URL | `https://photon.komoot.io` |
-| `PLACE_SEARCH_TIMEOUT` | Place-search connection/read timeout | `PT3S` |
+| `PLACE_SEARCH_TIMEOUT` | Place-search connection/read timeout | `PT10S` |
 | `PLACE_SEARCH_MAX_RESULTS` | Maximum POI/place suggestions returned, 1–10 | `5` |
 | `FLIGHT_PROVIDER` | Selects SerpApi flight and city providers | `serpapi` |
 | `SERP_API_KEY` | SerpApi private API key | Required by the SerpApi flight provider |
