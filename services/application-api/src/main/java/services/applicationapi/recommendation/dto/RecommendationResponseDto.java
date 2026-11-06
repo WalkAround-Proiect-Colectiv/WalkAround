@@ -5,6 +5,7 @@ import java.util.List;
 
 public record RecommendationResponseDto(
         String weatherBucket,
+        Double temperatureC,
         String weatherSummary,
         boolean degraded,
         List<ActivityRecommendationDto> recommendations,

@@ -13,7 +13,6 @@ import services.applicationapi.recommendation.domain.ActivityCategoryRule;
 import services.applicationapi.recommendation.domain.ActivityRecommendationResult;
 import services.applicationapi.recommendation.domain.PoiCandidate;
 import services.applicationapi.recommendation.domain.RankedActivityRecommendation;
-import services.applicationapi.recommendation.domain.TemperatureBand;
 import services.applicationapi.recommendation.domain.WeatherBucket;
 import services.applicationapi.recommendation.domain.WeatherContext;
 import services.applicationapi.recommendation.dto.RecommendationMapper;
@@ -21,10 +20,12 @@ import services.applicationapi.recommendation.dto.RecommendationRequest;
 import services.applicationapi.recommendation.dto.RecommendationResponseDto;
 import services.applicationapi.recommendation.dto.WeatherSnapshot;
 import services.applicationapi.recommendation.exception.InvalidRecommendationRequestException;
+import services.applicationapi.recommendation.service.WeatherProvider.WeatherFetchResult;
 
 @Service
 public class ActivityRecommendationServiceImpl implements ActivityRecommendationService {
 
+    private final WeatherProvider weatherProvider;
     private final WeatherClassificationService weatherClassificationService;
     private final ActivityRuleService activityRuleService;
     private final PoiLookupService poiLookupService;
@@ -34,6 +35,7 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
 
     @Autowired
     public ActivityRecommendationServiceImpl(
+            WeatherProvider weatherProvider,
             WeatherClassificationService weatherClassificationService,
             ActivityRuleService activityRuleService,
             PoiLookupService poiLookupService,
@@ -41,6 +43,7 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
             RecommendationProperties properties
     ) {
         this(
+                weatherProvider,
                 weatherClassificationService,
                 activityRuleService,
                 poiLookupService,
@@ -51,6 +54,7 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
     }
 
     public ActivityRecommendationServiceImpl(
+            WeatherProvider weatherProvider,
             WeatherClassificationService weatherClassificationService,
             ActivityRuleService activityRuleService,
             PoiLookupService poiLookupService,
@@ -58,6 +62,7 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
             RecommendationProperties properties,
             Clock clock
     ) {
+        this.weatherProvider = weatherProvider;
         this.weatherClassificationService = weatherClassificationService;
         this.activityRuleService = activityRuleService;
         this.poiLookupService = poiLookupService;
@@ -71,9 +76,19 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
         validateRequest(request);
 
         int radiusMeters = resolveRadius(request.radiusMeters());
-        int limit = resolveLimit(request.limit());
+        int limit = properties.resolvedDefaultLimit();
 
-        WeatherContext context = weatherClassificationService.classify(request.weather());
+        WeatherFetchResult weatherFetch = weatherProvider.fetchWeather(request.latitude(), request.longitude());
+        WeatherSnapshot snapshot = weatherFetch != null ? weatherFetch.snapshot() : null;
+        WeatherContext classified = weatherClassificationService.classify(snapshot);
+        boolean isDegraded = classified.degraded() || (weatherFetch != null && weatherFetch.stale());
+        WeatherContext context = new WeatherContext(
+                classified.weatherBucket(),
+                classified.temperatureBand(),
+                classified.timeOfDay(),
+                isDegraded
+        );
+
         List<ActivityCategoryRule> rules = activityRuleService.getRulesForWeather(context);
 
         if (context.weatherBucket() == WeatherBucket.STORM) {
@@ -130,9 +145,11 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
                 ? ranked.subList(0, limit)
                 : ranked;
 
-        String summary = buildWeatherSummary(context, request.weather());
+        Double temperatureC = snapshot != null ? snapshot.temperatureC() : null;
+        String summary = buildWeatherSummary(context, snapshot);
         ActivityRecommendationResult result = new ActivityRecommendationResult(
                 context.weatherBucket(),
+                temperatureC,
                 summary,
                 context.degraded(),
                 topRecommendations,
@@ -165,7 +182,7 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
 
     private String buildReason(WeatherContext context, ActivityCategoryRule rule) {
         String label = rule.displayName().toLowerCase(Locale.ROOT);
-        if (context.degraded()) {
+        if (context.degraded() && context.weatherBucket() == WeatherBucket.CLOUDY) {
             return "Weather data is unavailable, so here is a popular nearby spot for " + label + ".";
         }
         return switch (context.weatherBucket()) {
@@ -189,10 +206,10 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
     }
 
     private String buildWeatherSummary(WeatherContext context, WeatherSnapshot snapshot) {
-        if (context.degraded()) {
+        if (snapshot == null) {
             return "Weather unavailable · showing general nearby recommendations";
         }
-        String tempPart = snapshot != null && snapshot.temperatureC() != null
+        String tempPart = snapshot.temperatureC() != null
                 ? String.format(Locale.ROOT, " (%.0f°C)", snapshot.temperatureC())
                 : "";
         return switch (context.weatherBucket()) {
@@ -220,14 +237,9 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
             throw new InvalidRecommendationRequestException("Longitude must be between -180 and 180");
         }
         if (request.radiusMeters() != null
-                && (request.radiusMeters() < 0 || request.radiusMeters() > properties.resolvedMaxRadiusMeters())) {
+                && (request.radiusMeters() < 500 || request.radiusMeters() > properties.resolvedMaxRadiusMeters())) {
             throw new InvalidRecommendationRequestException(
-                    "Radius must be between 0 and " + properties.resolvedMaxRadiusMeters() + " meters");
-        }
-        if (request.limit() != null
-                && (request.limit() < 1 || request.limit() > properties.resolvedMaxLimit())) {
-            throw new InvalidRecommendationRequestException(
-                    "Limit must be between 1 and " + properties.resolvedMaxLimit());
+                    "Radius must be between 500 and " + properties.resolvedMaxRadiusMeters() + " meters");
         }
     }
 
@@ -235,13 +247,6 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
         if (requestedRadius == null) {
             return properties.resolvedDefaultRadiusMeters();
         }
-        return Math.min(properties.resolvedMaxRadiusMeters(), Math.max(0, requestedRadius));
-    }
-
-    private int resolveLimit(Integer requestedLimit) {
-        if (requestedLimit == null) {
-            return properties.resolvedDefaultLimit();
-        }
-        return Math.min(properties.resolvedMaxLimit(), Math.max(1, requestedLimit));
+        return Math.min(properties.resolvedMaxRadiusMeters(), Math.max(500, requestedRadius));
     }
 }

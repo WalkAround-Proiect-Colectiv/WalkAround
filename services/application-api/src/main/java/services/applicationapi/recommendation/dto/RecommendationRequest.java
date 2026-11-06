@@ -1,6 +1,5 @@
 package services.applicationapi.recommendation.dto;
 
-import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Max;
@@ -18,15 +17,8 @@ public record RecommendationRequest(
         @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
         Double longitude,
 
-        @Min(value = 0, message = "Radius must be between 0 and 2000 meters")
-        @Max(value = 2000, message = "Radius must be between 0 and 2000 meters")
-        Integer radiusMeters,
-
-        @Min(value = 1, message = "Limit must be between 1 and 50")
-        @Max(value = 50, message = "Limit must be between 1 and 50")
-        Integer limit,
-
-        @Valid
-        WeatherSnapshot weather
+        @Min(value = 500, message = "Radius must be between 500 and 5000 meters")
+        @Max(value = 5000, message = "Radius must be between 500 and 5000 meters")
+        Integer radiusMeters
 ) {
 }

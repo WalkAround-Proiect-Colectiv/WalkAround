@@ -1,5 +1,6 @@
 package services.applicationapi.recommendation.config;
 
+import java.net.URI;
 import java.time.Duration;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -10,16 +11,18 @@ public record RecommendationProperties(
         Integer defaultLimit,
         Integer maxLimit,
         Duration cacheTtl,
+        URI openMeteoBaseUrl,
+        Duration openMeteoTimeout,
         String poiDatabaseUrl,
         String poiDatabaseUsername,
         String poiDatabasePassword
 ) {
     public int resolvedDefaultRadiusMeters() {
-        return defaultRadiusMeters != null && defaultRadiusMeters > 0 ? defaultRadiusMeters : 100;
+        return defaultRadiusMeters != null && defaultRadiusMeters > 0 ? defaultRadiusMeters : 2000;
     }
 
     public int resolvedMaxRadiusMeters() {
-        return maxRadiusMeters != null && maxRadiusMeters > 0 ? maxRadiusMeters : 2000;
+        return maxRadiusMeters != null && maxRadiusMeters > 0 ? maxRadiusMeters : 5000;
     }
 
     public int resolvedDefaultLimit() {
@@ -34,5 +37,17 @@ public record RecommendationProperties(
         return cacheTtl != null && !cacheTtl.isNegative() && !cacheTtl.isZero()
                 ? cacheTtl
                 : Duration.ofMinutes(15);
+    }
+
+    public URI resolvedOpenMeteoBaseUrl() {
+        return openMeteoBaseUrl != null
+                ? openMeteoBaseUrl
+                : URI.create("https://api.open-meteo.com");
+    }
+
+    public Duration resolvedOpenMeteoTimeout() {
+        return openMeteoTimeout != null && !openMeteoTimeout.isNegative() && !openMeteoTimeout.isZero()
+                ? openMeteoTimeout
+                : Duration.ofSeconds(5);
     }
 }

@@ -15,6 +15,7 @@ public class RecommendationMapper {
 
         return new RecommendationResponseDto(
                 result.weatherBucket().name(),
+                result.temperatureC(),
                 result.weatherSummary(),
                 result.degraded(),
                 items,
