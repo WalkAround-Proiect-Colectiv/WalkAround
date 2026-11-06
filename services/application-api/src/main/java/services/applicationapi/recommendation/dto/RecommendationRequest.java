@@ -17,8 +17,8 @@ public record RecommendationRequest(
         @DecimalMax(value = "180.0", message = "Longitude must be between -180 and 180")
         Double longitude,
 
-        @Min(value = 500, message = "Radius must be between 500 and 5000 meters")
-        @Max(value = 5000, message = "Radius must be between 500 and 5000 meters")
+        @Min(value = 100, message = "Radius must be between 100 and 5000 meters")
+        @Max(value = 5000, message = "Radius must be between 100 and 5000 meters")
         Integer radiusMeters
 ) {
 }

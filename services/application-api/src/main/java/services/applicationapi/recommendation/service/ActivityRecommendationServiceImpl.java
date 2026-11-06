@@ -237,9 +237,9 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
             throw new InvalidRecommendationRequestException("Longitude must be between -180 and 180");
         }
         if (request.radiusMeters() != null
-                && (request.radiusMeters() < 500 || request.radiusMeters() > properties.resolvedMaxRadiusMeters())) {
+                && (request.radiusMeters() < 100 || request.radiusMeters() > properties.resolvedMaxRadiusMeters())) {
             throw new InvalidRecommendationRequestException(
-                    "Radius must be between 500 and " + properties.resolvedMaxRadiusMeters() + " meters");
+                    "Radius must be between 100 and " + properties.resolvedMaxRadiusMeters() + " meters");
         }
     }
 
@@ -247,6 +247,6 @@ public class ActivityRecommendationServiceImpl implements ActivityRecommendation
         if (requestedRadius == null) {
             return properties.resolvedDefaultRadiusMeters();
         }
-        return Math.min(properties.resolvedMaxRadiusMeters(), Math.max(500, requestedRadius));
+        return Math.min(properties.resolvedMaxRadiusMeters(), Math.max(100, requestedRadius));
     }
 }

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, Compass, Heart, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -237,6 +237,9 @@ export default function MapScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/recommendations'); }} style={styles.menuItem}>
+            <CloudSun size={20} color="#0065EB" /><Text style={styles.menuItemText}>Weather activities</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel="My future, coming soon"
                      accessibilityState={{ disabled: true }} disabled style={[styles.menuItem, styles.menuItemDisabled]}>
