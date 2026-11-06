@@ -16,6 +16,9 @@ import { cellToBoundary } from 'h3-js';
 import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
 import { environment } from '../config/environment';
 
+type LatLng = { lat: number; lng: number };
+type RouteStop = { id: string; point: LatLng };
+
 type PoiSearchResult = {
   name: string;
   detail: string;
@@ -43,8 +46,6 @@ async function lookupPlaces(query: string, camera: { center: [number, number]; z
     }));
 }
 
-type LatLng = { lat: number; lng: number };
-type RouteStop = { id: string; point: LatLng };
 
 function Tool({ label, icon: Icon, onPress, disabled = false }: { label: string; icon: LucideIcon; onPress(): void; disabled?: boolean }) {
   const [hovered, setHovered] = useState(false);
@@ -91,9 +92,7 @@ export default function MapScreen() {
   const immediatePoiQuery = useRef('');
   const suppressPoiQuery = useRef('');
   const currentCamera = useRef(camera);
-  useEffect(() => {
-    currentCamera.current = camera;
-  }, [camera]);
+  currentCamera.current = camera;
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
