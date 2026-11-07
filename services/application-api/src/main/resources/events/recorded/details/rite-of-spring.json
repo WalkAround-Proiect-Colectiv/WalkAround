@@ -1,0 +1,37 @@
+{
+  "event_details": {
+    "title": "THE RITE OF SPRING",
+    "date": {
+      "start_date": "Nov 6",
+      "when": "Fri, 6 Nov 2026, 20:00"
+    },
+    "address": [
+      "Piața Ștefan cel Mare 24",
+      "Cluj-Napoca 400192, Romania"
+    ],
+    "description": "A contemporary dance and orchestral staging of Igor Stravinsky's iconic score The Rite of Spring at the Lucian Blaga National Theatre in Cluj-Napoca. The performance explores ritual, renewal and collective movement on the main stage.",
+    "link": "https://www.teatrulnationalcluj.ro/",
+    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUAsAmuaonrGClSQyJmPcN7mbQmt-FLoWPFHCDes3sT2CW0vgC_1DXgf7eixGQQmlBKvgqgigYqaBP1qU",
+    "venue": {
+      "name": "The National Theatre Cluj-Napoca",
+      "rating": 4.8,
+      "reviews": 2840,
+      "link": "https://www.teatrulnationalcluj.ro/"
+    },
+    "event_location_map": {
+      "link": "https://www.google.com/maps/search/?api=1&query=The+National+Theatre+Cluj-Napoca"
+    },
+    "ticket_info": [
+      {
+        "source": "bilete.ro",
+        "link": "https://www.bilete.ro/the-rite-of-spring/",
+        "link_type": "tickets"
+      },
+      {
+        "source": "Teatrul Național Cluj-Napoca",
+        "link": "https://www.teatrulnationalcluj.ro/",
+        "link_type": "more info"
+      }
+    ]
+  }
+}

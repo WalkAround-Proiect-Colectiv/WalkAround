@@ -5,10 +5,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -16,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriBuilder;
 import services.applicationapi.events.configurations.EventsProperties;
+import services.applicationapi.events.model.EventVenue;
 import services.applicationapi.events.model.Locality;
 import services.applicationapi.events.model.TicketLink;
 import services.applicationapi.events.service.exceptions.EventsUnavailableException;
@@ -35,14 +38,25 @@ public class SerpApiEventSource implements EventSource {
     private static final String NO_RESULTS_PREFIX = "Google hasn't returned any results";
 
     private final RestClient restClient;
+    private final RestClient detailsRestClient;
     private final EventsProperties properties;
 
+    @Autowired
     public SerpApiEventSource(
             @Qualifier("eventsSerpApiRestClient") RestClient restClient,
+            @Qualifier("eventsSerpApiDetailsRestClient") RestClient detailsRestClient,
             EventsProperties properties
     ) {
         this.restClient = restClient;
+        this.detailsRestClient = detailsRestClient;
         this.properties = properties;
+    }
+
+    public SerpApiEventSource(
+            RestClient restClient,
+            EventsProperties properties
+    ) {
+        this(restClient, restClient, properties);
     }
 
     @Override
@@ -66,27 +80,37 @@ public class SerpApiEventSource implements EventSource {
         if (detailsToken == null || detailsToken.isBlank()) {
             return Optional.empty();
         }
+        String key = properties.serpApiKey();
+        if (key == null || key.isBlank()) {
+            return Optional.empty();
+        }
         DetailsResponse response;
         try {
-            response = restClient.get()
-                    .uri(builder -> base(builder, "google_event_details")
+            response = detailsRestClient.get()
+                    .uri(builder -> baseWithKey(builder, "google_event_details", key)
                             .queryParam("event_token", "{token}")
                             .build(detailsToken))
                     .retrieve()
                     .body(DetailsResponse.class);
-        } catch (RestClientException | EventsUnavailableException exception) {
+        } catch (RestClientException exception) {
+            // The exception message may contain the request URL with the API key, so only log its type.
             log.warn("SerpApi event details request failed: {}", exception.getClass().getSimpleName());
+            throw new EventsUnavailableException(exception);
+        }
+        if (response == null) {
+            throw new EventsUnavailableException();
+        }
+        if (response.error() != null && !response.error().isBlank()) {
+            if (isNoResultsOrExpiredError(response.error())) {
+                return Optional.empty();
+            }
+            log.warn("SerpApi event details returned an error response");
+            throw new EventsUnavailableException();
+        }
+        if (response.eventDetails() == null) {
             return Optional.empty();
         }
-        if (response == null || response.eventDetails() == null) {
-            return Optional.empty();
-        }
-        Details details = response.eventDetails();
-        return Optional.of(new RawEventDetails(
-                details.date() == null ? null : details.date().when(),
-                details.address(),
-                details.description(),
-                tickets(details.ticketInfo())));
+        return Optional.of(toRawEventDetails(response.eventDetails()));
     }
 
     private List<RawEvent> query(Function<UriBuilder, URI> uri) {
@@ -108,7 +132,7 @@ public class SerpApiEventSource implements EventSource {
             if (response.error().startsWith(NO_RESULTS_PREFIX)) {
                 return List.of();
             }
-            log.warn("SerpApi events search returned an error");
+            log.warn("SerpApi events error: {}", response.error());
             throw new EventsUnavailableException();
         }
         if (response.eventsResults() == null) {
@@ -121,15 +145,65 @@ public class SerpApiEventSource implements EventSource {
     }
 
     static RawEvent toRawEvent(EventResult result) {
+        String title = SafeUrls.cap(result.title(), SafeUrls.MAX_TITLE_LENGTH);
+        String venueName = result.venue() == null ? null : SafeUrls.cap(result.venue().name(), SafeUrls.MAX_VENUE_NAME_LENGTH);
+        EventVenue venue = result.venue() == null
+                ? null
+                : SafeUrls.sanitizeVenue(
+                        result.venue().name(),
+                        result.venue().rating(),
+                        result.venue().reviews(),
+                        result.venue().link()
+                );
+        String imageUrl = SafeUrls.httpsOrNull(result.image()) != null
+                ? SafeUrls.httpsOrNull(result.image())
+                : SafeUrls.httpsOrNull(result.thumbnail());
+        String mapUrl = result.eventLocationMap() == null
+                ? null
+                : SafeUrls.httpsOrNull(result.eventLocationMap().link());
+        List<String> address = sanitizeAddress(result.address());
         return new RawEvent(
-                result.title().strip(),
-                result.date() == null ? null : result.date().startDate(),
-                result.date() == null ? null : result.date().when(),
-                result.venue() == null ? null : result.venue().name(),
-                result.address() == null ? List.of() : result.address(),
-                result.thumbnail(),
+                title != null ? title : result.title().strip(),
+                result.date() == null ? null : SafeUrls.cap(result.date().startDate(), SafeUrls.MAX_WHEN_LENGTH),
+                result.date() == null ? null : SafeUrls.cap(result.date().when(), SafeUrls.MAX_WHEN_LENGTH),
+                venueName,
+                address,
+                imageUrl,
                 tickets(result.ticketInfo()),
-                result.eventToken());
+                result.eventToken(),
+                SafeUrls.cleanDescription(result.description()),
+                SafeUrls.httpsOrNull(result.link()),
+                mapUrl,
+                venue
+        );
+    }
+
+    static RawEventDetails toRawEventDetails(Details details) {
+        EventVenue venue = details.venue() == null
+                ? null
+                : SafeUrls.sanitizeVenue(
+                        details.venue().name(),
+                        details.venue().rating(),
+                        details.venue().reviews(),
+                        details.venue().link()
+                );
+        String imageUrl = SafeUrls.httpsOrNull(details.image()) != null
+                ? SafeUrls.httpsOrNull(details.image())
+                : SafeUrls.httpsOrNull(details.thumbnail());
+        String mapUrl = details.eventLocationMap() == null
+                ? null
+                : SafeUrls.httpsOrNull(details.eventLocationMap().link());
+        return new RawEventDetails(
+                SafeUrls.cap(details.title(), SafeUrls.MAX_TITLE_LENGTH),
+                details.date() == null ? null : SafeUrls.cap(details.date().when(), SafeUrls.MAX_WHEN_LENGTH),
+                sanitizeAddress(details.address()),
+                SafeUrls.cleanDescription(details.description()),
+                tickets(details.ticketInfo()),
+                SafeUrls.httpsOrNull(details.link()),
+                mapUrl,
+                venue,
+                imageUrl
+        );
     }
 
     private UriBuilder base(UriBuilder builder, String engine) {
@@ -137,11 +211,24 @@ public class SerpApiEventSource implements EventSource {
         if (key == null || key.isBlank()) {
             throw new EventsUnavailableException();
         }
+        return baseWithKey(builder, engine, key);
+    }
+
+    private static UriBuilder baseWithKey(UriBuilder builder, String engine, String key) {
         return builder.path("/search.json")
                 .queryParam("engine", engine)
                 .queryParam("hl", "en")
                 .queryParam("gl", "ro")
                 .queryParam("api_key", key);
+    }
+
+    private static boolean isNoResultsOrExpiredError(String error) {
+        String lower = error.toLowerCase(Locale.ROOT);
+        return error.startsWith(NO_RESULTS_PREFIX)
+                || lower.contains("no results")
+                || lower.contains("invalid")
+                || lower.contains("expired")
+                || lower.contains("not found");
     }
 
     /** SerpApi's canonical location format, e.g. {@code "Cluj-Napoca,Cluj County,Romania"}. */
@@ -160,9 +247,34 @@ public class SerpApiEventSource implements EventSource {
             return List.of();
         }
         return ticketInfo.stream()
-                .filter(ticket -> ticket.link() != null && ticket.link().startsWith("https://"))
-                .map(ticket -> new TicketLink(ticket.source(), ticket.link()))
+                .filter(ticket -> ticket != null && SafeUrls.httpsOrNull(ticket.link()) != null)
+                .map(ticket -> new TicketLink(
+                        SafeUrls.cap(ticket.source(), SafeUrls.MAX_SOURCE_LENGTH),
+                        SafeUrls.httpsOrNull(ticket.link()),
+                        ticket.linkType()
+                ))
                 .toList();
+    }
+
+    private static List<String> sanitizeAddress(List<String> address) {
+        if (address == null || address.isEmpty()) {
+            return List.of();
+        }
+        List<String> cleaned = new ArrayList<>();
+        int totalLength = 0;
+        for (String part : address) {
+            String trimmed = SafeUrls.cap(part, SafeUrls.MAX_ADDRESS_LENGTH);
+            if (trimmed == null) {
+                continue;
+            }
+            int nextLength = totalLength + (cleaned.isEmpty() ? 0 : 2) + trimmed.length();
+            if (nextLength > SafeUrls.MAX_ADDRESS_LENGTH) {
+                break;
+            }
+            cleaned.add(trimmed);
+            totalLength = nextLength;
+        }
+        return List.copyOf(cleaned);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -176,6 +288,10 @@ public class SerpApiEventSource implements EventSource {
             List<String> address,
             Venue venue,
             String thumbnail,
+            String image,
+            String description,
+            String link,
+            @JsonProperty("event_location_map") LocationMap eventLocationMap,
             @JsonProperty("ticket_info") List<TicketInfo> ticketInfo,
             @JsonProperty("event_token") String eventToken
     ) {
@@ -186,22 +302,32 @@ public class SerpApiEventSource implements EventSource {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Venue(String name) {
+    record Venue(String name, Double rating, Integer reviews, String link) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record TicketInfo(String source, String link) {
+    record LocationMap(String image, String link) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record DetailsResponse(@JsonProperty("event_details") Details eventDetails) {
+    record TicketInfo(String source, String link, @JsonProperty("link_type") String linkType) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record DetailsResponse(@JsonProperty("event_details") Details eventDetails, String error) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Details(
+            String title,
             EventDate date,
             List<String> address,
             String description,
+            String link,
+            String thumbnail,
+            String image,
+            Venue venue,
+            @JsonProperty("event_location_map") LocationMap eventLocationMap,
             @JsonProperty("ticket_info") List<TicketInfo> ticketInfo
     ) {
     }

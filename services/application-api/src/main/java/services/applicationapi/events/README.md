@@ -102,7 +102,7 @@ The realtime service delivers the message only to that user's open `/ws/notifica
 
 ## Usage limits and attribution
 
-- SerpApi's free plan allows 250 searches a month. A town costs two searches per cache period, and marking an event costs one. The `recorded` provider uses none.
+- SerpApi's free plan allows 250 searches a month. A town costs two searches per cache period, opening an event's details costs at most one search per `EVENTS_DETAILS_CACHE_TTL` (7 days by default), and marking an event after opening it costs zero extra searches. The `recorded` provider uses none.
 - The public Nominatim service allows at most one request per second for the whole app, requires caching and an identifying User-Agent, and must not receive exact personal positions. `NominatimLocalityResolver` serializes calls, caches results and sends rounded coordinates. See the [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/).
 - Responses include an attribution line for Google Events via SerpApi and OpenStreetMap; the app shows it under the list.
 
