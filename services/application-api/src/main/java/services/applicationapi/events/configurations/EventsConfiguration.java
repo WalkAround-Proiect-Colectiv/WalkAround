@@ -30,6 +30,14 @@ public class EventsConfiguration {
     }
 
     @Bean
+    RestClient eventsSerpApiDetailsRestClient(EventsProperties properties) {
+        return RestClient.builder()
+                .baseUrl(properties.serpApiBaseUrl().toString())
+                .requestFactory(requestFactory(properties.detailsTimeout()))
+                .build();
+    }
+
+    @Bean
     RestClient nominatimRestClient(EventsProperties properties) {
         return RestClient.builder()
                 .baseUrl(properties.nominatimBaseUrl().toString())

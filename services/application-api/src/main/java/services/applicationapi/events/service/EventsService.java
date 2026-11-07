@@ -8,13 +8,16 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import services.applicationapi.events.configurations.EventsProperties;
 import services.applicationapi.events.model.CachedEvent;
+import services.applicationapi.events.model.EventCoordinates;
 import services.applicationapi.events.model.EventLocalitySnapshot;
 import services.applicationapi.events.model.Locality;
 import services.applicationapi.events.repository.EventLocalitySnapshotRepository;
 import services.applicationapi.events.service.exceptions.EventsUnavailableException;
+import services.applicationapi.events.service.locality.EventCoordinatesResolver;
 import services.applicationapi.events.service.locality.LocalityResolver;
 import services.applicationapi.events.service.source.EventSource;
 import tools.jackson.core.JacksonException;
@@ -48,6 +51,8 @@ public class EventsService {
     private static final Logger log = LoggerFactory.getLogger(EventsService.class);
     private static final TypeReference<List<CachedEvent>> EVENT_LIST = new TypeReference<>() {
     };
+    private static final EventCoordinatesResolver NOOP_COORDINATES_RESOLVER =
+            (localityName, venueName, address, hintLat, hintLng) -> Optional.empty();
 
     private final LocalityResolver localityResolver;
     private final EventSource eventSource;
@@ -55,8 +60,28 @@ public class EventsService {
     private final EventsProperties properties;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final EventCoordinatesResolver coordinatesResolver;
     private final Map<String, CacheEntry> memory = new ConcurrentHashMap<>();
     private final Map<String, Object> fetchLocks = new ConcurrentHashMap<>();
+
+    @Autowired
+    public EventsService(
+            LocalityResolver localityResolver,
+            EventSource eventSource,
+            EventLocalitySnapshotRepository snapshots,
+            EventsProperties properties,
+            ObjectMapper objectMapper,
+            Clock eventsClock,
+            EventCoordinatesResolver coordinatesResolver
+    ) {
+        this.localityResolver = localityResolver;
+        this.eventSource = eventSource;
+        this.snapshots = snapshots;
+        this.properties = properties;
+        this.objectMapper = objectMapper;
+        this.clock = eventsClock;
+        this.coordinatesResolver = coordinatesResolver != null ? coordinatesResolver : NOOP_COORDINATES_RESOLVER;
+    }
 
     public EventsService(
             LocalityResolver localityResolver,
@@ -66,12 +91,15 @@ public class EventsService {
             ObjectMapper objectMapper,
             Clock eventsClock
     ) {
-        this.localityResolver = localityResolver;
-        this.eventSource = eventSource;
-        this.snapshots = snapshots;
-        this.properties = properties;
-        this.objectMapper = objectMapper;
-        this.clock = eventsClock;
+        this(
+                localityResolver,
+                eventSource,
+                snapshots,
+                properties,
+                objectMapper,
+                eventsClock,
+                NOOP_COORDINATES_RESOLVER
+        );
     }
 
     public NearbyEvents nearby(double latitude, double longitude) {
@@ -93,12 +121,20 @@ public class EventsService {
             }
             Optional<EventLocalitySnapshot> snapshot = snapshots.findById(locality.key());
             if (snapshot.isPresent() && isFresh(snapshot.get().getFetchedAt(), now)) {
-                CacheEntry entry = new CacheEntry(locality, readEvents(snapshot.get()), snapshot.get().getFetchedAt());
+                List<CachedEvent> snapshotEvents = attachCoordinates(
+                        locality, readEvents(snapshot.get()), latitude, longitude
+                );
+                CacheEntry entry = new CacheEntry(locality, snapshotEvents, snapshot.get().getFetchedAt());
                 memory.put(locality.key(), entry);
                 return result(locality, entry, now, false);
             }
             try {
-                List<CachedEvent> events = EventListBuilder.build(eventSource.search(locality), now, properties.timeZone());
+                List<CachedEvent> events = attachCoordinates(
+                        locality,
+                        EventListBuilder.build(eventSource.search(locality), now, properties.timeZone()),
+                        latitude,
+                        longitude
+                );
                 saveSnapshot(locality, snapshot, events, now);
                 CacheEntry entry = new CacheEntry(locality, events, now);
                 memory.put(locality.key(), entry);
@@ -106,7 +142,10 @@ public class EventsService {
             } catch (EventsUnavailableException exception) {
                 if (snapshot.isPresent()) {
                     log.info("Serving stale events for {} because the source is unavailable", locality.key());
-                    CacheEntry stale = new CacheEntry(locality, readEvents(snapshot.get()), snapshot.get().getFetchedAt());
+                    List<CachedEvent> staleEvents = attachCoordinates(
+                            locality, readEvents(snapshot.get()), latitude, longitude
+                    );
+                    CacheEntry stale = new CacheEntry(locality, staleEvents, snapshot.get().getFetchedAt());
                     return result(locality, stale, now, true);
                 }
                 throw exception;
@@ -121,6 +160,31 @@ public class EventsService {
                 ? entry.events()
                 : snapshots.findById(localityKey).map(this::readEvents).orElse(List.of());
         return events.stream().filter(event -> event.key().equals(eventKey)).findFirst();
+    }
+
+    private List<CachedEvent> attachCoordinates(
+            Locality locality,
+            List<CachedEvent> events,
+            double hintLatitude,
+            double hintLongitude
+    ) {
+        return events.stream()
+                .map(event -> {
+                    if (event.latitude() != null && event.longitude() != null) {
+                        return event;
+                    }
+                    Optional<EventCoordinates> coords = coordinatesResolver.resolve(
+                            locality.name(),
+                            event.venueName(),
+                            event.address(),
+                            hintLatitude,
+                            hintLongitude
+                    );
+                    return coords
+                            .map(c -> event.withCoordinates(c.latitude(), c.longitude()))
+                            .orElse(event);
+                })
+                .toList();
     }
 
     private CacheEntry freshEntry(String localityKey, Instant now) {
