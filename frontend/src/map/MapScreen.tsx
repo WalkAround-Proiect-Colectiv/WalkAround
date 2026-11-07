@@ -6,11 +6,13 @@ import { useSession } from '../login/components/SessionProvider';
 import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
-import type { MapHandle } from './MapCanvas.types';
+import type { MapHandle, ScreenPoint } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
 import type { MapPoi } from './poi';
 import { useUserLocalization } from './userLocalization';
+import EventMapPopup from '../events/components/EventMapPopup';
+import { useMapEvents } from '../hooks/useMapEvents';
 import DangerousZoneButton from '../dangerous-zone/components/DangerousZoneButton';
 import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal';
 import { cellToBoundary } from 'h3-js';
@@ -81,7 +83,7 @@ export default function MapScreen() {
   const compactSearchLayout = windowWidth < 600;
   const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
   const [mobileSearchHeight, setMobileSearchHeight] = useState(0);
-  const searchReveal = useRef(new Animated.Value(0)).current;
+  const [searchReveal] = useState(() => new Animated.Value(0));
   useEffect(() => {
     if (!compactSearchLayout || !mobileSearchExpanded) {
       searchReveal.setValue(0);
@@ -120,13 +122,23 @@ export default function MapScreen() {
   const immediatePoiQuery = useRef('');
   const suppressPoiQuery = useRef('');
   const currentCamera = useRef(camera);
-  currentCamera.current = camera;
+  useEffect(() => {
+    currentCamera.current = camera;
+  }, [camera]);
   const [loading, setLoading] = useState(true);
   const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [selectedPoi, setSelectedPoi] = useState<MapPoi | null>(null);
+  const [selectedPinScreenPoint, setSelectedPinScreenPoint] = useState<ScreenPoint | null>(null);
+  const [mapLayout, setMapLayout] = useState<{ width: number; height: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const mapEvents = useMapEvents({
+    center: camera.center,
+    signedIn: Boolean(session),
+    mapReady,
+  });
 
   const [routeMode, setRouteMode] = useState(false);
   const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
@@ -209,18 +221,22 @@ export default function MapScreen() {
     const requestId = ++poiSearchRequest.current;
     if (query.length < 2 || isPartialCoordinatePair || suppressPoiQuery.current === query) {
       if (suppressPoiQuery.current === query) suppressPoiQuery.current = '';
-      setPoiResults([]);
-      setSearchingPoi(false);
-      return;
+      const resetTimeout = setTimeout(() => {
+        if (requestId !== poiSearchRequest.current) return;
+        setPoiResults([]);
+        setSearchingPoi(false);
+      }, 0);
+      return () => clearTimeout(resetTimeout);
     }
 
     const controller = new AbortController();
     const delay = immediatePoiQuery.current === query ? 0 : 300;
     if (delay === 0) immediatePoiQuery.current = '';
-    setCoordinateError(null);
-    setPoiResults([]);
-    setSearchingPoi(true);
     const timeout = setTimeout(async () => {
+      if (requestId !== poiSearchRequest.current) return;
+      setCoordinateError(null);
+      setPoiResults([]);
+      setSearchingPoi(true);
       try {
         const matches = await lookupPlaces(query, currentCamera.current, controller.signal);
         if (requestId !== poiSearchRequest.current) return;
@@ -251,7 +267,7 @@ export default function MapScreen() {
     if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
     routeStops.forEach(stop => features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [stop.point.lng, stop.point.lat] }, properties: { type: 'stop' } }));
     if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
-    return features.length > 0 ? { type: 'FeatureCollection', features } : null;
+    return features.length > 0 ? { type: 'FeatureCollection' as const, features } : null;
   }, [routeStart, routeStops, routeEnd]);
   useEffect(() => {
     if (!style) return;
@@ -345,10 +361,6 @@ export default function MapScreen() {
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
-    setLoading(true);
-    setMapReady(false);
-    setError(null);
-    setStyle(null);
     fetch(MAP_STYLE_URL, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error('Style unavailable');
       const result = await response.json();
@@ -422,6 +434,19 @@ export default function MapScreen() {
     setActiveRouteField(field => (field === id ? null : field));
   }
 
+  function handleEventPinPress(pinId: string) {
+    setSelectedPoi(null);
+    setSelectedZoneInfo(null);
+    mapEvents.selectPin(pinId);
+  }
+
+  function handlePoiSelect(poi: MapPoi | null) {
+    setSelectedPoi(poi);
+    if (poi) {
+      mapEvents.clearSelection();
+    }
+  }
+
   function handleMapClick(zone: { intensity: number; categories: string[] } | null, coords?: [number, number]) {
     if (routeMode && activeRouteField && coords) {
       const point = { lng: coords[0], lat: coords[1] };
@@ -438,6 +463,7 @@ export default function MapScreen() {
       }
       return;
     }
+    mapEvents.clearSelection();
     if (zone) {
       setSelectedZoneInfo({ intensity: zone.intensity, categories: zone.categories });
     } else {
@@ -447,10 +473,12 @@ export default function MapScreen() {
 
   function retryMap() {
     setLoading(true);
+    setMapReady(false);
     setError(null);
     setStyle(null);
     setSelectedPoi(null);
     setSelectedZoneInfo(null);
+    mapEvents.clearSelection();
     setAttempt(value => value + 1);
   }
 
@@ -461,6 +489,7 @@ export default function MapScreen() {
     }
     setSelectedPoi(null);
     setSelectedZoneInfo(null);
+    mapEvents.clearSelection();
     setIsSelectingLocation(true);
   }
 
@@ -471,7 +500,17 @@ export default function MapScreen() {
   }
 
   return <View style={styles.screen}>
-    <View style={styles.map}>
+    <View
+      style={styles.map}
+      onLayout={event => {
+        const { width, height } = event.nativeEvent.layout;
+        setMapLayout(current =>
+          current && current.width === width && current.height === height
+            ? current
+            : { width, height },
+        );
+      }}
+    >
 {style && (
   <MapCanvas
     key={attempt}
@@ -483,9 +522,14 @@ export default function MapScreen() {
     dangerousZonesData={dangerousZonesData}
     routeData={routeGeoJSON}
     routePointsData={routePointsData}
+    eventPinsData={mapEvents.geoJSON}
+    selectedEventPinId={mapEvents.selectedPinId}
+    selectedEventPinCoordinates={mapEvents.selectedPin?.coordinates ?? null}
+    onEventPinPress={routeMode && activeRouteField ? undefined : handleEventPinPress}
+    onSelectedPinScreenPoint={setSelectedPinScreenPoint}
     onMove={setCamera}
     onCoordinateSelect={handleMapCoordinateSelect}
-    onPoiSelect={setSelectedPoi}
+    onPoiSelect={handlePoiSelect}
     onReady={() => {
       setLoading(false);
       setMapReady(true);
@@ -498,6 +542,27 @@ export default function MapScreen() {
     onPress={handleMapClick}
   />
 )}
+      {mapEvents.selectedEvent && selectedPinScreenPoint && !routeMode && !isSelectingLocation && (
+        <EventMapPopup
+          event={mapEvents.selectedEvent}
+          currentIndex={mapEvents.selectedEventIndex}
+          totalCount={mapEvents.selectedPinCount}
+          screenPoint={selectedPinScreenPoint}
+          containerWidth={mapLayout?.width ?? windowWidth}
+          containerHeight={mapLayout?.height ?? windowHeight}
+          topInset={Math.max(insets.top, 12)}
+          onClose={mapEvents.clearSelection}
+          onPrevious={mapEvents.previousEvent}
+          onNext={mapEvents.nextEvent}
+          onSeeMore={selected => {
+            mapEvents.clearSelection();
+            router.push({
+              pathname: '/events/details',
+              params: { localityKey: selected.localityKey, eventKey: selected.key },
+            });
+          }}
+        />
+      )}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
 
       {isSelectingLocation && (
@@ -575,6 +640,7 @@ export default function MapScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
+            mapEvents.clearSelection();
             setRouteMode(true);
             if (userLocation)
             {
