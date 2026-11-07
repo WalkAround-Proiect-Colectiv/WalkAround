@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
 
@@ -9,9 +9,7 @@ function dateKey(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export default function CalendarPicker({
-  label, value, visible, minimumDate, description, onSelect, onClose,
-}: {
+type CalendarPickerProps = {
   label: string;
   value: string;
   visible: boolean;
@@ -19,18 +17,21 @@ export default function CalendarPicker({
   description?: string;
   onSelect(date: string): void;
   onClose(): void;
-}) {
+};
+
+export default function CalendarPicker(props: CalendarPickerProps) {
   const today = new Date();
   const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
-  const earliest = minimumDate && minimumDate > todayKey ? minimumDate : todayKey;
-  const [displayedMonth, setDisplayedMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const earliest = props.minimumDate && props.minimumDate > todayKey ? props.minimumDate : todayKey;
+  return <CalendarBody key={`${props.visible}-${props.value}-${earliest}`} {...props} earliest={earliest} />;
+}
 
-  useEffect(() => {
-    if (!visible) return;
+function CalendarBody({ label, value, visible, description, onSelect, onClose, earliest }: CalendarPickerProps & { earliest: string }) {
+  const [displayedMonth, setDisplayedMonth] = useState(() => {
     const initial = /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= earliest ? value : earliest;
     const [year, month] = initial.split('-').map(Number);
-    setDisplayedMonth(new Date(year, month - 1, 1));
-  }, [visible, value, earliest]);
+    return new Date(year, month - 1, 1);
+  });
 
   const year = displayedMonth.getFullYear();
   const month = displayedMonth.getMonth();

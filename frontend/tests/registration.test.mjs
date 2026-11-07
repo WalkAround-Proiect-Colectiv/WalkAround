@@ -38,3 +38,12 @@ test('passes cancellation through to fetch', async () => {
   };
   await assert.rejects(registerWithGoogle('http://localhost:8080', 'token', controller.signal), { name: 'AbortError' });
 });
+
+test('handles dangerous-zone API configuration and non-JSON responses safely', async () => {
+  const { requestDangerousZonesHeatmap } = await import('../src/dangerous-zone/api/dangerousZoneHeatmap.ts');
+  globalThis.fetch = async () => { assert.fail('Must not fetch without an API URL'); };
+  assert.deepEqual(await requestDangerousZonesHeatmap(''), []);
+  await assert.rejects(requestDangerousZonesHeatmap('http://localhost:8080', async () =>
+    new Response('<!doctype html>', { status: 200, headers: { 'Content-Type': 'text/html' } })),
+  /non-JSON response.*EXPO_PUBLIC_API_BASE_URL/);
+});

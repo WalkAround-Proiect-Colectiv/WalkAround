@@ -49,6 +49,20 @@ services:
       map-db:
         condition: service_healthy
 
+  map-schema:
+    image: postgis/postgis:17-3.5
+    environment:
+      PGHOST: map-db
+      PGPORT: "5432"
+      PGDATABASE: map
+      PGUSER: map_admin
+      PGPASSWORD: ${MAP_DB_ADMIN_PASSWORD:?Set MAP_DB_ADMIN_PASSWORD}
+    entrypoint: [psql]
+    command: [-X, -v, ON_ERROR_STOP=1, -c, "CREATE SCHEMA IF NOT EXISTS places AUTHORIZATION map_import;"]
+    depends_on:
+      map-db:
+        condition: service_healthy
+
   map-migrate:
     image: flyway/flyway:13.12.0-alpine
     environment:
@@ -62,8 +76,8 @@ services:
       - ./database/migrations:/flyway/sql:ro
     command: migrate
     depends_on:
-      map-db:
-        condition: service_healthy
+      map-schema:
+        condition: service_completed_successfully
 
   martin:
     build: ./martin

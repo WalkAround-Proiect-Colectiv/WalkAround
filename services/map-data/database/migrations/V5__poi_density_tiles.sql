@@ -38,7 +38,7 @@ BEGIN
                 count(*)::integer AS point_count,
                 ST_SetSRID(ST_MakePoint(avg(ST_X(geom)), avg(ST_Y(geom))), 3857) AS geom
             FROM osm.features
-            WHERE z BETWEEN 10 AND 14 AND kind = 'poi' AND geom && bounds
+            WHERE z BETWEEN 10 AND 14 AND kind = 'poi' AND minzoom <= z AND geom && bounds
             GROUP BY floor(ST_X(geom) / cell_size), floor(ST_Y(geom) / cell_size)
         ) AS grouped_pois
     ) AS tile

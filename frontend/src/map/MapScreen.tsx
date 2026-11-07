@@ -9,6 +9,7 @@ import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
+import type { MapPoi } from './poi';
 import { useUserLocalization } from './userLocalization';
 import DangerousZoneButton from '../dangerous-zone/components/DangerousZoneButton';
 import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal';
@@ -124,6 +125,7 @@ export default function MapScreen() {
   const [mapReady, setMapReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [selectedPoi, setSelectedPoi] = useState<MapPoi | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [routeMode, setRouteMode] = useState(false);
@@ -131,7 +133,7 @@ export default function MapScreen() {
   const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
   const [activeRouteField, setActiveRouteField] = useState<string | null>(null);
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
-  const stopIdCounter = useRef(0);  
+  const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
@@ -244,14 +246,13 @@ export default function MapScreen() {
     features: []
   });
 
-const routePointsData = useMemo(() => {
-  const features: any[] = [];
-  if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
-  routeStops.forEach(stop => features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [stop.point.lng, stop.point.lat] }, properties: { type: 'stop' } }));
-  if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
-  return features.length > 0 ? { type: 'FeatureCollection', features } : null;
-}, [routeStart, routeStops, routeEnd]);
-
+  const routePointsData = useMemo(() => {
+    const features: any[] = [];
+    if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
+    routeStops.forEach(stop => features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [stop.point.lng, stop.point.lat] }, properties: { type: 'stop' } }));
+    if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
+    return features.length > 0 ? { type: 'FeatureCollection', features } : null;
+  }, [routeStart, routeStops, routeEnd]);
   useEffect(() => {
     if (!style) return;
     async function loadZones() {
@@ -271,12 +272,12 @@ const routePointsData = useMemo(() => {
         });
       }
       catch (e) {
-        console.error("Could not load dangerous zones", e);
+        console.warn('Danger-zone overlays are unavailable; the map can still be used.', e);
       }
     }
     loadZones();
   }, [session, style]);
-  
+
   useEffect(() => {
     const wsBaseUrl = process.env.EXPO_PUBLIC_WS_URL?.trim();
     if (!wsBaseUrl) {
@@ -344,12 +345,10 @@ const routePointsData = useMemo(() => {
   useEffect(() => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(new DOMException('Map request timed out', 'TimeoutError')), 15000);
-    Promise.resolve().then(() => {
-      setLoading(true);
-      setMapReady(false);
-      setError(null);
-      setStyle(null);
-    });
+    setLoading(true);
+    setMapReady(false);
+    setError(null);
+    setStyle(null);
     fetch(MAP_STYLE_URL, { signal: controller.signal }).then(async response => {
       if (!response.ok) throw new Error('Style unavailable');
       const result = await response.json();
@@ -423,7 +422,7 @@ const routePointsData = useMemo(() => {
     setActiveRouteField(field => (field === id ? null : field));
   }
 
-  function handleMapClick(properties: any, coords?: [number, number]) {
+  function handleMapClick(zone: { intensity: number; categories: string[] } | null, coords?: [number, number]) {
     if (routeMode && activeRouteField && coords) {
       const point = { lng: coords[0], lat: coords[1] };
       if (activeRouteField === 'start') {
@@ -439,11 +438,20 @@ const routePointsData = useMemo(() => {
       }
       return;
     }
-    if (properties) {
-      setSelectedZoneInfo({ intensity: properties.intensity, categories: typeof properties.topCategories === 'string' ? JSON.parse(properties.topCategories) : properties.topCategories });
+    if (zone) {
+      setSelectedZoneInfo({ intensity: zone.intensity, categories: zone.categories });
     } else {
       setSelectedZoneInfo(null);
     }
+  }
+
+  function retryMap() {
+    setLoading(true);
+    setError(null);
+    setStyle(null);
+    setSelectedPoi(null);
+    setSelectedZoneInfo(null);
+    setAttempt(value => value + 1);
   }
 
   function handleReportPress() {
@@ -451,6 +459,8 @@ const routePointsData = useMemo(() => {
       router.push('/login');
       return;
     }
+    setSelectedPoi(null);
+    setSelectedZoneInfo(null);
     setIsSelectingLocation(true);
   }
 
@@ -475,6 +485,7 @@ const routePointsData = useMemo(() => {
     routePointsData={routePointsData}
     onMove={setCamera}
     onCoordinateSelect={handleMapCoordinateSelect}
+    onPoiSelect={setSelectedPoi}
     onReady={() => {
       setLoading(false);
       setMapReady(true);
@@ -601,9 +612,21 @@ const routePointsData = useMemo(() => {
         <Tool label="My location" icon={LocateFixed} disabled={!style || loading || locating} onPress={locate} />
       </View>
       {displayedError && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{displayedError}</Text>
-        {error && <Tool label="Retry map" icon={RotateCcw} onPress={() => setAttempt(value => value + 1)} />}
+  {error && <Tool label="Retry map" icon={RotateCcw} onPress={retryMap} />}
       </View>}
     </View>
+    {selectedPoi && <View style={styles.poiDetails}>
+      <View style={styles.poiHeading}>
+        <Text accessibilityRole="header" style={styles.poiName}>{selectedPoi.name}</Text>
+        <Tool label="Close place details" icon={X} onPress={() => setSelectedPoi(null)} />
+      </View>
+      <ScrollView style={styles.poiDescription}>
+        <Text style={styles.poiCategory}>{selectedPoi.category}</Text>
+        {!!selectedPoi.sources && <Text style={styles.poiMetadata}>{selectedPoi.sources}</Text>}
+        {!!selectedPoi.attribution && <Text style={styles.poiMetadata}>{selectedPoi.attribution}</Text>}
+        {!!selectedPoi.licenses && <Text style={styles.poiMetadata}>{selectedPoi.licenses}</Text>}
+      </ScrollView>
+    </View>}
 
     <View style={[styles.searchArea, compactSearchLayout ? styles.searchAreaCompact : null,
       compactSearchLayout && mobileSearchExpanded ? styles.searchAreaExpanded : null, compactSearchLayout ? {
@@ -715,11 +738,10 @@ const routePointsData = useMemo(() => {
       {isSelectingLocation ? (
           <View style={styles.actionButtonsRow}>
             <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
-            <Pressable style={styles.confirmButton} onPress={() => { setReportLocation({ lat: camera.center[1], lng: camera.center[0] }); setIsSelectingLocation(false); setZoneModalVisible(true); }}><Text style={styles.confirmText}>Confirm Location</Text></Pressable>
+            <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}><Text style={styles.confirmText}>Confirm Location</Text></Pressable>
           </View>
-      ) : (!routeMode && <DangerousZoneButton onPress={() => session ? setIsSelectingLocation(true) : router.push('/login')} />)}
+      ) : (!routeMode && <DangerousZoneButton onPress={handleReportPress} />)}
     </View>
-
     {reportLocation && (
         <DangerousZoneModal
             visible={zoneModalVisible}
@@ -757,6 +779,12 @@ const styles = StyleSheet.create({
   loading: { position: 'absolute', top: 18, left: 76, backgroundColor: '#ffffff', padding: 12, borderRadius: 6 },
   error: { position: 'absolute', left: 12, right: 12, bottom: 44, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#ff0000', borderRadius: 6 },
   errorText: { flex: 1, color: '#a60000', fontSize: 14 },
+  poiDetails: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
+  poiHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  poiName: { flex: 1, fontSize: 18, fontWeight: '600', color: '#363d47' },
+  poiDescription: { maxHeight: 110 },
+  poiCategory: { color: '#0065EB', fontSize: 14, marginBottom: 6, textTransform: 'capitalize' },
+  poiMetadata: { color: '#626b78', fontSize: 12, lineHeight: 18 },
   coordinateBadge: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center',
     gap: 6, paddingHorizontal: 11, paddingVertical: 8, borderRadius: 18, backgroundColor: '#fff',
     borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14,

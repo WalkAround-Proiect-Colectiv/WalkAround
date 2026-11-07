@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
+import { selectMapHit } from './poi';
 
 export default function MapCanvas({
   ref,
@@ -18,6 +19,7 @@ export default function MapCanvas({
   onReady,
   onError,
   onMove,
+  onPoiSelect,
   onPress,
   onCoordinateSelect,
 }: MapCanvasProps) {
@@ -29,7 +31,10 @@ export default function MapCanvas({
   const ready = useEffectEvent(onReady);
   const failed = useEffectEvent(onError);
   const moved = useEffectEvent(onMove);
-  const pressed = useEffectEvent((props: any, coords?: [number, number]) => onPress && onPress(props, coords));
+  const selected = useEffectEvent(onPoiSelect);
+  const coordinateSelected = useEffectEvent((coordinates: [number, number]) => onCoordinateSelect?.(coordinates));
+  const pressed = useEffectEvent((zone: Parameters<NonNullable<MapCanvasProps['onPress']>>[0]) => onPress?.(zone));
+  const currentZones = useEffectEvent(() => dangerousZonesData ?? { type: 'FeatureCollection' as const, features: [] });
   useImperativeHandle(ref, () => ({
     fitCoverage: () => { map.current?.fitBounds(ROMANIA_BOUNDS, { padding: 24, bearing: 0, pitch: 0, duration: 900 }); },
     goTo: position => { map.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }); },
@@ -52,7 +57,7 @@ export default function MapCanvas({
       if (!instance.getSource('dangerous-zones-source')) {
         instance.addSource('dangerous-zones-source', {
           type: 'geojson',
-          data: dangerousZonesData || { type: 'FeatureCollection', features: [] }
+          data: currentZones()
         });
       }
       if (!instance.getLayer('dangerous-zones-layer')) {
@@ -112,20 +117,18 @@ export default function MapCanvas({
       const center = instance.getCenter();
       moved({ center: [center.lng, center.lat], zoom: instance.getZoom() });
     });
-    instance.on('click', (e) => {
-      const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-      const features = instance.queryRenderedFeatures(e.point, {
-        layers: ['dangerous-zones-layer']
-      });
-      if (features.length > 0) {
-        pressed(features[0].properties);
-      } else {
-        pressed(null, coords);
-      }
+    instance.on('click', event => {
+      const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+      const poiFeatures = layers.length ? instance.queryRenderedFeatures([[event.point.x - 12, event.point.y - 12], [event.point.x + 12, event.point.y + 12]], { layers }) : [];
+      const zoneFeatures = instance.getLayer('dangerous-zones-layer')
+        ? instance.queryRenderedFeatures(event.point, { layers: ['dangerous-zones-layer'] }) : [];
+      const hit = selectMapHit(poiFeatures, zoneFeatures);
+      selected(hit.poi);
+      pressed(hit.zone, [event.lngLat.lng, event.lngLat.lat]);
     });
     instance.on('dblclick', event => {
       event.preventDefault();
-      onCoordinateSelect?.([event.lngLat.lng, event.lngLat.lat]);
+      coordinateSelected([event.lngLat.lng, event.lngLat.lat]);
     });
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
@@ -146,7 +149,7 @@ export default function MapCanvas({
         const src = map.current?.getSource(id) as GeoJSONSource | undefined;
         if (src && data) src.setData(data);
       };
-      updateSrc('dangerous-zones-source', dangerousZonesData);
+  updateSrc('dangerous-zones-source', dangerousZonesData ?? { type: 'FeatureCollection', features: [] });
       updateSrc('route-source', routeData || { type: 'FeatureCollection', features: [] });
       updateSrc('route-points-source', routePointsData || { type: 'FeatureCollection', features: [] });
     }
