@@ -98,7 +98,7 @@ function CalendarBody({ label, value, visible, description, onSelect, onClose, e
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 16 },
-  backdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(25, 33, 50, 0.45)' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(25, 33, 50, 0.45)' },
   card: { width: '100%', maxWidth: 380, backgroundColor: '#fff', borderRadius: 24, padding: 20, gap: 22 },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },

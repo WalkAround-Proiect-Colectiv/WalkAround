@@ -14,7 +14,7 @@ public class ApiCorsConfiguration {
         CorsConfiguration cors = new CorsConfiguration();
         cors.setAllowedOrigins(Stream.concat(login.allowedOrigins().stream(), registration.allowedOrigins().stream())
                 .filter(origin -> !origin.isBlank()).distinct().toList());
-        cors.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        cors.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         cors.setAllowedHeaders(List.of("Content-Type", "Authorization"));
         cors.setAllowCredentials(true);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

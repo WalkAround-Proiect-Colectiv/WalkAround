@@ -11,7 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 public class DangerousZoneProxyController
 {
     private final RestTemplate restTemplate = new RestTemplate();
-    @Value("${ROUTING_SERVICE_URL:http://localhost:8002}")
+    @Value("${app.routing-service.url}")
     private String routingServiceUrl;
 
     @PostMapping

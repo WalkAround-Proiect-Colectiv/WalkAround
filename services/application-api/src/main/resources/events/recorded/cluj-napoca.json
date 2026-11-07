@@ -1,0 +1,393 @@
+{
+ "recorded_at": "2026-11-05",
+ "source": "SerpApi google_events",
+ "events_results": [
+  {
+   "title": "THE RITE OF SPRING",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 8:00 PM"
+   },
+   "address": [
+    "The National Theatre Cluj-Napoca",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "The National Theatre Cluj-Napoca"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUAsAmuaonrGClSQyJmPcN7mbQmt-FLoWPFHCDes3sT2CW0vgC_1DXgf7eixGQQmlBKvgqgigYqaBP1qU",
+   "ticket_info": [
+    {
+     "source": "bilete.ro",
+     "link": "https://www.bilete.ro/the-rite-of-spring/"
+    }
+   ]
+  },
+  {
+   "title": "Papacito - HALLOWEEN College Fiesta @ FORM Space",
+   "date": {
+    "start_date": "Nov 5",
+    "when": "Nov 5, 11:00 PM"
+   },
+   "address": [
+    "Form Space",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Form Space"
+   },
+   "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSVshsqu5Vw6E6W4p5oynySf_QTcexqrdp4AZI9kG9GQfRrv_4XEAQH4tXzjpp4OitvM0brgdf8B5x0wl4",
+   "ticket_info": [
+    {
+     "source": "livetickets.ro",
+     "link": "https://www.livetickets.ro/bilete/papacito-college-fiesta-form-space-5"
+    }
+   ]
+  },
+  {
+   "title": "Aaron Sevilla",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 11:00 PM"
+   },
+   "address": [
+    "Club NOA",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Club NOA"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTrho1TcQQbIImWOLP93M7F5bNfGcqbTBqfB2nRFTWtErNSTw5CwsYiyvCB3jhBwrYPeOl2bjNTBRN8QTM",
+   "ticket_info": [
+    {
+     "source": "bandsintown.com",
+     "link": "https://www.bandsintown.com/e/108955810?app_id=ggl_feed&came_from=289&utm_medium=web&utm_source=ggl_feed&utm_campaign=event"
+    }
+   ]
+  },
+  {
+   "title": "15th Transilvania Salsa Fest",
+   "date": {
+    "start_date": "Nov 19",
+    "when": "Nov 19, 7:00 PM"
+   },
+   "address": [
+    "Grand Hotel Napoca",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Grand Hotel Napoca"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQvZ9jzUpXCw_m_CEicD8-B-ewcvjYx9np12ihrcHw1zeYIOfvpYjXwtdNF1wfZ4eAjsOnddyAkPSsJP8",
+   "ticket_info": [
+    {
+     "source": "salsero.es",
+     "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es"
+    }
+   ]
+  },
+  {
+   "title": "Make Friends in Cluj (International Social Hangout) #137",
+   "date": {
+    "start_date": "Nov 7",
+    "when": "Nov 7, 8:30 PM"
+   },
+   "address": [
+    "VIBE OffSeason",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "VIBE OffSeason"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcRoOgCNppwV81F7WI1KEBO4fBCIunxelzqpL1XC4l6rZZ3hkm05eXaVzQseGUg2yvhZRyrU-vpogckEWwQ",
+   "ticket_info": [
+    {
+     "source": "facebook.com",
+     "link": "https://m.facebook.com/event_invite/9RumaKGYK/"
+    }
+   ]
+  },
+  {
+   "title": "HEART SOCIETY❌LUIS GABRIEL 👠MAKE THE GIRLS DANCE",
+   "date": {
+    "start_date": "Nov 13",
+    "when": "Nov 13, 10:00 PM"
+   },
+   "address": [
+    "Club NOA",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Club NOA"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5aa7f33ee254195cf9d/images/jmyTYFlwT_NhodLqvO8qegPEPAve0U1XiWrJemimoDI.jpg"
+  },
+  {
+   "title": "Cult of Hullabaloo: X-mess | Drag Show + Live Rock Concert",
+   "date": {
+    "start_date": "Nov 15",
+    "when": "Nov 15, 6:00 PM"
+   },
+   "address": [
+    "Flying Circus",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Flying Circus"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcQwRO0FFKsNvplAt5vk_4nTzds29LRHPNnOHxpE49m829G1x3dBzNyucN8Yq4NKiMN_IPdIav4XHDaSuUI",
+   "ticket_info": [
+    {
+     "source": "iabilet.ro",
+     "link": "https://m.iabilet.ro/bilete-cluj-napoca-cult-of-hullabaloo-x-mess-drag-show-live-rock-concert-133858/?ica_source=TownPage&ica_medium=mobile&ica_campaign=cluj-napoca&ica_term="
+    }
+   ]
+  },
+  {
+   "title": "Candlelight: Omagiu pentru Hans Zimmer",
+   "date": {
+    "start_date": "Nov 21",
+    "when": "Nov 21, 7:00 PM"
+   },
+   "address": [
+    "Gheorghe Dima National Music Academy",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Gheorghe Dima National Music Academy"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ8-51NmRCePFvR7O5UpBOQ0qaVj8bB664fogtlSJblsUD9qraStcjEJsiOm42x0XWEpSseXnuIoO2PTW8",
+   "ticket_info": [
+    {
+     "source": "musicofourdesire.com",
+     "link": "https://events.musicofourdesire.com/nl/event/lzsa-candlelight-omagiu-pentru-hans-zimmer-concert-cluj-napoca-romania"
+    }
+   ]
+  },
+  {
+   "title": "Roots- ritm și dans african- prezență în corp, vitalitate în mișcare",
+   "date": {
+    "start_date": "Nov 13",
+    "when": "Nov 13, 8:00 PM"
+   },
+   "address": [
+    "Caliente Dance Studio",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Caliente Dance Studio"
+   },
+   "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTFPWeEy91_MSaw3TvYtwa0pt0jIhf8HS4QGyXwdIK80qINhYZcyhP0pKi4F5qe0qjcV-_XXIA_my4CjJA",
+   "ticket_info": [
+    {
+     "source": "musicofourdesire.com",
+     "link": "https://events.musicofourdesire.com/el/event/agmg-roots-ritm-si-dans-african-prezenta-in-corp-vitalitate-in-miscare-festival-cluj-napoca-romania"
+    }
+   ]
+  },
+  {
+   "title": "THE RITE OF SPRING",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 8:00 PM"
+   },
+   "address": [
+    "The National Theatre Cluj-Napoca",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "The National Theatre Cluj-Napoca"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUAsAmuaonrGClSQyJmPcN7mbQmt-FLoWPFHCDes3sT2CW0vgC_1DXgf7eixGQQmlBKvgqgigYqaBP1qU",
+   "ticket_info": [
+    {
+     "source": "bilete.ro",
+     "link": "https://www.bilete.ro/the-rite-of-spring/"
+    }
+   ]
+  },
+  {
+   "title": "STUDIO L. at Flying Circus",
+   "date": {
+    "start_date": "Nov 7",
+    "when": "Nov 7, 10:00 PM"
+   },
+   "address": [
+    "Flying Circus",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Flying Circus"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcQsS_nCpCCY7LrbyIK58-wJSHFL4QdQllLKK0MV08jyi2fmy2r9KRmvVdSAFloEABj7SQsnYEwqAP50Jpo",
+   "ticket_info": [
+    {
+     "source": "bear.menu",
+     "link": "https://bear.menu/en/cluj-napoca/events/e/studio-l-at-flying-circus-a200e058-de30-4597-aaf9-b2aa2ae23a09"
+    }
+   ]
+  },
+  {
+   "title": "Papacito - HALLOWEEN College Fiesta @ FORM Space",
+   "date": {
+    "start_date": "Nov 5",
+    "when": "Nov 5, 11:00 PM"
+   },
+   "address": [
+    "Form Space",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Form Space"
+   },
+   "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSVshsqu5Vw6E6W4p5oynySf_QTcexqrdp4AZI9kG9GQfRrv_4XEAQH4tXzjpp4OitvM0brgdf8B5x0wl4",
+   "ticket_info": [
+    {
+     "source": "livetickets.ro",
+     "link": "https://www.livetickets.ro/bilete/papacito-college-fiesta-form-space-5"
+    }
+   ]
+  },
+  {
+   "title": "Aaron Sevilla",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 11:00 PM"
+   },
+   "address": [
+    "Club NOA",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Club NOA"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTrho1TcQQbIImWOLP93M7F5bNfGcqbTBqfB2nRFTWtErNSTw5CwsYiyvCB3jhBwrYPeOl2bjNTBRN8QTM",
+   "ticket_info": [
+    {
+     "source": "bandsintown.com",
+     "link": "https://www.bandsintown.com/e/108955810?app_id=ggl_feed&came_from=289&utm_medium=web&utm_source=ggl_feed&utm_campaign=event"
+    }
+   ]
+  },
+  {
+   "title": "Cluj-Napoca: Piazzolla Tango Night ( Recital de tango argentinian )",
+   "date": {
+    "start_date": "Nov 7",
+    "when": "Nov 7, 7:00 PM"
+   },
+   "address": [
+    "Ethnographical Museum of Transylvania",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Ethnographical Museum of Transylvania"
+   },
+   "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcRgW8XF7nAuN5K1ac-yRfzVHiMdUqVQShdfDW332781jKpevAP0dm8Kg-pFFo7Y15DjfNNGVW0mofoebvA",
+   "ticket_info": [
+    {
+     "source": "iabilet.ro",
+     "link": "https://m.iabilet.ro/bilete-cluj-napoca-piazzolla-tango-night-recital-de-tango-argentinian-131223/"
+    }
+   ]
+  },
+  {
+   "title": "15th Transilvania Salsa Fest",
+   "date": {
+    "start_date": "Nov 19",
+    "when": "Nov 19, 7:00 PM"
+   },
+   "address": [
+    "Grand Hotel Napoca",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Grand Hotel Napoca"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQvZ9jzUpXCw_m_CEicD8-B-ewcvjYx9np12ihrcHw1zeYIOfvpYjXwtdNF1wfZ4eAjsOnddyAkPSsJP8",
+   "ticket_info": [
+    {
+     "source": "salsero.es",
+     "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es"
+    }
+   ]
+  },
+  {
+   "title": "Le Petit ☆ Día de los Muertos ☆ 06.11.2026 Mina Museum Cluj",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 9:00 PM"
+   },
+   "address": [
+    "MINA Cluj",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "MINA Cluj"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcQF_nhulW2GPnvUwQffrWx6Z8wopAyKTCZn5MnKRFKqiyKDY0y7Tqy9T7OsSQRtlH8dUbWNqC0svtLkBEY",
+   "ticket_info": [
+    {
+     "source": "livetickets.ro",
+     "link": "https://www.livetickets.ro/bilete/le-petit-dia-de-los-muertos-06112026-mina-museum-cluj"
+    }
+   ]
+  },
+  {
+   "title": "Drum and Bass with DJ Cate at Café del Mars",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 9:00 PM"
+   },
+   "address": [
+    "Cafe del Mars",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Cafe del Mars"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRtYC6L0Dkg00pElCYQCbSiVeFob5I6nhaowVlNiXTpnr5B-zIGGUv_cP2PHJ73UkZaIHtF-6BOsZXGDsM",
+   "ticket_info": [
+    {
+     "source": "bear.menu",
+     "link": "https://bear.menu/en/cluj-napoca/events/e/drum-and-bass-with-dj-cate-at-cafe-del-mars-7f118da0-71d7-42f3-96bd-1825b0ec2ec2"
+    }
+   ]
+  },
+  {
+   "title": "B.Love, Hani & Lowelt at Atelier Café",
+   "date": {
+    "start_date": "Nov 7",
+    "when": "Nov 7, 9:00 PM"
+   },
+   "address": [
+    "Atelier",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Atelier"
+   },
+   "thumbnail": "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSPklT9WaNqeeqjydFN38iGGtAmFYvQ_nNWLscTAsWWOGpJqr5qotocJGSg4xU8RCJ8I06-g2G-Qky7TXA",
+   "ticket_info": [
+    {
+     "source": "musicofourdesire.com",
+     "link": "https://events.musicofourdesire.com/de/event/wctg-b-love-hani-lowelt-event-cluj-napoca-romania"
+    }
+   ]
+  },
+  {
+   "title": "HEART SOCIETY❌LUIS GABRIEL 👠MAKE THE GIRLS DANCE",
+   "date": {
+    "start_date": "Nov 13",
+    "when": "Nov 13, 10:00 PM"
+   },
+   "address": [
+    "Club NOA",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Club NOA"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb97592b329e98e848c07/images/I0i0UsTW-zZ_62Wt57niEtBVLtnFepC8YQ5qUOGYzMA.jpg"
+  }
+ ]
+}

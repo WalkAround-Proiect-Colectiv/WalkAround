@@ -35,4 +35,17 @@ public class User {
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
+
+    public void updateProfile(String username, String firstName, String lastName, String description) {
+        this.username = username;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.description = description;
+        this.updatedAt = Instant.now();
+    }
+
+    public void updatePicture(String url) {
+        this.profilePictureUrl = url;
+        this.updatedAt = Instant.now();
+    }
 }

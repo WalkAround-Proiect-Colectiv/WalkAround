@@ -85,6 +85,50 @@ export interface DestinationSafety {
   conflictsPartial: boolean;
 }
 
+export interface WeatherDay {
+  date: string;
+  weatherCode: number | null;
+  temperatureMaxC: number | null;
+  temperatureMinC: number | null;
+  precipitationProbabilityPercent: number | null;
+  precipitationMm: number | null;
+  windSpeedMaxKmh: number | null;
+}
+
+export interface DestinationWeather {
+  city: string;
+  country: string;
+  countryCode: string;
+  timezone: string;
+  days: WeatherDay[];
+}
+
+export interface HistoricalWeatherDay {
+  date: string;
+  weatherCode: number | null;
+  temperatureMaxC: number | null;
+  temperatureMinC: number | null;
+  precipitationMm: number | null;
+  windSpeedMaxKmh: number | null;
+}
+
+export interface HistoricalWeatherYear {
+  year: number;
+  startDate: string;
+  endDate: string;
+  days: HistoricalWeatherDay[];
+}
+
+export interface HistoricalWeather {
+  city: string;
+  country: string;
+  countryCode: string;
+  timezone: string;
+  checkInDate: string;
+  stayingNights: number;
+  years: HistoricalWeatherYear[];
+}
+
 export interface HotlineNumber {
   value: string;
   type: 'voice' | 'sms' | 'text' | 'short_code';
@@ -117,6 +161,18 @@ export interface CountryHotline {
 export interface CountryHotlines {
   countryCode: string;
   hotlines: CountryHotline[];
+}
+
+export interface NewsArticle {
+  id: string | null;
+  title: string;
+  description: string | null;
+  url: string;
+  imageUrl: string | null;
+  author: string | null;
+  language: string | null;
+  categories: string[];
+  publishedAt: string | null;
 }
 
 export type PlaceCategory = 'attractions' | 'restaurants' | 'museums' | 'coffee-shops';
@@ -278,8 +334,29 @@ export function getDestinationSafety(city: CitySuggestion): Promise<DestinationS
   return send(`/api/trip-plans/cities/${name}/safety?countryCode=${country}`);
 }
 
+export function getDestinationWeather(city: CitySuggestion): Promise<DestinationWeather> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/weather?countryCode=${country}`);
+}
+
+export function getHistoricalWeather(
+  city: CitySuggestion, checkInDate: string, stayingNights: number,
+): Promise<HistoricalWeather> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  const date = encodeURIComponent(checkInDate);
+  return send(`/api/trip-plans/cities/${name}/historical-weather?countryCode=${country}&checkInDate=${date}&stayingNights=${stayingNights}`);
+}
+
 export function getCountryHotlines(countryCode: string): Promise<CountryHotlines> {
   return send(`/api/trip-plans/countries/${encodeURIComponent(countryCode)}/hotlines`);
+}
+
+export function getCityNews(city: CitySuggestion): Promise<NewsArticle[]> {
+  const name = encodeURIComponent(city.lookupName || city.name);
+  const country = encodeURIComponent(city.countryCode);
+  return send(`/api/trip-plans/cities/${name}/news?countryCode=${country}`);
 }
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {

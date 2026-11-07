@@ -35,15 +35,16 @@ public class TravelRiskSafetyInformationProvider implements SafetyInformationPro
             @Qualifier("travelRiskRestClient") RestClient restClient,
             SafetyInformationProperties properties
     ) {
-        if (properties.travelRiskApiKey() == null || properties.travelRiskApiKey().isBlank()) {
-            throw new IllegalArgumentException("TRAVEL_RISK_API_KEY must be configured");
-        }
         this.restClient = restClient;
         this.properties = properties;
     }
 
     @Override
     public DestinationSafetyResponse fetch(Location location) {
+        if (properties.travelRiskApiKey() == null || properties.travelRiskApiKey().isBlank()) {
+            log.warn("Travel Risk API key is not configured");
+            throw new SafetyInformationUnavailableException("Safety information is temporarily unavailable");
+        }
         AdvisoryListResponse advisories = get("advisories", location.countryCode(), false, AdvisoryListResponse.class);
         AlertListResponse alerts = get("alerts", location.countryCode(), true, AlertListResponse.class);
         ConflictListResponse conflicts = get("conflicts", location.countryCode(), true, ConflictListResponse.class);

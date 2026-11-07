@@ -37,3 +37,9 @@ logging:
   level:
     root: info
 
+app:
+  notifications:
+    signing-secret: ${JWT_SIGNING_SECRET:}
+    issuer: ${JWT_ISSUER:walkaround}
+    audience: ${JWT_AUDIENCE:walkaround-api}
+    reminder-topic: ${EVENTS_REMINDER_TOPIC:event-reminders-topic}

@@ -16,7 +16,8 @@ test('the self-hosted style is valid and references only local map resources', a
   assert.equal(style.sources.basemap.maxzoom, 15);
   assert.ok(style.layers.every(layer => !layer.source || layer['source-layer'] === (layer.source === 'pois' ? 'pois' : 'features')));
   assert.deepEqual(style.sources.pois.tiles, ['/tiles/pois/{z}/{x}/{y}']);
-  assert.ok(style.layers.filter(layer => layer.id.startsWith('poi-')).every(layer => layer.source === 'pois'));
+  assert.ok(style.layers.filter(layer => ['poi-dot', 'poi-label'].includes(layer.id)).every(layer => layer.source === 'pois'));
+  assert.ok(style.layers.filter(layer => ['poi-cluster', 'poi-cluster-count'].includes(layer.id)).every(layer => layer.source === 'basemap'));
   assert.ok(style.layers.every(layer => !['hillshade', 'fill-extrusion', 'raster'].includes(layer.type)));
 });
 
@@ -69,4 +70,11 @@ test('POI tile publication requires confirmed current approved sources and suppr
   assert.match(sql, /places\.published_osm_references/);
   assert.match(sql, /LIMIT 500/);
   assert.match(sql, /ST_Transform\(poi\.geom, 3857\)/);
+});
+
+test('POI density uses a later migration and publishes zoom-aware OSM clusters', async () => {
+  const sql = await read('../database/migrations/V5__poi_density_tiles.sql');
+  assert.match(sql, /z BETWEEN 10 AND 14/);
+  assert.match(sql, /'poi_cluster'/);
+  assert.match(sql, /point_count/);
 });
