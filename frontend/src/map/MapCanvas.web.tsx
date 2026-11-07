@@ -6,7 +6,21 @@ import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
 
-export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLACES[0].zoom,dangerousZonesData,routeData, routePointsData,onReady,onError,onMove,onPress,}: MapCanvasProps) {
+export default function MapCanvas({
+  ref,
+  style,
+  userLocation = null,
+  searchedLocation = null,
+  zoomLevel = PLACES[0].zoom,
+  dangerousZonesData,
+  routeData,
+  routePointsData,
+  onReady,
+  onError,
+  onMove,
+  onPress,
+  onCoordinateSelect,
+}: MapCanvasProps) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<Map | null>(null);
   const locationMarker = useRef<Marker | null>(null);
@@ -71,7 +85,24 @@ export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLA
       if (!instance.getSource('route-source')) instance.addSource('route-source', { type: 'geojson', data: routeData || { type: 'FeatureCollection', features: [] } });
       if (!instance.getLayer('route-layer')) instance.addLayer({ id: 'route-layer', type: 'line', source: 'route-source', paint: { 'line-color': '#9b59b6', 'line-width': 5 }});
       if (!instance.getSource('route-points-source')) instance.addSource('route-points-source', { type: 'geojson', data: routePointsData || { type: 'FeatureCollection', features: [] } });
-      if (!instance.getLayer('route-points-layer')) instance.addLayer({ id: 'route-points-layer', type: 'circle', source: 'route-points-source', paint: { 'circle-color': ['match', ['get', 'type'], 'start', '#0065EB', 'end', '#d93838', '#000'], 'circle-radius': 6, 'circle-stroke-width': 2, 'circle-stroke-color': '#fff' }});
+      if (!instance.getLayer('route-points-layer')) instance.addLayer({
+        id: 'route-points-layer',
+        type: 'circle',
+        source: 'route-points-source',
+        layout: {
+          'circle-sort-key': ['match', ['get', 'type'], 'stop', 2, 1]
+        },
+        paint: {
+          'circle-color': ['match', ['get', 'type'],
+            'start', '#0065EB',
+            'stop', '#9157a2',
+            'end', '#d93838',
+            '#000'],
+          'circle-radius': ['match', ['get', 'type'], 'stop', 4, 6],
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#fff'
+        }
+      });
       ready();
       setMapLoaded(true);
     });
@@ -91,6 +122,10 @@ export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLA
       } else {
         pressed(null, coords);
       }
+    });
+    instance.on('dblclick', event => {
+      event.preventDefault();
+      onCoordinateSelect?.([event.lngLat.lng, event.lngLat.lat]);
     });
     const observer = new ResizeObserver(() => instance.resize());
     observer.observe(container.current);
@@ -172,6 +207,24 @@ export default function MapCanvas({ref,style,userLocation = null,zoomLevel = PLA
     });
     marker.setLngLat(userLocation.coordinates);
   }, [userLocation, zoomLevel]);
-  return <div ref={container} className="walkaround-map" aria-label="Map of Romania"
-    style={{ position: 'absolute', inset: 0 }} />;
+useEffect(() => {
+    if (!map.current || !searchedLocation) return;
+
+    const marker = new Marker({ color: '#0065EB' })
+      .setLngLat(searchedLocation)
+      .addTo(map.current);
+
+    return () => {
+      marker.remove();
+    };
+  }, [searchedLocation]);
+
+  return (
+    <div
+      ref={container}
+      className="walkaround-map"
+      aria-label="Map of Romania"
+      style={{ position: 'absolute', inset: 0 }}
+    />
+  );
 }
