@@ -14,6 +14,8 @@ public record EventResponse(
         String whenText,
         String venueName,
         String address,
+        Double latitude,
+        Double longitude,
         String thumbnailUrl,
         List<TicketLinkDto> tickets,
         boolean interested,
@@ -25,8 +27,20 @@ public record EventResponse(
                 ? List.of()
                 : event.tickets().stream().map(TicketLinkDto::of).toList();
         return new EventResponse(
-                event.key(), localityKey, event.title(), event.startsAt(), event.allDay(), event.whenText(),
-                event.venueName(), event.address(), event.thumbnailUrl(), ticketDtos,
-                interest != null, interest == null ? null : interest.remindBeforeMinutes());
+                event.key(),
+                localityKey,
+                event.title(),
+                event.startsAt(),
+                event.allDay(),
+                event.whenText(),
+                event.venueName(),
+                event.address(),
+                event.latitude(),
+                event.longitude(),
+                event.thumbnailUrl(),
+                ticketDtos,
+                interest != null,
+                interest == null ? null : interest.remindBeforeMinutes()
+        );
     }
 }

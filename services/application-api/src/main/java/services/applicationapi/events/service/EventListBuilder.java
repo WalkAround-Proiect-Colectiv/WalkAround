@@ -118,7 +118,9 @@ public final class EventListBuilder {
                 firstNotBlank(first.description(), second.description()),
                 firstNotBlank(first.eventUrl(), second.eventUrl()),
                 firstNotBlank(first.mapUrl(), second.mapUrl()),
-                mergeVenue(first.venue(), second.venue())
+                mergeVenue(first.venue(), second.venue()),
+                first.latitude() != null ? first.latitude() : second.latitude(),
+                first.longitude() != null ? first.longitude() : second.longitude()
         );
     }
 

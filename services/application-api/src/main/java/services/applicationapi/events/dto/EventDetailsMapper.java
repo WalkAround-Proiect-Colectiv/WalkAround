@@ -24,6 +24,8 @@ public class EventDetailsMapper {
                 details.past(),
                 details.description(),
                 details.address(),
+                details.latitude(),
+                details.longitude(),
                 toVenueDto(details.venue()),
                 details.imageUrl(),
                 details.eventUrl(),

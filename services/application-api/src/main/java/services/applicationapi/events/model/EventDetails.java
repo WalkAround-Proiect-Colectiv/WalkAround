@@ -15,6 +15,8 @@ public record EventDetails(
         boolean past,
         String description,
         String address,
+        Double latitude,
+        Double longitude,
         EventVenue venue,
         String imageUrl,
         String eventUrl,

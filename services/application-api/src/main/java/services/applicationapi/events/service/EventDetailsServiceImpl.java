@@ -10,12 +10,14 @@ import org.springframework.stereotype.Service;
 import services.applicationapi.events.configurations.EventsProperties;
 import services.applicationapi.events.dto.EnrichmentStatus;
 import services.applicationapi.events.model.CachedEvent;
+import services.applicationapi.events.model.EventCoordinates;
 import services.applicationapi.events.model.EventDetails;
 import services.applicationapi.events.model.EventInterest;
 import services.applicationapi.events.model.EventVenue;
 import services.applicationapi.events.model.TicketLink;
 import services.applicationapi.events.service.EventDetailsEnrichmentService.EnrichmentResult;
 import services.applicationapi.events.service.exceptions.EventNotFoundException;
+import services.applicationapi.events.service.locality.EventCoordinatesResolver;
 import services.applicationapi.events.service.source.RawEventDetails;
 
 @Service
@@ -24,6 +26,7 @@ public class EventDetailsServiceImpl implements EventDetailsService {
     private final EventsService eventsService;
     private final EventInterestService interestService;
     private final EventDetailsEnrichmentService enrichmentService;
+    private final EventCoordinatesResolver coordinatesResolver;
     private final EventsProperties properties;
     private final Clock clock;
 
@@ -31,12 +34,14 @@ public class EventDetailsServiceImpl implements EventDetailsService {
             EventsService eventsService,
             EventInterestService interestService,
             EventDetailsEnrichmentService enrichmentService,
+            EventCoordinatesResolver coordinatesResolver,
             EventsProperties properties,
             Clock eventsClock
     ) {
         this.eventsService = eventsService;
         this.interestService = interestService;
         this.enrichmentService = enrichmentService;
+        this.coordinatesResolver = coordinatesResolver;
         this.properties = properties;
         this.clock = eventsClock;
     }
@@ -123,6 +128,22 @@ public class EventDetailsServiceImpl implements EventDetailsService {
                 EventListBuilder.mergeVenue(cachedVenue, interestVenue)
         );
 
+        Double latitude = cached != null ? cached.latitude() : null;
+        Double longitude = cached != null ? cached.longitude() : null;
+        if (latitude == null || longitude == null) {
+            Optional<EventCoordinates> resolvedCoords = coordinatesResolver.resolve(
+                    localityNameFromKey(resolvedLocalityKey),
+                    venue != null ? venue.name() : null,
+                    address,
+                    null,
+                    null
+            );
+            if (resolvedCoords.isPresent()) {
+                latitude = resolvedCoords.get().latitude();
+                longitude = resolvedCoords.get().longitude();
+            }
+        }
+
         String imageUrl = firstNotBlank(
                 httpsOrNull(extra != null ? extra.imageUrl() : null),
                 httpsOrNull(cached != null ? cached.thumbnailUrl() : null),
@@ -165,6 +186,8 @@ public class EventDetailsServiceImpl implements EventDetailsService {
                 past,
                 description,
                 address,
+                latitude,
+                longitude,
                 venue,
                 imageUrl,
                 eventUrl,
@@ -175,6 +198,15 @@ public class EventDetailsServiceImpl implements EventDetailsService {
                 interest != null,
                 status
         );
+    }
+
+    private static String localityNameFromKey(String localityKey) {
+        if (localityKey == null || localityKey.isBlank()) {
+            return null;
+        }
+        int lastSlash = localityKey.lastIndexOf('/');
+        String tail = lastSlash >= 0 ? localityKey.substring(lastSlash + 1) : localityKey;
+        return tail.replace('-', ' ').strip();
     }
 
     private static String firstNotBlank(String first, String second, String third) {

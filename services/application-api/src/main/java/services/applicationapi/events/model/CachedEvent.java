@@ -23,8 +23,46 @@ public record CachedEvent(
         String description,
         String eventUrl,
         String mapUrl,
-        EventVenue venue
+        EventVenue venue,
+        Double latitude,
+        Double longitude
 ) {
+
+    public CachedEvent(
+            String key,
+            String title,
+            Instant startsAt,
+            boolean allDay,
+            String whenText,
+            String venueName,
+            String address,
+            String thumbnailUrl,
+            List<TicketLink> tickets,
+            String detailsToken,
+            String description,
+            String eventUrl,
+            String mapUrl,
+            EventVenue venue
+    ) {
+        this(
+                key,
+                title,
+                startsAt,
+                allDay,
+                whenText,
+                venueName,
+                address,
+                thumbnailUrl,
+                tickets,
+                detailsToken,
+                description,
+                eventUrl,
+                mapUrl,
+                venue,
+                null,
+                null
+        );
+    }
 
     public CachedEvent(
             String key,
@@ -52,7 +90,30 @@ public record CachedEvent(
                 null,
                 null,
                 null,
-                venueName == null || venueName.isBlank() ? null : new EventVenue(venueName, null, null, null)
+                venueName == null || venueName.isBlank() ? null : new EventVenue(venueName, null, null, null),
+                null,
+                null
+        );
+    }
+
+    public CachedEvent withCoordinates(Double resolvedLatitude, Double resolvedLongitude) {
+        return new CachedEvent(
+                key,
+                title,
+                startsAt,
+                allDay,
+                whenText,
+                venueName,
+                address,
+                thumbnailUrl,
+                tickets,
+                detailsToken,
+                description,
+                eventUrl,
+                mapUrl,
+                venue,
+                resolvedLatitude,
+                resolvedLongitude
         );
     }
 }
