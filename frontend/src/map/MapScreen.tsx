@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -76,6 +76,8 @@ function decodePolyline(str: string, precision = 6) {
 }
 
 export default function MapScreen() {
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
+  const compactSearchLayout = windowWidth < 600;
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const map = useRef<MapHandle>(null);
@@ -568,30 +570,40 @@ const routePointsData = useMemo(() => {
       </View>}
     </View>
 
-    <View style={styles.searchArea}>
+    <View style={[styles.searchArea, compactSearchLayout && styles.searchAreaCompact, {
+      top: Math.max(insets.top, 12) + 1,
+      maxHeight: compactSearchLayout ? Math.max(180, Math.min(360, windowHeight - Math.max(insets.top, 12) - 100)) : undefined,
+    }]}>
       <View style={styles.searchRow}>
+        <Search size={19} color="#0065EB" style={styles.searchIcon} />
         <TextInput
           accessibilityLabel="Search coordinates or places"
           accessibilityHint="Enter latitude and longitude, or a place name, then press Enter"
           value={coordinateQuery}
           onChangeText={value => { setCoordinateQuery(value); setCoordinateError(null); setPoiResults([]); }}
           onSubmitEditing={searchCoordinates}
-          placeholder="Coordinates or place / POI name"
-          placeholderTextColor="#788493"
+          placeholder="Search places or coordinates"
+          placeholderTextColor="#8491a2"
           returnKeyType="search"
           editable
           autoCapitalize="none"
           autoCorrect={false}
           style={styles.searchInput}
         />
-        {searchingPoi ? <ActivityIndicator size="small" color="#0065EB" style={styles.searchSpinner} /> : searchedLocation && <Pressable
+        {searchingPoi ? <ActivityIndicator size="small" color="#0065EB" style={styles.searchSpinner} /> : (searchedLocation || coordinateQuery.length > 0) && <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Remove map marker"
+          accessibilityLabel={searchedLocation ? 'Clear search and remove map marker' : 'Clear search'}
           onPress={() => { setSearchedLocation(null); setCoordinateQuery(''); setPoiResults([]); setCoordinateError(null); }}
           style={styles.clearMarkerButton}
         ><X size={20} color="#0065EB" /></Pressable>}
       </View>
       {poiResults.length > 0 && <View style={styles.poiResults}>
+        <ScrollView
+          style={styles.poiResultsList}
+          keyboardShouldPersistTaps="always"
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+        >
         {poiResults.map((result, index) => <Pressable
           key={`${result.name}-${result.coordinates[0]}-${result.coordinates[1]}-${index}`}
           accessibilityRole="button"
@@ -607,6 +619,7 @@ const routePointsData = useMemo(() => {
             {!!result.detail && <Text numberOfLines={1} style={styles.poiResultDetail}>{result.detail}</Text>}
           </View>
         </Pressable>)}
+        </ScrollView>
         <Text style={styles.poiAttribution}>Place search by Photon · © OpenStreetMap contributors</Text>
       </View>}
       {coordinateError && <Text accessibilityRole="alert" style={styles.coordinateError}>{coordinateError}</Text>}
@@ -690,18 +703,21 @@ const styles = StyleSheet.create({
   closeInfoButton: { marginTop: 12, paddingVertical: 8 },
   closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 },
 
-  searchArea: { position: 'absolute', top: 16, left: 70, right: 70, zIndex: 10 },
-  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#dce2e9', paddingHorizontal: 12, minHeight: 48, elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
-  searchInput: { flex: 1, height: 48, color: '#263241', fontSize: 15 },
+  searchArea: { position: 'absolute', left: 70, right: 70, zIndex: 20 },
+  searchAreaCompact: { left: 68, right: 68 },
+  searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', paddingHorizontal: 15, minHeight: 54, elevation: 5, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  searchIcon: { marginRight: 11, flexShrink: 0 },
+  searchInput: { flex: 1, flexShrink: 1, minWidth: 0, height: 52, color: '#263241', fontSize: 15 },
   searchSpinner: { marginLeft: 8 },
-  clearMarkerButton: { padding: 4, marginLeft: 4 },
-  poiResults: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 1, borderColor: '#dce2e9', marginTop: 6, paddingVertical: 4, maxHeight: 220, elevation: 4, shadowColor: '#14243f', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 3 } },
-  poiResult: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 10 },
+  clearMarkerButton: { width: 32, height: 32, flexShrink: 0, marginLeft: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#f1f5f9' },
+  poiResults: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', marginTop: 8, paddingTop: 5, maxHeight: 280, overflow: 'hidden', elevation: 8, shadowColor: '#14243f', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
+  poiResultsList: { flexShrink: 1, maxHeight: 230 },
+  poiResult: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 11 },
   poiResultBorder: { borderTopWidth: 1, borderTopColor: '#edf0f3' },
-  poiResultText: { flex: 1 },
+  poiResultText: { flex: 1, minWidth: 0 },
   poiResultName: { fontSize: 15, fontWeight: '600', color: '#263241' },
   poiResultDetail: { fontSize: 13, color: '#758091', marginTop: 2 },
-  poiAttribution: { fontSize: 10, color: '#9aa3ae', textAlign: 'center', paddingVertical: 6, fontStyle: 'italic' },
+  poiAttribution: { fontSize: 10, color: '#8793a2', textAlign: 'center', paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#edf0f3' },
   coordinateError: { backgroundColor: '#ffe5e5', color: '#a60000', padding: 10, borderRadius: 8, marginTop: 6, fontSize: 13, borderWidth: 1, borderColor: '#ff0000' },
   routeOverlay: {
     position: 'absolute',
