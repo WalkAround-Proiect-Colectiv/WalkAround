@@ -15,6 +15,9 @@ import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal'
 import { cellToBoundary } from 'h3-js';
 import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
 import { environment } from '../config/environment';
+import { authenticatedRequest } from '../login/api/session';
+import { jsonPost } from '../login/api/http';
+import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
 
 type LatLng = { lat: number; lng: number };
 type RouteStop = { id: string; point: LatLng };
@@ -75,6 +78,21 @@ function decodePolyline(str: string, precision = 6) {
   return coordinates;
 }
 
+function calculateBearing(startLat: number, startLng: number, destLat: number, destLng: number) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const startLatRad = toRad(startLat);
+  const startLngRad = toRad(startLng);
+  const destLatRad = toRad(destLat);
+  const destLngRad = toRad(destLng);
+
+  const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+  const x = Math.cos(startLatRad) * Math.sin(destLatRad) - Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
+
+  const bearing = toDeg(Math.atan2(y, x));
+  return (bearing + 360) % 360;
+}
+
 export default function MapScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const compactSearchLayout = windowWidth < 600;
@@ -133,6 +151,9 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);  
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [showSavedRoutes, setShowSavedRoutes] = useState(false);
+  const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const locateRef = useRef(locate);
@@ -182,6 +203,54 @@ export default function MapScreen() {
     }
     immediatePoiQuery.current = query;
     setPoiSearchNonce(value => value + 1);
+  }
+
+  async function handlePauseAndSaveRoute() {
+    setIsNavigating(false);
+    map.current?.resetNorth();
+    if (!session || !routeStart || !routeEnd) return;
+    try {
+      const payload = {
+        startLat: routeStart.lat,
+        startLng: routeStart.lng,
+        endLat: routeEnd.lat,
+        endLng: routeEnd.lng
+      };
+      if (activeSavedRouteId)
+      {
+        await authenticatedRequest(`/api/v1/saved-routes/${activeSavedRouteId}`, {
+          ...jsonPost(payload),
+          method: 'PUT'
+        });
+        console.log('Route successfully updated!');
+      }
+      else
+      {
+        await authenticatedRequest('/api/v1/saved-routes', jsonPost(payload));
+        console.log('New route successfully saved!');
+      }
+
+    } catch (err) {
+      console.error('Error saving/updating route:', err);
+    }
+  }
+
+  function handleResumeSavedRoute(destination: { lat: number; lng: number }, routeId: number)
+  {
+    setShowSavedRoutes(false);
+    setRouteMode(true);
+    setActiveSavedRouteId(routeId);
+    if (userLocation)
+    {
+      setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+      map.current?.goTo({ center: [userLocation.coordinates[0], userLocation.coordinates[1]], zoom: 15 });
+    }
+    else
+    {
+      setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
+    }
+    setRouteEnd(destination);
+    setActiveRouteField(null);
   }
 
   function handleMapCoordinateSelect([longitude, latitude]: [number, number]) {
@@ -495,7 +564,7 @@ const routePointsData = useMemo(() => {
           </View>
       )}
 
-      {routeMode && (
+      {routeMode && !isNavigating && (
           <View style={[styles.routeOverlay, { top: Math.max(insets.top, 12) + 64 }]}>
             <Text style={styles.routeOverlayTitle}>Plan your route</Text>
 
@@ -535,15 +604,34 @@ const routePointsData = useMemo(() => {
             </Pressable>
 
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteStops([]); setRouteGeoJSON(null); }}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setIsNavigating(false); setActiveSavedRouteId(null);}}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
+
               {routeGeoJSON && (
-                  <Pressable style={styles.routeStartBtn} onPress={() => console.log('Start navigation task coming next')}>
+                  <Pressable style={styles.routeStartBtn} onPress={() => {
+                    if (routeStart && routeGeoJSON?.geometry?.coordinates?.length > 1) {
+                      const nextPoint = routeGeoJSON.geometry.coordinates[1];
+                      const initialBearing = calculateBearing(routeStart.lat, routeStart.lng, nextPoint[1], nextPoint[0]);
+                      setIsNavigating(true);
+                      map.current?.startNavigation([routeStart.lng, routeStart.lat], initialBearing);
+                    }
+                  }}>
                     <Text style={styles.routeStartText}>Start</Text>
                   </Pressable>
               )}
             </View>
+          </View>
+      )}
+
+      {isNavigating && (
+          <View style={styles.navigatingOverlay} pointerEvents="box-none">
+            <Pressable
+                accessibilityRole="button"
+                style={styles.pauseRouteBtn}
+                onPress={handlePauseAndSaveRoute}>
+              <Text style={styles.pauseRouteText}>Pause Route</Text>
+            </Pressable>
           </View>
       )}
 
@@ -579,6 +667,14 @@ const routePointsData = useMemo(() => {
           }} style={styles.menuItem}>
             <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
           </Pressable>
+          {session && (
+              <Pressable accessibilityRole="button" onPress={() => {
+                setMenuOpen(false);
+                setShowSavedRoutes(true);
+              }} style={styles.menuItem}>
+                <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>My Routes</Text>
+              </Pressable>
+          )}
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
             // The map centre is the fallback position when location access is unavailable.
@@ -739,6 +835,13 @@ const routePointsData = useMemo(() => {
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
       {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
     </View>
+    {session && (
+        <SavedRoutesModal
+            visible={showSavedRoutes}
+            onClose={() => setShowSavedRoutes(false)}
+            onSelectRoute={handleResumeSavedRoute}
+        />
+    )}
   </View>;
 }
 
@@ -834,4 +937,7 @@ const styles = StyleSheet.create({
   routeCloseText: { color: '#758091', fontWeight: '600', fontSize: 15 },
   routeStartBtn: { backgroundColor: '#9b59b6', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, elevation: 2 },
   routeStartText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
+  navigatingOverlay: {position: 'absolute', top: 90, left: 0, right: 0, alignItems: 'center', zIndex: 100},
+  pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
+  pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
 });

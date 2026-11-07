@@ -14,6 +14,15 @@ export default function MapCanvas({ref,style,userLocation = null,searchedLocatio
     goTo: position => camera.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }),
     zoomBy: delta => camera.current?.zoomTo(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom.current + delta)), { duration: 250 }),
     resetNorth: () => camera.current?.easeTo({ center: center.current, bearing: 0, pitch: 0, duration: 250 }),
+      startNavigation: (center, bearing) => {
+          camera.current?.flyTo({
+              center,
+              zoom: 18.5,
+              pitch: 45,
+              bearing: bearing,
+              duration: 1200
+          });
+      },
   }), []);
   const accuracyRadius = userLocation
     ? Math.max(

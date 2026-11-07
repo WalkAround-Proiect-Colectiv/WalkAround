@@ -8,6 +8,7 @@ export type MapHandle = {
   goTo(position: CameraPosition): void;
   zoomBy(delta: number): void;
   resetNorth(): void;
+  startNavigation: (center: [number, number], bearing: number) => void;
 };
 export type MapCanvasProps = {
   ref?: Ref<MapHandle>;

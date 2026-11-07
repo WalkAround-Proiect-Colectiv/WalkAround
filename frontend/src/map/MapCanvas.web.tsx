@@ -35,6 +35,15 @@ export default function MapCanvas({
     goTo: position => { map.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }); },
     zoomBy: delta => { if (map.current) map.current.zoomTo(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, map.current.getZoom() + delta))); },
     resetNorth: () => { map.current?.easeTo({ bearing: 0, pitch: 0 }); },
+    startNavigation: (center, bearing) => {
+      map.current?.flyTo({
+        center,
+        zoom: 18.5,
+        pitch: 45,
+        bearing: bearing,
+        duration: 1200
+      });
+    },
   }), []);
   useEffect(() => {
     if (!container.current) return;
