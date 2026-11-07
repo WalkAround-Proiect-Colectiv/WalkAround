@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, Style
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -559,6 +559,9 @@ const routePointsData = useMemo(() => {
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
           </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/recommendations'); }} style={styles.menuItem}>
+            <CloudSun size={20} color="#0065EB" /><Text style={styles.menuItemText}>Weather activities</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
             setRouteMode(true);
@@ -575,6 +578,13 @@ const routePointsData = useMemo(() => {
             setActiveRouteField('end');
           }} style={styles.menuItem}>
             <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => {
+            setMenuOpen(false);
+            // The map centre is the fallback position when location access is unavailable.
+            router.push({ pathname: '/events', params: { lat: String(camera.center[1]), lng: String(camera.center[0]) } });
+          }} style={styles.menuItem}>
+            <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Account' : 'Sign in'}
             onPress={() => { setMenuOpen(false); router.push(session ? '/home' : '/login'); }} style={styles.menuItem}>

@@ -69,4 +69,5 @@ The root `.env.example` contains placeholders rather than ready-to-run values. F
 - [Frontend](frontend/README.md)
 - [Application API](services/application-api/README.md)
 - [Realtime service](services/realtime-service/README.md)
+- [Upcoming events: backend](services/application-api/src/main/java/services/applicationapi/events/README.md) and [frontend](frontend/src/events/README.md)
 - [Map data and self-hosted tiles](services/map-data/README.md)
