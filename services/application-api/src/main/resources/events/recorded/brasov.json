@@ -1,0 +1,120 @@
+{
+ "recorded_at": "2026-11-05",
+ "source": "SerpApi google_events",
+ "events_results": [
+  {
+   "title": "Brian Liao, Roman Kim și orchestra Filarmonicii Brașov în concert",
+   "date": {
+    "start_date": "Nov 5",
+    "when": "Nov 5, 7:00 PM"
+   },
+   "address": [
+    "Sala Patria",
+    "Brașov, Romania"
+   ],
+   "venue": {
+    "name": "Sala Patria"
+   },
+   "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSaBUOmzfSKO9zg5CiDapvj0bmHLT_X33VTudHih2gr8ftcupIlAeEy2nt0stapEOsAYNYtovtjAL9rFGA",
+   "ticket_info": [
+    {
+     "source": "spectacoland.ro",
+     "link": "https://spectacoland.ro/bilete-brian-liao-roman-kim-si-orchestra-filarmonicii-brasov-in-concert-05-nov-2026-1900-sala-patria-brasov-concert-bilet-ro/"
+    }
+   ]
+  },
+  {
+   "title": "Brasov: CAROUSEL PARTY",
+   "date": {
+    "start_date": "Nov 6",
+    "when": "Nov 6, 10:00 PM"
+   },
+   "address": [
+    "Kruhnen Musik Halle",
+    "Brașov, Romania"
+   ],
+   "venue": {
+    "name": "Kruhnen Musik Halle"
+   },
+   "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQGRHm4PBYWa3nDVi3yxzQJ_81P_vZv1HbnbZAWyWYkwyI5jgLoioYqqQiMNAyZURf-rgT5wjDJCZvDNSw",
+   "ticket_info": [
+    {
+     "source": "iabilet.ro",
+     "link": "https://m.iabilet.ro/bilete-brasov-carousel-party-133294/"
+    }
+   ]
+  },
+  {
+   "title": "Cristian Oroșanu, Dorel Golan și orchestra Filarmonicii Brașov în concert",
+   "date": {
+    "start_date": "Nov 19",
+    "when": "Nov 19, 7:00 PM"
+   },
+   "address": [
+    "Sala Patria",
+    "Brașov, Romania"
+   ],
+   "venue": {
+    "name": "Sala Patria"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5dee3a3e4cf7a07e6cb/images/3tM29Y4_xGfX_75QKiGmTBX-A_lINRoLmFqKPMnWMvU.jpg"
+  },
+  {
+   "title": "Red Carpet - TheGuestlist",
+   "date": {
+    "start_date": "Nov 14",
+    "when": "Nov 14, 10:00 PM"
+   },
+   "address": [
+    "AMUN Skybar",
+    "Brașov, Romania"
+   ],
+   "venue": {
+    "name": "AMUN Skybar"
+   },
+   "thumbnail": "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcSZzCCfc59OiSCpGK2d0DQoqwNvx8wggUfZdGgXRK6pFnjfc3GLLYiwfiwGXoXrRlI_jvi28dr_cU94M08",
+   "ticket_info": [
+    {
+     "source": "livetickets.ro",
+     "link": "https://www.livetickets.ro/bilete/red-carpet-theguestlist"
+    }
+   ]
+  },
+  {
+   "title": "The Spirit of Vienna - Brașov",
+   "date": {
+    "start_date": "Dec 19",
+    "when": "Dec 19, 7:00 PM"
+   },
+   "address": [
+    "The Brasov Philharmonic",
+    "Brașov, Romania"
+   ],
+   "venue": {
+    "name": "The Brasov Philharmonic"
+   },
+   "thumbnail": "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcSPdjIanmCKELQxecKt-1WLDeBTawvl4OhKfAVw-Dp_4Mp0Vi1NN3p1gjTFDhiDbGoQunlnWVo3BWHFPDk",
+   "ticket_info": [
+    {
+     "source": "facebook.com",
+     "link": "https://www.facebook.com/events/filarmonica-brasov/the-spirit-of-vienna-bra%C8%99ov/1440942387847567/"
+    }
+   ]
+  },
+  {
+   "title": "Brasov: Samsara la Kruhnen Musik Halle",
+   "date": {
+    "start_date": "Dec 18",
+    "when": "Dec 18, 10:00 PM"
+   },
+   "address": [
+    "Kruhnen Musik Halle",
+    "Brașov, Romania"
+   ],
+   "venue": {
+    "name": "Kruhnen Musik Halle"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5dee3a3e4cf7a07e6cb/images/B2o7rnUa7ZWTXPQiodI5zgyHT6s4U1b-qyDDJrTiW-4.jpg"
+  }
+ ]
+}

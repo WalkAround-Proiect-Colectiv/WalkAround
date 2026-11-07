@@ -16,6 +16,7 @@ This Spring Boot service owns account registration, login/session issuance, JWT-
 - `POST /api/sessions/google`, `/refresh`, `/logout`: web session endpoints using an HttpOnly cookie.
 - `POST /api/mobile/sessions/google`, `/refresh`, `/logout`: mobile session endpoints using a refresh token in JSON.
 - `GET /api/users/me`: return the current authenticated user's profile.
+- `/api/events/...`: upcoming events near the user, marked events, and reminders. See the [events README](src/main/java/services/applicationapi/events/README.md).
 - `GET /api/places/search?q=...&lat=...&lon=...&zoom=...`: public place/POI search; the configured provider returns suggestions biased toward the current map view and restricted to the downloaded Romania coverage. The Photon adapter sends a hard bounding-box filter (`19.5,43.4,30,48.5`) and `countrycode=ro`, then validates each returned coordinate and country code before exposing it. This lets a local feature such as a street named “Paris” appear while excluding the Paris in France. The frontend applies the same coverage check as a final guard. The bounding box represents the map's configured coverage extent; the country filter excludes results from other countries within the rectangle.
 - `GET /api/v1/recommendations/activities`: return nearby activities suited to the current weather (public, no authentication required). 
 
