@@ -90,6 +90,10 @@ app:
     nominatim-user-agent: ${EVENTS_NOMINATIM_USER_AGENT:WalkAround-university-project/1.0 (upcoming events)}
     reminders-enabled: ${EVENTS_REMINDERS_ENABLED:true}
     reminder-topic: ${EVENTS_REMINDER_TOPIC:event-reminders-topic}
+    details-enabled: ${EVENTS_DETAILS_ENABLED:true}
+    details-cache-ttl: ${EVENTS_DETAILS_CACHE_TTL:P7D}
+    details-failure-ttl: ${EVENTS_DETAILS_FAILURE_TTL:PT1H}
+    details-timeout: ${EVENTS_DETAILS_TIMEOUT:PT8S}
   routing-service:
     url: ${ROUTING_SERVICE_URL}
 

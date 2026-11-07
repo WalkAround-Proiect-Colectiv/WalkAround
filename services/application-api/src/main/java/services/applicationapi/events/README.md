@@ -17,7 +17,7 @@ flowchart LR
 
 - **Which events?** The backend finds the town that contains the user's position and shows the events Google Events lists for that town. There is no radius search: the provider only works per town.
 - **When is the provider called?** Only when the town's list is not cached or is older than 24 hours. Lists are kept in memory and in the database, so restarts and repeat visits cost nothing.
-- **What is stored?** One cached list per town (as JSON), and the events users mark. There is no table with one row per event.
+- **What is stored?** One cached list per town (as JSON), a per-event cache of extra details (`event_details_cache`) so repeat views cost no provider searches, and the events users mark (`event_interests`).
 - **Terms used below:** a *locality* is the town, city or commune from OpenStreetMap; its *locality key* looks like `RO/cluj/cluj-napoca`. An *event key* is a stable ID the backend computes for each event (see [Event keys and dates](#event-keys-and-dates)).
 
 ## Where to start
@@ -29,6 +29,7 @@ flowchart LR
 | Event sources | [`service/source`](service/source) | `SerpApiEventSource` (live Google Events) or `RecordedEventSource` (saved responses, no API calls). |
 | Cleaning results | `service/EventListBuilder`, `service/EventDateParser` | Parse dates, infer the missing year, drop past events and duplicates, sort by start time. |
 | Caching | `service/EventsService` | Memory cache, then a per-town database snapshot, then the event source. |
+| Event details | `service/EventDetailsService`, `service/EventDetailsEnrichmentService` | Merge cached list data, user interest and cached on-demand provider details into a presentation-ready DTO. |
 | Marked events | `service/EventInterestService` | Save a snapshot of a marked event and its reminder setting. |
 | Reminders | [`service/reminders`](service/reminders) | Every minute, publish due reminders to Kafka for the realtime service. |
 | Settings | [`configurations`](configurations) | `app.events.*` properties, HTTP clients with timeouts, scheduling. |
@@ -38,7 +39,7 @@ flowchart LR
 | Method and path | Purpose |
 | --- | --- |
 | `GET /api/events/nearby?lat=&lng=` | Events for the town containing the position. `locality` is null when the position is not in any town; `stale` is true when an older cached list is served because the source failed. |
-| `GET /api/events/details?localityKey=&eventKey=` | One event from the cache, plus the user's interest if marked. Used by the details screen and can be opened from the map. |
+| `GET /api/events/details?localityKey=&eventKey=` | One merged event (`EventDetailsDto`), the signed-in user's reminder state (`interest`, or `null`), the `enrichment` status (`COMPLETE`, `BASIC`, or `UNAVAILABLE`), and `attribution`. |
 | `GET /api/events/interests` | The user's marked events that have not passed. |
 | `PUT /api/events/interests` | Body `{ localityKey, eventKey, remindBeforeMinutes }`. Marks an event, or changes its reminder. `remindBeforeMinutes` is `null` for no reminder, otherwise 1 to 43200 (30 days). |
 | `DELETE /api/events/interests/{eventKey}` | Removes a marked event. |
@@ -63,11 +64,19 @@ The provider has no stable event IDs. An event key is the first 32 hex character
 
 List results have dates like `Nov 6, 8:00 PM` or `Feb 11` without a year. The next occurrence of that day (today included) is assumed, because the provider lists only upcoming events. Dates without a time are treated as all-day events. Times are interpreted in `EVENTS_TIME_ZONE` (`Europe/Bucharest`).
 
+## Event details
+
+`GET /api/events/details` merges data with precedence **provider details → cached locality list → user's saved interest snapshot**.
+
+1. When an event is opened and extra details are not yet in `event_details_cache` (or have expired), `EventDetailsEnrichmentService` calls the provider once (single-flight per `eventKey`) and caches the result for `EVENTS_DETAILS_CACHE_TTL` (7 days by default).
+2. Because `eventKey` is stable across daily list refreshes, repeat views of the same event cost **0** provider searches.
+3. Failed or empty lookups are negative-cached for `EVENTS_DETAILS_FAILURE_TTL` (1 hour by default), and failures degrade gracefully (`enrichment: UNAVAILABLE`) while still serving the cached list or interest data.
+
 ## Marked events
 
-`event_interests` stores a copy of the event (title, start, venue, address, image, first ticket link), so the Interested list and reminders work without calling the provider again. No other events are stored per row.
+`event_interests` stores a copy of the event (title, start, venue, address, description, image, first ticket link), so the Interested list and reminders work without calling the provider again.
 
-When an event is marked, one SerpApi Event Details request (one search) adds the exact date with its year, the full address and a description. If that request fails, or the provider is `recorded`, the cached list data is saved instead.
+When an event is marked, `EventInterestService` reuses `EventDetailsEnrichmentService`, so marking an event the user has already opened costs **0** extra searches. If the details request fails, or the provider has no details fixture, the cached list data is saved instead.
 
 ## Reminders
 
@@ -86,6 +95,10 @@ The realtime service delivers the message only to that user's open `/ws/notifica
 | `EVENTS_NOMINATIM_USER_AGENT` | `WalkAround-university-project/1.0 (upcoming events)` | Identifies the app to Nominatim, as its usage policy requires. |
 | `EVENTS_REMINDERS_ENABLED` | `true` | Turns the reminder job on or off. |
 | `EVENTS_REMINDER_TOPIC` | `event-reminders-topic` | Kafka topic shared with the realtime service. |
+| `EVENTS_DETAILS_ENABLED` | `true` | Turns on-demand provider enrichment for event details on or off. |
+| `EVENTS_DETAILS_CACHE_TTL` | `P7D` | How long successful provider event details are cached in `event_details_cache`. |
+| `EVENTS_DETAILS_FAILURE_TTL` | `PT1H` | Negative-cache duration after a failed or empty details lookup. |
+| `EVENTS_DETAILS_TIMEOUT` | `PT8S` | Read timeout for on-demand event details calls. |
 
 ## Usage limits and attribution
 

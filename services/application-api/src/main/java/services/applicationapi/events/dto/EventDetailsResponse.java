@@ -1,8 +1,15 @@
 package services.applicationapi.events.dto;
 
 /**
- * One event for the details screen. {@code event} comes from the locality cache and may be null when the
- * cache no longer has it; {@code interest} is present when the user marked the event.
+ * Response payload for {@code GET /api/events/details}.
+ *
+ * <p>{@code event} contains the merged event information; {@code interest} is present when the signed-in
+ * user marked the event as interested; {@code enrichment} reports whether extra provider details were merged.
  */
-public record EventDetailsResponse(EventResponse event, InterestResponse interest) {
+public record EventDetailsResponse(
+        EventDetailsDto event,
+        InterestStateDto interest,
+        EnrichmentStatus enrichment,
+        String attribution
+) {
 }
