@@ -13,7 +13,7 @@ public record TicketLinkDto(
         return new TicketLinkDto(
                 link.source(),
                 link.url(),
-                TicketLinkKind.fromLinkType(link.linkType())
+                TicketLinkKind.classify(link.linkType(), link.source(), link.url())
         );
     }
 }

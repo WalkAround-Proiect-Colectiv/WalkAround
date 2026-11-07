@@ -135,11 +135,15 @@ public final class EventListBuilder {
                     continue;
                 }
                 byUrl.merge(link.url(), link, (existing, candidate) -> {
-                    TicketLinkKind existingKind = TicketLinkKind.fromLinkType(existing.linkType());
-                    TicketLinkKind candidateKind = TicketLinkKind.fromLinkType(candidate.linkType());
+                    TicketLinkKind existingKind = TicketLinkKind.classify(
+                            existing.linkType(), existing.source(), existing.url());
+                    TicketLinkKind candidateKind = TicketLinkKind.classify(
+                            candidate.linkType(), candidate.source(), candidate.url());
                     String chosenType = existingKind == TicketLinkKind.TICKETS
-                            ? existing.linkType()
-                            : (candidateKind == TicketLinkKind.TICKETS ? candidate.linkType() : existing.linkType());
+                            ? firstNotBlank(existing.linkType(), candidate.linkType())
+                            : (candidateKind == TicketLinkKind.TICKETS
+                                    ? firstNotBlank(candidate.linkType(), existing.linkType())
+                                    : firstNotBlank(existing.linkType(), candidate.linkType()));
                     String chosenSource = firstNotBlank(existing.source(), candidate.source());
                     return new TicketLink(chosenSource, existing.url(), chosenType);
                 });
@@ -147,7 +151,9 @@ public final class EventListBuilder {
         }
         List<TicketLink> merged = new ArrayList<>(byUrl.values());
         merged.sort(Comparator.comparingInt(
-                link -> TicketLinkKind.fromLinkType(link.linkType()) == TicketLinkKind.TICKETS ? 0 : 1
+                link -> TicketLinkKind.classify(link.linkType(), link.source(), link.url()) == TicketLinkKind.TICKETS
+                        ? 0
+                        : 1
         ));
         return List.copyOf(merged);
     }

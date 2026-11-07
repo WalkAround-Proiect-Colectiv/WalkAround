@@ -169,7 +169,7 @@ public class EventDetailsServiceImpl implements EventDetailsService {
         if (interest != null && httpsOrNull(interest.getTicketUrl()) != null) {
             mergedTickets = EventListBuilder.mergeTicketLinks(
                     mergedTickets,
-                    List.of(new TicketLink(interest.getTicketSource(), interest.getTicketUrl(), "tickets"))
+                    List.of(new TicketLink(interest.getTicketSource(), interest.getTicketUrl(), null))
             );
         }
 
