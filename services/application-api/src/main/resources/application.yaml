@@ -117,3 +117,15 @@ app:
     weather-forecast-days: ${WEATHER_FORECAST_DAYS:14}
     open-meteo-archive-base-url: ${OPEN_METEO_ARCHIVE_BASE_URL:https://archive-api.open-meteo.com}
     weather-history-years: ${WEATHER_HISTORY_YEARS:3}
+
+recommendation:
+  default-radius-meters: ${RECOMMENDATION_DEFAULT_RADIUS_METERS:2000}
+  max-radius-meters: ${RECOMMENDATION_MAX_RADIUS_METERS:5000}
+  default-limit: ${RECOMMENDATION_DEFAULT_LIMIT:15}
+  max-limit: ${RECOMMENDATION_MAX_LIMIT:50}
+  cache-ttl: ${RECOMMENDATION_CACHE_TTL:PT15M}
+  open-meteo-base-url: ${OPEN_METEO_BASE_URL:https://api.open-meteo.com}
+  open-meteo-timeout: ${OPEN_METEO_TIMEOUT:PT5S}
+  poi-database-url: ${POI_DATABASE_URL:}
+  poi-database-username: ${POI_DATABASE_USERNAME:map_tiles}
+  poi-database-password: ${POI_DATABASE_PASSWORD:}

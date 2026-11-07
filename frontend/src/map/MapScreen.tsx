@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle } from './MapCanvas.types';
@@ -531,6 +531,9 @@ const routePointsData = useMemo(() => {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/recommendations'); }} style={styles.menuItem}>
+            <CloudSun size={20} color="#0065EB" /><Text style={styles.menuItemText}>Weather activities</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);

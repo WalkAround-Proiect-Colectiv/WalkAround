@@ -31,6 +31,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET, "/api/v1/dangerous-zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/places/search").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/routes/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/recommendations/activities").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(jwt -> jwt.decoder(jwtDecoder)));
