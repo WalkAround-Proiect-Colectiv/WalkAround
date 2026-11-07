@@ -121,9 +121,13 @@ public class EventsService {
             }
             Optional<EventLocalitySnapshot> snapshot = snapshots.findById(locality.key());
             if (snapshot.isPresent() && isFresh(snapshot.get().getFetchedAt(), now)) {
+                List<CachedEvent> rawSnapshotEvents = readEvents(snapshot.get());
                 List<CachedEvent> snapshotEvents = attachCoordinates(
-                        locality, readEvents(snapshot.get()), latitude, longitude
+                        locality, rawSnapshotEvents, latitude, longitude
                 );
+                if (!snapshotEvents.equals(rawSnapshotEvents)) {
+                    saveSnapshot(locality, snapshot, snapshotEvents, snapshot.get().getFetchedAt());
+                }
                 CacheEntry entry = new CacheEntry(locality, snapshotEvents, snapshot.get().getFetchedAt());
                 memory.put(locality.key(), entry);
                 return result(locality, entry, now, false);
@@ -142,9 +146,13 @@ public class EventsService {
             } catch (EventsUnavailableException exception) {
                 if (snapshot.isPresent()) {
                     log.info("Serving stale events for {} because the source is unavailable", locality.key());
+                    List<CachedEvent> rawSnapshotEvents = readEvents(snapshot.get());
                     List<CachedEvent> staleEvents = attachCoordinates(
-                            locality, readEvents(snapshot.get()), latitude, longitude
+                            locality, rawSnapshotEvents, latitude, longitude
                     );
+                    if (!staleEvents.equals(rawSnapshotEvents)) {
+                        saveSnapshot(locality, snapshot, staleEvents, snapshot.get().getFetchedAt());
+                    }
                     CacheEntry stale = new CacheEntry(locality, staleEvents, snapshot.get().getFetchedAt());
                     return result(locality, stale, now, true);
                 }
