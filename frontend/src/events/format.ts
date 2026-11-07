@@ -20,6 +20,17 @@ export function formatEventDate(startsAt: string, allDay: boolean): string {
   return `${day}, ${time}`;
 }
 
+/** Formatted event date/time for map popups and cards, falling back to provider `whenText`. */
+export function formatEventWhen(
+  startsAt: string,
+  allDay: boolean,
+  whenText?: string | null,
+): string {
+  const formatted = formatEventDate(startsAt, allDay);
+  if (formatted) return formatted;
+  return (whenText ?? '').trim();
+}
+
 /** Opens only https links, so provider data cannot trigger other URL schemes. */
 export function isSafeLink(url: string | null | undefined): url is string {
   return typeof url === 'string' && /^https:\/\/[^\s]+$/.test(url);
