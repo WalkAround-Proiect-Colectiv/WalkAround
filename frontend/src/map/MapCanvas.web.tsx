@@ -5,6 +5,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps, ScreenPoint } from './MapCanvas.types';
+import { selectMapHit } from './poi';
 
 const EMPTY_FEATURE_COLLECTION = {
   type: 'FeatureCollection' as const,
@@ -69,6 +70,7 @@ export default function MapCanvas({
   onReady,
   onError,
   onMove,
+  onPoiSelect,
   onPress,
   onCoordinateSelect,
 }: MapCanvasProps) {
@@ -81,9 +83,25 @@ export default function MapCanvas({
   const ready = useEffectEvent(onReady);
   const failed = useEffectEvent(onError);
   const moved = useEffectEvent(onMove);
-  const pressed = useEffectEvent((props: any, coords?: [number, number]) => {
-    onPress?.(props, coords);
-  });
+  const selected = useEffectEvent(onPoiSelect);
+  const coordinateSelected = useEffectEvent((coordinates: [number, number]) =>
+    onCoordinateSelect?.(coordinates),
+  );
+  const pressed = useEffectEvent(
+    (zone: Parameters<NonNullable<MapCanvasProps['onPress']>>[0], coords?: [number, number]) => {
+      onPress?.(zone, coords);
+    },
+  );
+  const currentZones = useEffectEvent(
+    () => dangerousZonesData ?? EMPTY_FEATURE_COLLECTION,
+  );
+  const currentRoute = useEffectEvent(() => routeData ?? EMPTY_FEATURE_COLLECTION);
+  const currentRoutePoints = useEffectEvent(
+    () => routePointsData ?? EMPTY_FEATURE_COLLECTION,
+  );
+  const currentEventPins = useEffectEvent(
+    () => eventPinsData ?? EMPTY_FEATURE_COLLECTION,
+  );
   const pinPressed = useEffectEvent((pinId: string) => {
     onEventPinPress?.(pinId);
   });
@@ -166,7 +184,7 @@ export default function MapCanvas({
       if (!instance.getSource('dangerous-zones-source')) {
         instance.addSource('dangerous-zones-source', {
           type: 'geojson',
-          data: (dangerousZonesData || EMPTY_FEATURE_COLLECTION) as any,
+          data: currentZones() as any,
         });
       }
       if (!instance.getLayer('dangerous-zones-layer')) {
@@ -207,7 +225,7 @@ export default function MapCanvas({
       if (!instance.getSource('route-source')) {
         instance.addSource('route-source', {
           type: 'geojson',
-          data: (routeData || EMPTY_FEATURE_COLLECTION) as any,
+          data: currentRoute() as any,
         });
       }
       if (!instance.getLayer('route-layer')) {
@@ -221,7 +239,7 @@ export default function MapCanvas({
       if (!instance.getSource('route-points-source')) {
         instance.addSource('route-points-source', {
           type: 'geojson',
-          data: (routePointsData || EMPTY_FEATURE_COLLECTION) as any,
+          data: currentRoutePoints() as any,
         });
       }
       if (!instance.getLayer('route-points-layer')) {
@@ -253,7 +271,7 @@ export default function MapCanvas({
       if (!instance.getSource('event-pins-source')) {
         instance.addSource('event-pins-source', {
           type: 'geojson',
-          data: (eventPinsData || EMPTY_FEATURE_COLLECTION) as any,
+          data: currentEventPins() as any,
         });
       }
       if (!instance.getLayer('event-pins-layer')) {
@@ -296,31 +314,38 @@ export default function MapCanvas({
       moved({ center: [center.lng, center.lat], zoom: instance.getZoom() });
       projectSelectedPin();
     });
-    instance.on('click', e => {
-      const coords: [number, number] = [e.lngLat.lng, e.lngLat.lat];
+    instance.on('click', event => {
+      const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
       if (hasPinPressHandler() && instance.getLayer('event-pins-layer')) {
-        const pinFeatures = instance.queryRenderedFeatures(e.point, {
-          layers: ['event-pins-layer'],
-        });
+        const pinFeatures = instance.queryRenderedFeatures(
+          [[event.point.x - 8, event.point.y - 8], [event.point.x + 8, event.point.y + 8]],
+          { layers: ['event-pins-layer'] },
+        );
         const hitPinId = pinFeatures[0]?.properties?.pinId;
         if (typeof hitPinId === 'string' && hitPinId.length > 0) {
+          selected(null);
           pinPressed(hitPinId);
           return;
         }
       }
 
-      const features = instance.queryRenderedFeatures(e.point, {
-        layers: ['dangerous-zones-layer'],
-      });
-      if (features.length > 0) {
-        pressed(features[0].properties, coords);
-      } else {
-        pressed(null, coords);
-      }
+      const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+      const poiFeatures = layers.length
+        ? instance.queryRenderedFeatures(
+            [[event.point.x - 12, event.point.y - 12], [event.point.x + 12, event.point.y + 12]],
+            { layers },
+          )
+        : [];
+      const zoneFeatures = instance.getLayer('dangerous-zones-layer')
+        ? instance.queryRenderedFeatures(event.point, { layers: ['dangerous-zones-layer'] })
+        : [];
+      const hit = selectMapHit(poiFeatures, zoneFeatures);
+      selected(hit.poi);
+      pressed(hit.zone, coords);
     });
     instance.on('dblclick', event => {
       event.preventDefault();
-      onCoordinateSelect?.([event.lngLat.lng, event.lngLat.lat]);
+      coordinateSelected([event.lngLat.lng, event.lngLat.lat]);
     });
     const observer = new ResizeObserver(() => {
       instance.resize();
@@ -345,7 +370,7 @@ export default function MapCanvas({
         const src = map.current?.getSource(id) as GeoJSONSource | undefined;
         if (src && data) src.setData(data);
       };
-      updateSrc('dangerous-zones-source', dangerousZonesData || EMPTY_FEATURE_COLLECTION);
+      updateSrc('dangerous-zones-source', dangerousZonesData ?? EMPTY_FEATURE_COLLECTION);
       updateSrc('route-source', routeData || EMPTY_FEATURE_COLLECTION);
       updateSrc('route-points-source', routePointsData || EMPTY_FEATURE_COLLECTION);
       updateSrc('event-pins-source', eventPinsData || EMPTY_FEATURE_COLLECTION);

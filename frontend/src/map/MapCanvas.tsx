@@ -10,6 +10,7 @@ import {
 } from '@maplibre/maplibre-react-native';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
+import { selectMapHit } from './poi';
 
 const EVENT_PIN_IMAGE = require('../../assets/map/event-pin.png');
 
@@ -34,6 +35,7 @@ export default function MapCanvas({
   onReady,
   onError,
   onMove,
+  onPoiSelect,
   onPress,
   onCoordinateSelect,
 }: MapCanvasProps) {
@@ -167,30 +169,41 @@ export default function MapCanvas({
         if (hasEventPins && onEventPinPress && nativeMap.current) {
           try {
             const pinFeatures = await nativeMap.current.queryRenderedFeatures(
-              [point[0], point[1]],
+              [[point[0] - 10, point[1] - 10], [point[0] + 10, point[1] + 10]],
               { layers: ['event-pins-layer'] },
             );
             const hitPinId = pinFeatures?.[0]?.properties?.pinId;
             if (typeof hitPinId === 'string' && hitPinId.length > 0) {
+              onPoiSelect(null);
               onEventPinPress(hitPinId);
               return;
             }
           } catch {
-            // Fall through to zone query if pin layer query fails.
+            // Fall through to POI and zone query if pin layer query fails.
           }
         }
 
-        if (!onPress) return;
-
         try {
-          const features = await nativeMap.current?.queryRenderedFeatures(
-            [point[0], point[1]],
-            { layers: ['dangerous-zones-layer'] },
-          );
-
-          onPress(features?.[0]?.properties ?? null, lngLat);
+          const poiLayers = style.layers
+            .filter(layer => ['poi-dot', 'poi-label'].includes(layer.id))
+            .map(layer => layer.id);
+          const poiFeatures = poiLayers.length
+            ? await nativeMap.current?.queryRenderedFeatures(
+                [[point[0] - 12, point[1] - 12], [point[0] + 12, point[1] + 12]],
+                { layers: poiLayers },
+              )
+            : [];
+          const zoneFeatures = dangerousZonesData
+            ? await nativeMap.current?.queryRenderedFeatures([point[0], point[1]], {
+                layers: ['dangerous-zones-layer'],
+              })
+            : [];
+          const hit = selectMapHit(poiFeatures ?? [], zoneFeatures ?? []);
+          onPoiSelect(hit.poi);
+          onPress?.(hit.zone, lngLat);
         } catch {
-          onPress(null, lngLat);
+          onPoiSelect(null);
+          onPress?.(null, lngLat);
         }
       }}
     >
