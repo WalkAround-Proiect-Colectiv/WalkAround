@@ -1,9 +1,19 @@
 import { environment } from '../../config/environment';
 import { getSession, refreshSession } from '../../login/api/session';
 
+export type TicketLinkKind = 'TICKETS' | 'INFO';
+
 export interface TicketLink {
   source: string | null;
   url: string;
+  kind?: TicketLinkKind;
+}
+
+export interface Venue {
+  name: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  url: string | null;
 }
 
 export interface UpcomingEvent {
@@ -15,6 +25,8 @@ export interface UpcomingEvent {
   whenText: string | null;
   venueName: string | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   thumbnailUrl: string | null;
   tickets: TicketLink[];
   interested: boolean;
@@ -53,9 +65,49 @@ export interface EventInterest {
   remindedAt: string | null;
 }
 
-export interface EventDetails {
-  event: UpcomingEvent | null;
-  interest: EventInterest | null;
+export interface EventDetailsItem {
+  key: string;
+  localityKey: string;
+  title: string;
+  startsAt: string;
+  allDay: boolean;
+  whenText: string | null;
+  past: boolean;
+  description: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  venue: Venue | null;
+  imageUrl: string | null;
+  eventUrl: string | null;
+  mapUrl: string | null;
+  ticketLinks: TicketLink[];
+}
+
+export interface InterestState {
+  remindBeforeMinutes: number | null;
+  remindAt: string | null;
+}
+
+export type EnrichmentStatus = 'COMPLETE' | 'BASIC' | 'UNAVAILABLE';
+
+export interface EventDetailsResponse {
+  event: EventDetailsItem;
+  interest: InterestState | null;
+  enrichment: EnrichmentStatus;
+  attribution: string;
+}
+
+export type EventDetails = EventDetailsResponse;
+
+export class EventsApiError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'EventsApiError';
+    this.status = status;
+  }
 }
 
 // The first request for a town can wait on two provider searches, so allow more than the sign-in timeout.
@@ -73,10 +125,15 @@ async function send<T>(path: string, init: RequestInit = {}): Promise<T> {
     const headers = new Headers(init.headers);
     headers.set('Authorization', `Bearer ${session.accessToken}`);
     const response = await fetch(`${environment.apiBaseUrl}${path}`, { ...init, headers, signal: controller.signal });
-    if (response.status === 401) throw new Error('Your session has expired. Please sign in again.');
+    if (response.status === 401) {
+      throw new EventsApiError('Your session has expired. Please sign in again.', 401);
+    }
     if (!response.ok) {
       const problem = await response.json().catch(() => null) as { detail?: string } | null;
-      throw new Error(problem?.detail || 'The request could not be completed. Please try again.');
+      throw new EventsApiError(
+        problem?.detail || 'The request could not be completed. Please try again.',
+        response.status,
+      );
     }
     return response.status === 204 ? undefined as T : await response.json() as T;
   } catch (error) {
@@ -99,7 +156,7 @@ export function getNearbyEvents(latitude: number, longitude: number) {
 
 export function getEventDetails(localityKey: string, eventKey: string) {
   const query = new URLSearchParams({ localityKey, eventKey });
-  return send<EventDetails>(`/api/events/details?${query}`);
+  return send<EventDetailsResponse>(`/api/events/details?${query}`);
 }
 
 export function getInterests() {

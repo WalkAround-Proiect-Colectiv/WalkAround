@@ -17,7 +17,6 @@ import services.applicationapi.events.repository.EventInterestRepository;
 import services.applicationapi.events.service.exceptions.EventNotFoundException;
 import services.applicationapi.events.service.exceptions.EventsAuthenticationException;
 import services.applicationapi.events.service.exceptions.InvalidEventRequestException;
-import services.applicationapi.events.service.source.EventSource;
 import services.applicationapi.events.service.source.RawEventDetails;
 import services.applicationapi.user.model.User;
 import services.applicationapi.user.repository.UserRepository;
@@ -25,9 +24,9 @@ import services.applicationapi.user.repository.UserRepository;
 /**
  * Events a user marked as interesting, and their reminders.
  *
- * <p>Marking an event copies it into {@code event_interests}. When the provider has a details token for
- * the event, one details request (one SerpApi search) fills in the exact date with its year, the full
- * address and a description; otherwise the cached list data is kept.
+ * <p>Marking an event copies it into {@code event_interests}. Extra details come from
+ * {@link EventDetailsEnrichmentService}, so marking an event the user already viewed costs zero extra
+ * provider searches.
  */
 @Service
 public class EventInterestService {
@@ -35,7 +34,7 @@ public class EventInterestService {
     private final EventInterestRepository interests;
     private final UserRepository users;
     private final EventsService eventsService;
-    private final EventSource eventSource;
+    private final EventDetailsEnrichmentService enrichmentService;
     private final EventsProperties properties;
     private final Clock clock;
 
@@ -43,14 +42,14 @@ public class EventInterestService {
             EventInterestRepository interests,
             UserRepository users,
             EventsService eventsService,
-            EventSource eventSource,
+            EventDetailsEnrichmentService enrichmentService,
             EventsProperties properties,
             Clock eventsClock
     ) {
         this.interests = interests;
         this.users = users;
         this.eventsService = eventsService;
-        this.eventSource = eventSource;
+        this.enrichmentService = enrichmentService;
         this.properties = properties;
         this.clock = eventsClock;
     }
@@ -84,7 +83,7 @@ public class EventInterestService {
             throw new InvalidEventRequestException("This event has already taken place");
         }
         User user = users.findById(userId).orElseThrow(EventsAuthenticationException::new);
-        EventInterest interest = new EventInterest(user, eventKey, localityKey, snapshot(event, now), now);
+        EventInterest interest = new EventInterest(user, eventKey, localityKey, snapshot(localityKey, event, now), now);
         interest.setReminder(remindBeforeMinutes, now);
         return interests.save(interest);
     }
@@ -107,13 +106,13 @@ public class EventInterestService {
         interests.save(interest);
     }
 
-    private EventSnapshot snapshot(CachedEvent event, Instant now) {
-        Optional<RawEventDetails> details = eventSource.details(event.detailsToken());
+    private EventSnapshot snapshot(String localityKey, CachedEvent event, Instant now) {
+        Optional<RawEventDetails> details = enrichmentService.enrich(localityKey, event).details();
         Instant startsAt = event.startsAt();
         boolean allDay = event.allDay();
         String whenText = event.whenText();
         String address = event.address();
-        String description = null;
+        String description = event.description();
         List<TicketLink> tickets = event.tickets();
         if (details.isPresent()) {
             RawEventDetails extra = details.get();
@@ -129,9 +128,11 @@ public class EventInterestService {
             if (extra.address() != null && !extra.address().isEmpty()) {
                 address = String.join(", ", extra.address());
             }
-            description = extra.description();
+            if (extra.description() != null && !extra.description().isBlank()) {
+                description = extra.description();
+            }
             if (extra.tickets() != null && !extra.tickets().isEmpty()) {
-                tickets = extra.tickets();
+                tickets = EventListBuilder.mergeTicketLinks(extra.tickets(), tickets);
             }
         }
         TicketLink ticket = tickets == null || tickets.isEmpty() ? null : tickets.getFirst();
