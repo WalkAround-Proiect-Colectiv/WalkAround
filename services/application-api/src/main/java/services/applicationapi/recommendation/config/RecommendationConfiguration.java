@@ -13,7 +13,7 @@ import org.springframework.web.client.RestClient;
 public class RecommendationConfiguration {
 
     @Bean
-    RestClient openMeteoRestClient(RecommendationProperties properties) {
+    RestClient recommendationOpenMeteoRestClient(RecommendationProperties properties) {
         Duration timeout = properties.resolvedOpenMeteoTimeout();
         HttpClient httpClient = HttpClient.newBuilder()
                 .connectTimeout(timeout)

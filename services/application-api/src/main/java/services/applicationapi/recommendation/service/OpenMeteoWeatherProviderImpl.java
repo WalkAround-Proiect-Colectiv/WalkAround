@@ -38,7 +38,7 @@ public class OpenMeteoWeatherProviderImpl implements WeatherProvider {
 
     @Autowired
     public OpenMeteoWeatherProviderImpl(
-            @Qualifier("openMeteoRestClient") RestClient restClient,
+            @Qualifier("recommendationOpenMeteoRestClient") RestClient restClient,
             RecommendationProperties properties
     ) {
         this(restClient, properties, Clock.systemUTC());
