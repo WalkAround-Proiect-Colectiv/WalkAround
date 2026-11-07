@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
@@ -78,6 +78,30 @@ function decodePolyline(str: string, precision = 6) {
 export default function MapScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const compactSearchLayout = windowWidth < 600;
+  const [mobileSearchExpanded, setMobileSearchExpanded] = useState(false);
+  const [mobileSearchHeight, setMobileSearchHeight] = useState(0);
+  const searchReveal = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!compactSearchLayout || !mobileSearchExpanded) {
+      searchReveal.setValue(0);
+      return;
+    }
+    Animated.timing(searchReveal, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+    return () => searchReveal.stopAnimation();
+  }, [compactSearchLayout, mobileSearchExpanded, searchReveal]);
+  const mobileSearchPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onMoveShouldSetPanResponderCapture: (_, gesture) => Math.abs(gesture.dy) > 6 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+    onPanResponderRelease: (_, gesture) => {
+      if (gesture.dy < -12) setMobileSearchExpanded(true);
+      else if (gesture.dy > 12) setMobileSearchExpanded(false);
+    },
+  }), []);
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const map = useRef<MapHandle>(null);
@@ -85,6 +109,7 @@ export default function MapScreen() {
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [coordinateQuery, setCoordinateQuery] = useState('');
+  const showPlanTripLink = coordinateQuery.trim().length > 0;
   const [searchedLocation, setSearchedLocation] = useState<[number, number] | null>(null);
   const [coordinateError, setCoordinateError] = useState<string | null>(null);
   const [poiResults, setPoiResults] = useState<PoiSearchResult[]>([]);
@@ -570,11 +595,34 @@ const routePointsData = useMemo(() => {
       </View>}
     </View>
 
-    <View style={[styles.searchArea, compactSearchLayout && styles.searchAreaCompact, {
-      top: Math.max(insets.top, 12) + 1,
-      maxHeight: compactSearchLayout ? Math.max(180, Math.min(360, windowHeight - Math.max(insets.top, 12) - 100)) : undefined,
-    }]}>
-      <View style={styles.searchRow}>
+    <View style={[styles.searchArea, compactSearchLayout ? styles.searchAreaCompact : null,
+      compactSearchLayout && mobileSearchExpanded ? styles.searchAreaExpanded : null, compactSearchLayout ? {
+      bottom: mobileSearchExpanded ? 0 : Math.max(insets.bottom, 4),
+      maxHeight: Math.max(180, Math.min(440, windowHeight - Math.max(insets.top, 12) - 30)),
+      paddingBottom: mobileSearchExpanded ? Math.max(insets.bottom, 8) : undefined,
+    } : { top: Math.max(insets.top, 12) + 1 }]}
+      onLayout={event => setMobileSearchHeight(height => height === event.nativeEvent.layout.height ? height : event.nativeEvent.layout.height)}>
+      {compactSearchLayout && <View style={[styles.mobileSearchHandle, mobileSearchExpanded && styles.mobileSearchHandleExpanded]}>
+        <Pressable
+          {...mobileSearchPanResponder.panHandlers}
+          accessibilityRole="button"
+          accessibilityLabel={mobileSearchExpanded ? 'Hide location search' : 'Show location search'}
+          accessibilityState={{ expanded: mobileSearchExpanded }}
+          onPress={event => {
+            event.stopPropagation();
+            setMobileSearchExpanded(expanded => !expanded);
+          }}
+          style={[styles.mobileSearchHandleTarget, mobileSearchExpanded ? styles.mobileSearchHandleTargetExpanded : styles.mobileSearchHandleCollapsed]}
+        >
+          <View style={styles.mobileSearchGrip} />
+        </Pressable>
+      </View>}
+      {(!compactSearchLayout || mobileSearchExpanded) && <Animated.View style={compactSearchLayout ? {
+        opacity: searchReveal,
+        transform: [{ translateY: searchReveal.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
+      } : undefined}>
+      <View style={!compactSearchLayout && showPlanTripLink ? styles.desktopSearchGroup : undefined}>
+      <View style={[styles.searchRow, !compactSearchLayout && showPlanTripLink && styles.searchRowJoinedTop]}>
         <Search size={19} color="#0065EB" style={styles.searchIcon} />
         <TextInput
           accessibilityLabel="Search coordinates or places"
@@ -597,7 +645,17 @@ const routePointsData = useMemo(() => {
           style={styles.clearMarkerButton}
         ><X size={20} color="#0065EB" /></Pressable>}
       </View>
-      {poiResults.length > 0 && <View style={styles.poiResults}>
+      {showPlanTripLink && <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Plan a trip"
+        onPress={() => { if (compactSearchLayout) setMobileSearchExpanded(false); router.push('/trip-plan'); }}
+        style={[styles.planTripSearchLink, !compactSearchLayout && styles.planTripSearchLinkJoined]}
+      >
+        <View style={styles.planTripSearchIcon}><Route size={20} color="#0065EB" /></View>
+        <Text style={styles.planTripSearchText}>Plan a trip</Text>
+        <Plus size={23} color="#0065EB" />
+      </Pressable>}
+      {poiResults.length > 0 && <View style={[styles.poiResults, !compactSearchLayout && showPlanTripLink && styles.poiResultsJoined]}>
         <ScrollView
           style={styles.poiResultsList}
           keyboardShouldPersistTaps="always"
@@ -623,6 +681,8 @@ const routePointsData = useMemo(() => {
         <Text style={styles.poiAttribution}>Place search by Photon · © OpenStreetMap contributors</Text>
       </View>}
       {coordinateError && <Text accessibilityRole="alert" style={styles.coordinateError}>{coordinateError}</Text>}
+      </View>
+      </Animated.View>}
     </View>
 
     {selectedZoneInfo && !routeMode && (
@@ -639,7 +699,9 @@ const routePointsData = useMemo(() => {
         </View>
     )}
 
-    <View style={[styles.bottomOverlayArea, { bottom: Math.max(insets.bottom, 12) + 64 }]}>
+    <View style={[styles.bottomOverlayArea, { bottom: compactSearchLayout && mobileSearchExpanded
+      ? mobileSearchHeight + 12
+      : Math.max(insets.bottom, 12) + 64 }]}>
       {isSelectingLocation ? (
           <View style={styles.actionButtonsRow}>
             <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
@@ -704,13 +766,27 @@ const styles = StyleSheet.create({
   closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 },
 
   searchArea: { position: 'absolute', left: 70, right: 70, zIndex: 20 },
-  searchAreaCompact: { left: 68, right: 68 },
+  searchAreaCompact: { left: 12, right: 12 },
+  searchAreaExpanded: { left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 8, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d8e0ea', elevation: 8, shadowColor: '#14243f', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
+  desktopSearchGroup: { borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', backgroundColor: '#ffffff', overflow: 'hidden' },
+  mobileSearchHandle: { height: 34, alignItems: 'center', justifyContent: 'center' },
+  mobileSearchHandleExpanded: { height: 20 },
+  mobileSearchHandleTarget: { width: 90, height: 34, alignItems: 'center', justifyContent: 'center' },
+  mobileSearchHandleTargetExpanded: { height: 20 },
+  mobileSearchHandleCollapsed: { justifyContent: 'flex-end', paddingBottom: 1 },
+  mobileSearchGrip: { width: 78, height: 5, borderRadius: 3, backgroundColor: '#aab5c2' },
   searchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', paddingHorizontal: 15, minHeight: 54, elevation: 5, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
+  searchRowJoinedTop: { borderWidth: 0, borderBottomWidth: 1, borderBottomColor: '#d8e0ea', borderRadius: 0, elevation: 0, shadowOpacity: 0 },
+  planTripSearchLink: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 10, paddingHorizontal: 10, borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', backgroundColor: '#ffffff' },
+  planTripSearchLinkJoined: { marginTop: 0, borderWidth: 0, borderBottomWidth: 1, borderBottomColor: '#d8e0ea', borderRadius: 0 },
+  planTripSearchIcon: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: '#eaf2ff' },
+  planTripSearchText: { flex: 1, color: '#0065EB', fontSize: 15, fontWeight: '500' },
   searchIcon: { marginRight: 11, flexShrink: 0 },
   searchInput: { flex: 1, flexShrink: 1, minWidth: 0, height: 52, color: '#263241', fontSize: 15 },
   searchSpinner: { marginLeft: 8 },
   clearMarkerButton: { width: 32, height: 32, flexShrink: 0, marginLeft: 8, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: '#f1f5f9' },
   poiResults: { backgroundColor: '#fff', borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', marginTop: 8, paddingTop: 5, maxHeight: 280, overflow: 'hidden', elevation: 8, shadowColor: '#14243f', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
+  poiResultsJoined: { marginTop: 0, borderWidth: 0, borderRadius: 0, elevation: 0, shadowOpacity: 0 },
   poiResultsList: { flexShrink: 1, maxHeight: 230 },
   poiResult: { minHeight: 58, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10, gap: 11 },
   poiResultBorder: { borderTopWidth: 1, borderTopColor: '#edf0f3' },
