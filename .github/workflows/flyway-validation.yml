@@ -1,0 +1,80 @@
+name: Flyway Migration Validation
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  check-duplicate-migration-versions:
+    name: Duplicate versions / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: application-api
+            migration_path: services/application-api/src/main/resources/db/migration
+          - service: map-data
+            migration_path: services/map-data/database/migrations
+          - service: routing-service
+            migration_path: services/routing-service/src/main/resources/db/migration
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check duplicate Flyway versions
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SERVICE: ${{ matrix.service }}
+          MIGRATION_PATH: ${{ matrix.migration_path }}
+        run: |
+          python3 .github/scripts/check_flyway_migrations.py \
+            --check duplicates \
+            --service "$SERVICE" \
+            --migration-path "$MIGRATION_PATH" \
+            --base "$BASE_SHA"
+
+  check-existing-migrations-unchanged:
+    name: Existing migrations / ${{ matrix.service }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: application-api
+            migration_path: services/application-api/src/main/resources/db/migration
+          - service: map-data
+            migration_path: services/map-data/database/migrations
+          - service: routing-service
+            migration_path: services/routing-service/src/main/resources/db/migration
+
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check existing migrations unchanged
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SERVICE: ${{ matrix.service }}
+          MIGRATION_PATH: ${{ matrix.migration_path }}
+        run: |
+          python3 .github/scripts/check_flyway_migrations.py \
+            --check modified \
+            --service "$SERVICE" \
+            --migration-path "$MIGRATION_PATH" \
+            --base "$BASE_SHA"
