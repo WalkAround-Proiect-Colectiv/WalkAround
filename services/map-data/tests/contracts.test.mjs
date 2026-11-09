@@ -34,7 +34,7 @@ test('Martin and the tile function share their explicit, versioned schema contra
 });
 
 test('POI model keeps manual enrichment separate from OSM-owned tables and limits map-role access', async () => {
-  const sql = await read('../database/migrations/V2__poi_source_catalog_and_model.sql');
+  const sql = await read('../database/migrations/V3__poi_source_catalog_and_model.sql');
   for (const table of ['providers', 'pois', 'import_runs', 'poi_records', 'poi_links']) {
     assert.match(sql, new RegExp(`CREATE TABLE places\\.${table}\\b`));
   }
@@ -49,7 +49,7 @@ test('POI model keeps manual enrichment separate from OSM-owned tables and limit
 });
 
 test('POI reconciliation preserves confirmed links and does not confirm proximity alone', async () => {
-  const sql = await read('../database/migrations/V3__poi_reconciliation.sql');
+  const sql = await read('../database/migrations/V4__poi_reconciliation.sql');
   assert.match(sql, /provider\.approval_status = 'approved'/);
   assert.match(sql, /pg_advisory_xact_lock/);
   assert.match(sql, /'identifier_conflict'/);
@@ -60,7 +60,7 @@ test('POI reconciliation preserves confirmed links and does not confirm proximit
 });
 
 test('POI tile publication requires confirmed current approved sources and suppresses only explicit OSM identities', async () => {
-  const sql = await read('../database/migrations/V4__published_poi_tiles.sql');
+  const sql = await read('../database/migrations/V5__published_poi_tiles.sql');
   assert.match(sql, /link\.match_status = 'confirmed'/);
   assert.match(sql, /record\.record_status = 'current'/);
   assert.match(sql, /provider\.approval_status = 'approved'/);
@@ -73,7 +73,7 @@ test('POI tile publication requires confirmed current approved sources and suppr
 });
 
 test('POI density uses a later migration and publishes zoom-aware OSM clusters', async () => {
-  const sql = await read('../database/migrations/V5__poi_density_tiles.sql');
+  const sql = await read('../database/migrations/V6__poi_density_tiles.sql');
   assert.match(sql, /z BETWEEN 10 AND 14/);
   assert.match(sql, /'poi_cluster'/);
   assert.match(sql, /point_count/);
