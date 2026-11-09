@@ -7,30 +7,34 @@ This is a Spring Boot service responsible for managing geographical routing data
 The service exposes secure REST APIs to manage pedestrian mobility and safety:
 
 **1. Dangerous Zones**
-- Fetches dangerous zones heatmaps (publicly accessible).
-- Allows users to report new dangerous zones (requires valid user session).
-- Calculates the corresponding H3 index based on latitude and longitude.
-- Persists the report in the PostgreSQL database (`dangerous_zones` table).
-- Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
+*   Fetches dangerous zones heatmaps (publicly accessible).
+*   Allows users to report new dangerous zones (requires valid user session).
+*   Calculates the corresponding H3 index based on latitude and longitude, and now calculates and saves the cell's center coordinates (`center_lat` and `center_lng`) to allow highly optimized spatial bounding-box database queries.
+*   Persists the report in the PostgreSQL database (`dangerous_zones` table).
+*   Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
 
 **2. Route Calculation**
-- Provides pedestrian-optimized route calculation (publicly accessible) via `POST /api/v1/routes/pedestrian`.
-- Receives start and end coordinates plus an optional ordered list of intermediate stops. Routes with and without stops use the same endpoint.
-- Builds the Valhalla `locations` list as start → stops (in the order received) → end, and calls the local Valhalla container with `pedestrian` costing. Valhalla returns a single route covering all points, with one leg per segment.
+*   Provides pedestrian-optimized route calculation (publicly accessible) via `POST /api/v1/routes/pedestrian`.
+*   Receives start and end coordinates plus an optional ordered list of intermediate stops. Routes with and without stops use the same endpoint.
+*   Supports dynamic **Danger Zone Avoidance**: When `avoidDanger` is requested, the service calculates a bounding box (with an added safety buffer) around the route, filters temporally active zones from the database using their center coordinates, and validates in $O(1)$ time that no user waypoint falls directly inside a danger zone.
+*   Uses `H3Core` to natively group adjacent dangerous cells into continuous clusters, extracting only their outer perimeters (ignoring internal holes) to pass as `avoid_polygons` directly into Valhalla's routing graph.
+*   Builds the Valhalla `locations` list as start → stops (in the order received) → end, and calls the local Valhalla container with `pedestrian` costing. Letting Spring serialize the request avoids locale-dependent decimal formatting in the JSON body. Valhalla returns a single route covering all points, with one leg per segment.
+*   Employs RFC 7807 Problem Details to handle routing exceptions gracefully, returning a `422 Unprocessable Entity` with specific reasons (e.g., `POINT_IN_DANGER_ZONE`, `NO_PATH`, or `TOO_MANY_ZONES` if the graph becomes too fragmented for Valhalla to compute).
 
 Example request body:
 
-    {
-      "startLat": 44.4268,
-      "startLng": 26.1025,
-      "endLat": 44.4378,
-      "endLng": 26.0969,
-      "stops": [
-        { "lat": 44.4323, "lng": 26.1063 }
-      ]
-    }
-
-`stops` may be an empty array for a direct route.
+```json
+{
+  "start": { "lat": 44.4268, "lng": 26.1025 },
+  "end": { "lat": 44.4378, "lng": 26.0969 },
+  "stops": [
+    { "lat": 44.4323, "lng": 26.1063 }
+  ],
+  "avoidDanger": true,
+  "departureTime": "2026-11-09T22:30:00+02:00"
+}
+```
+`stops` may be an empty array for a direct route. If `departureTime` is omitted, the service falls back to the local system time (Europe/Bucharest) to determine active danger zones.
 
 ## Local Environment & Valhalla Setup
 
