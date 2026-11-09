@@ -11,3 +11,6 @@ CREATE TABLE dangerous_zones (
 );
 
 CREATE INDEX idx_dangerous_zones_h3 ON dangerous_zones(h3_index);
+
+
+test migration update
