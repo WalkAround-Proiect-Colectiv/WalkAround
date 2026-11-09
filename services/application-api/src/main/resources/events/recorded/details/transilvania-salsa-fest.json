@@ -1,0 +1,37 @@
+{
+  "event_details": {
+    "title": "15th Transilvania Salsa Fest",
+    "date": {
+      "start_date": "Nov 19",
+      "when": "Thu, 19 Nov 2026, 19:00"
+    },
+    "address": [
+      "Strada Octavian Goga 1, Grand Hotel Napoca",
+      "Cluj-Napoca 400698, Romania"
+    ],
+    "description": "Four days of salsa, bachata and kizomba workshops, international live shows and social dance nights in the heart of Transylvania. Suitable for intermediate and advanced dancers as well as newcomers.",
+    "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es",
+    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQvZ9jzUpXCw_m_CEicD8-B-ewcvjYx9np12ihrcHw1zeYIOfvpYjXwtdNF1wfZ4eAjsOnddyAkPSsJP8",
+    "venue": {
+      "name": "Grand Hotel Napoca",
+      "rating": 4.4,
+      "reviews": 3150,
+      "link": "https://hotelnapoca.ro/"
+    },
+    "event_location_map": {
+      "link": "https://www.google.com/maps/search/?api=1&query=Grand+Hotel+Napoca+Cluj-Napoca"
+    },
+    "ticket_info": [
+      {
+        "source": "salsero.es",
+        "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es",
+        "link_type": "tickets"
+      },
+      {
+        "source": "Grand Hotel Napoca",
+        "link": "https://hotelnapoca.ro/",
+        "link_type": "more info"
+      }
+    ]
+  }
+}

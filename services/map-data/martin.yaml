@@ -15,5 +15,11 @@ postgres:
       minzoom: 4
       maxzoom: 15
       bounds: [19.5, 43.4, 30, 48.5]
+    pois:
+      schema: tiles
+      function: pois
+      minzoom: 4
+      maxzoom: 18
+      bounds: [19.5, 43.4, 30, 48.5]
 fonts:
   paths: [/fonts]

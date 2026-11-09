@@ -24,15 +24,16 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import services.applicationapi.events.dto.EventDetailsMapper;
 import services.applicationapi.events.dto.EventDetailsResponse;
 import services.applicationapi.events.dto.EventResponse;
 import services.applicationapi.events.dto.InterestRequest;
 import services.applicationapi.events.dto.InterestResponse;
 import services.applicationapi.events.dto.LocalityResponse;
 import services.applicationapi.events.dto.NearbyEventsResponse;
+import services.applicationapi.events.service.EventDetailsService;
 import services.applicationapi.events.service.EventInterestService;
 import services.applicationapi.events.service.EventsService;
-import services.applicationapi.events.service.exceptions.EventNotFoundException;
 import services.applicationapi.events.service.exceptions.EventsAuthenticationException;
 
 /** Upcoming events near the user, marked events and their reminders. All endpoints require sign-in. */
@@ -45,10 +46,19 @@ public class EventsController {
 
     private final EventsService events;
     private final EventInterestService interests;
+    private final EventDetailsService eventDetailsService;
+    private final EventDetailsMapper eventDetailsMapper;
 
-    public EventsController(EventsService events, EventInterestService interests) {
+    public EventsController(
+            EventsService events,
+            EventInterestService interests,
+            EventDetailsService eventDetailsService,
+            EventDetailsMapper eventDetailsMapper
+    ) {
         this.events = events;
         this.interests = interests;
+        this.eventDetailsService = eventDetailsService;
+        this.eventDetailsMapper = eventDetailsMapper;
     }
 
     @GetMapping("/nearby")
@@ -80,16 +90,12 @@ public class EventsController {
             @RequestParam @NotBlank @Size(max = 64) String eventKey
     ) {
         UUID userId = currentUserId(jwt);
-        InterestResponse interest = interests.find(userId, eventKey).map(InterestResponse::of).orElse(null);
-        EventResponse event = events.findEvent(localityKey, eventKey)
-                .map(value -> EventResponse.of(value, localityKey, interest))
-                .orElse(null);
-        if (event == null && interest == null) {
-            throw new EventNotFoundException();
-        }
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
-                .body(new EventDetailsResponse(event, interest));
+                .body(eventDetailsMapper.toResponse(
+                        eventDetailsService.getDetails(userId, localityKey, eventKey),
+                        ATTRIBUTION
+                ));
     }
 
     @GetMapping("/interests")

@@ -13,13 +13,23 @@
     "Cluj-Napoca, Romania"
    ],
    "venue": {
-    "name": "The National Theatre Cluj-Napoca"
+    "name": "The National Theatre Cluj-Napoca",
+    "rating": 4.8,
+    "reviews": 2840,
+    "link": "https://www.teatrulnationalcluj.ro/"
    },
+   "description": "A contemporary staging of Igor Stravinsky's iconic score at the National Theatre in Cluj-Napoca.",
+   "link": "https://www.teatrulnationalcluj.ro/",
+   "event_location_map": {
+    "link": "https://www.google.com/maps/search/?api=1&query=The+National+Theatre+Cluj-Napoca"
+   },
+   "event_token": "rite-of-spring",
    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUAsAmuaonrGClSQyJmPcN7mbQmt-FLoWPFHCDes3sT2CW0vgC_1DXgf7eixGQQmlBKvgqgigYqaBP1qU",
    "ticket_info": [
     {
      "source": "bilete.ro",
-     "link": "https://www.bilete.ro/the-rite-of-spring/"
+     "link": "https://www.bilete.ro/the-rite-of-spring/",
+     "link_type": "tickets"
     }
    ]
   },
@@ -76,13 +86,23 @@
     "Cluj-Napoca, Romania"
    ],
    "venue": {
-    "name": "Grand Hotel Napoca"
+    "name": "Grand Hotel Napoca",
+    "rating": 4.4,
+    "reviews": 3150,
+    "link": "https://hotelnapoca.ro/"
    },
+   "description": "Annual international salsa, bachata and kizomba festival hosted at Grand Hotel Napoca.",
+   "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es",
+   "event_location_map": {
+    "link": "https://www.google.com/maps/search/?api=1&query=Grand+Hotel+Napoca+Cluj-Napoca"
+   },
+   "event_token": "transilvania-salsa-fest",
    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQvZ9jzUpXCw_m_CEicD8-B-ewcvjYx9np12ihrcHw1zeYIOfvpYjXwtdNF1wfZ4eAjsOnddyAkPSsJP8",
    "ticket_info": [
     {
      "source": "salsero.es",
-     "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es"
+     "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es",
+     "link_type": "tickets"
     }
    ]
   },
@@ -154,13 +174,23 @@
     "Cluj-Napoca, Romania"
    ],
    "venue": {
-    "name": "Gheorghe Dima National Music Academy"
+    "name": "Gheorghe Dima National Music Academy",
+    "rating": 4.7,
+    "reviews": 520,
+    "link": "https://www.amgd.ro/"
    },
+   "description": "Live string quartet tribute to Hans Zimmer performed by candlelight.",
+   "link": "https://events.musicofourdesire.com/nl/event/lzsa-candlelight-omagiu-pentru-hans-zimmer-concert-cluj-napoca-romania",
+   "event_location_map": {
+    "link": "https://www.google.com/maps/search/?api=1&query=Gheorghe+Dima+National+Music+Academy+Cluj-Napoca"
+   },
+   "event_token": "candlelight-hans-zimmer",
    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ8-51NmRCePFvR7O5UpBOQ0qaVj8bB664fogtlSJblsUD9qraStcjEJsiOm42x0XWEpSseXnuIoO2PTW8",
    "ticket_info": [
     {
      "source": "musicofourdesire.com",
-     "link": "https://events.musicofourdesire.com/nl/event/lzsa-candlelight-omagiu-pentru-hans-zimmer-concert-cluj-napoca-romania"
+     "link": "https://events.musicofourdesire.com/nl/event/lzsa-candlelight-omagiu-pentru-hans-zimmer-concert-cluj-napoca-romania",
+     "link_type": "tickets"
     }
    ]
   },
@@ -196,13 +226,23 @@
     "Cluj-Napoca, Romania"
    ],
    "venue": {
-    "name": "The National Theatre Cluj-Napoca"
+    "name": "The National Theatre Cluj-Napoca",
+    "rating": 4.8,
+    "reviews": 2840,
+    "link": "https://www.teatrulnationalcluj.ro/"
    },
+   "description": "A contemporary staging of Igor Stravinsky's iconic score at the National Theatre in Cluj-Napoca.",
+   "link": "https://www.teatrulnationalcluj.ro/",
+   "event_location_map": {
+    "link": "https://www.google.com/maps/search/?api=1&query=The+National+Theatre+Cluj-Napoca"
+   },
+   "event_token": "rite-of-spring",
    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTUAsAmuaonrGClSQyJmPcN7mbQmt-FLoWPFHCDes3sT2CW0vgC_1DXgf7eixGQQmlBKvgqgigYqaBP1qU",
    "ticket_info": [
     {
      "source": "bilete.ro",
-     "link": "https://www.bilete.ro/the-rite-of-spring/"
+     "link": "https://www.bilete.ro/the-rite-of-spring/",
+     "link_type": "tickets"
     }
    ]
   },
@@ -301,13 +341,23 @@
     "Cluj-Napoca, Romania"
    ],
    "venue": {
-    "name": "Grand Hotel Napoca"
+    "name": "Grand Hotel Napoca",
+    "rating": 4.4,
+    "reviews": 3150,
+    "link": "https://hotelnapoca.ro/"
    },
+   "description": "Annual international salsa, bachata and kizomba festival hosted at Grand Hotel Napoca.",
+   "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es",
+   "event_location_map": {
+    "link": "https://www.google.com/maps/search/?api=1&query=Grand+Hotel+Napoca+Cluj-Napoca"
+   },
+   "event_token": "transilvania-salsa-fest",
    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTQvZ9jzUpXCw_m_CEicD8-B-ewcvjYx9np12ihrcHw1zeYIOfvpYjXwtdNF1wfZ4eAjsOnddyAkPSsJP8",
    "ticket_info": [
     {
      "source": "salsero.es",
-     "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es"
+     "link": "https://salsero.es/events/10767/transilvania-salsa-fest-2026-15--edici-n?idioma=es",
+     "link_type": "tickets"
     }
    ]
   },

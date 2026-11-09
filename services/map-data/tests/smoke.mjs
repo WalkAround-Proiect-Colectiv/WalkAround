@@ -22,13 +22,13 @@ function coordinate(longitude, latitude, zoom) {
 const requireFrontend = createRequire(new URL('../../../frontend/package.json', import.meta.url));
 const { VectorTile } = requireFrontend('@mapbox/vector-tile');
 const { PbfReader } = requireFrontend('pbf');
-async function tile(base, zoom) {
+async function tile(base, zoom, source = 'basemap', layerName = 'features') {
   const [tileX, tileY] = coordinate(26.1025, 44.4268, zoom);
-  const response = await fetch(`${base}/tiles/basemap/${zoom}/${tileX}/${tileY}`, { signal: AbortSignal.timeout(30000) });
+  const response = await fetch(`${base}/tiles/${source}/${zoom}/${tileX}/${tileY}`, { signal: AbortSignal.timeout(30000) });
   assert.equal(response.status, 200);
   const decoded = new VectorTile(new PbfReader(new Uint8Array(await response.arrayBuffer())));
-  const layer = decoded.layers.features;
-  assert.ok(layer, 'The tile must contain the features vector layer');
+  const layer = decoded.layers[layerName];
+  if (!layer) return [];
   return Array.from({ length: layer.length }, (_, index) => layer.feature(index).properties);
 }
 
@@ -39,6 +39,8 @@ try {
   compose(['run', '--rm', '--no-deps', 'map-job', 'import']);
   compose(['up', '--build', '-d', '--wait', 'map-gateway']);
   compose(['run', '--rm', '--no-deps', 'map-job', 'verify']);
+  compose(['run', '--rm', '--no-deps', 'map-job', 'test-poi-model']);
+  compose(['run', '--rm', '--no-deps', 'map-job', 'seed-poi-fixture']);
   const address = compose(['port', 'map-gateway', '8080'], true);
   const base = `http://${address}`;
   const style = await (await fetch(`${base}/style.json`)).json();
@@ -53,6 +55,11 @@ try {
   assert.ok(before.some(feature => feature.name === 'Fixture building'));
   assert.ok(before.some(feature => feature.name === 'Fixture cafe'));
   assert.ok(!(await tile(base, 5)).some(feature => ['building', 'poi'].includes(feature.kind)));
+  const poiFeatures = await tile(base, 15, 'pois', 'pois');
+  assert.equal(poiFeatures.filter(feature => feature.name === 'Fixture cafe').length, 1);
+  assert.ok(!poiFeatures.some(feature => feature.poi_id === 'osm:n/10'));
+  assert.ok(poiFeatures.some(feature => feature.sources === 'Synthetic POI fixture' && feature.category === 'food_drink'));
+  assert.equal((await tile(base, 5, 'pois', 'pois')).length, 0);
   compose(['run', '--rm', '--no-deps', 'map-job', 'append-fixture']);
   const after = await tile(base, 15);
   assert.ok(after.some(feature => feature.name === 'Updated fixture road'));

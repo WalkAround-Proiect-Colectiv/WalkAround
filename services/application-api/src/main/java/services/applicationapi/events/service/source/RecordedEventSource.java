@@ -9,14 +9,15 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
-import tools.jackson.databind.ObjectMapper;
 import services.applicationapi.events.model.Locality;
 import services.applicationapi.events.service.locality.Slugs;
+import tools.jackson.databind.ObjectMapper;
 
 /**
- * Replays SerpApi responses recorded on 2026-11-05 from {@code classpath:events/recorded/<town>.json}.
+ * Replays SerpApi responses recorded on 2026-11-05 from {@code classpath:events/recorded/<town>.json}
+ * and per-event detail fixtures from {@code classpath:events/recorded/details/<token>.json}.
  * Makes no network calls, so development and tests do not use the SerpApi monthly quota.
- * Localities without a recording return no events.
+ * Localities or detail tokens without a recording return empty results.
  */
 @Component
 @ConditionalOnProperty(name = "app.events.provider", havingValue = "recorded")
@@ -54,6 +55,27 @@ public class RecordedEventSource implements EventSource {
 
     @Override
     public Optional<RawEventDetails> details(String detailsToken) {
-        return Optional.empty();
+        if (detailsToken == null || detailsToken.isBlank()) {
+            return Optional.empty();
+        }
+        String slug = Slugs.slug(detailsToken);
+        if (slug.isBlank()) {
+            return Optional.empty();
+        }
+        ClassPathResource resource = new ClassPathResource("events/recorded/details/" + slug + ".json");
+        if (!resource.exists()) {
+            return Optional.empty();
+        }
+        try (InputStream input = resource.getInputStream()) {
+            SerpApiEventSource.DetailsResponse response =
+                    objectMapper.readValue(input, SerpApiEventSource.DetailsResponse.class);
+            if (response == null || response.eventDetails() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(SerpApiEventSource.toRawEventDetails(response.eventDetails()));
+        } catch (IOException | RuntimeException exception) {
+            log.warn("Could not read recorded event details for token {}", slug, exception);
+            return Optional.empty();
+        }
     }
 }

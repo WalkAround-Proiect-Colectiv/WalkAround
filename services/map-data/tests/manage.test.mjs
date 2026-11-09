@@ -86,10 +86,10 @@ test('verification requires local fonts, metadata, and nonempty city tile respon
     if (request.url === '/health') { response.end('OK'); return; }
     if (request.url === '/style.json') {
       response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify({ version: 8, sources: { basemap: { tiles: ['/tiles/basemap/{z}/{x}/{y}'] } } }));
+      response.end(JSON.stringify({ version: 8, sources: { basemap: { tiles: ['/tiles/basemap/{z}/{x}/{y}'] }, pois: { tiles: ['/tiles/pois/{z}/{x}/{y}'] } } }));
       return;
     }
-    if (request.url === '/tiles/basemap') { response.end(JSON.stringify({ tiles: ['/tiles/basemap/{z}/{x}/{y}'] })); return; }
+    if (request.url === '/tiles/basemap' || request.url === '/tiles/pois') { response.end(JSON.stringify({ tiles: [`${request.url}/{z}/{x}/{y}`] })); return; }
     response.setHeader('content-type', 'application/x-protobuf');
     if (request.url.startsWith('/font/')) { response.end('mock-glyph-response'); return; }
     tileRequests++;
@@ -103,7 +103,7 @@ test('verification requires local fonts, metadata, and nonempty city tile respon
     empty = false;
     tileRequests = 0;
     await verifyEndpoints(base);
-    assert.equal(tileRequests, 4);
+    assert.equal(tileRequests, 8);
   } finally { await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
 });
 
