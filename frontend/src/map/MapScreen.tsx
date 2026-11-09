@@ -249,6 +249,16 @@ export default function MapScreen() {
     }
   }
 
+  function handleRecenter() {
+    if (!userLocation || !routeEnd) return;
+
+    const userLat = userLocation.coordinates[1];
+    const userLng = userLocation.coordinates[0];
+    const bearing = calculateBearing(userLat, userLng, routeEnd.lat, routeEnd.lng);
+
+    map.current?.startNavigation([userLng, userLat], bearing);
+  }
+
   function handleResumeSavedRoute(destination: { lat: number; lng: number }, routeId: number)
   {
     setShowSavedRoutes(false);
@@ -686,11 +696,28 @@ export default function MapScreen() {
 
               {routeGeoJSON && (
                   <Pressable style={styles.routeStartBtn} onPress={() => {
-                    if (routeStart && routeGeoJSON?.geometry?.coordinates?.length > 1) {
-                      const nextPoint = routeGeoJSON.geometry.coordinates[1];
-                      const initialBearing = calculateBearing(routeStart.lat, routeStart.lng, nextPoint[1], nextPoint[0]);
+                    if (!routeEnd) return;
+                    let startPoint = routeStart;
+                    if (userLocation) {
+                      const userLat = userLocation.coordinates[1];
+                      const userLng = userLocation.coordinates[0];
+                      const isDifferent = !routeStart ||
+                          Math.abs(userLat - routeStart.lat) > 0.0001 ||
+                          Math.abs(userLng - routeStart.lng) > 0.0001;
+                      if (isDifferent) {
+                        startPoint = { lat: userLat, lng: userLng };
+                        setRouteStart(startPoint);
+                      }
+                    }
+
+                    if (startPoint)
+                    {
+                      const destLat = routeGeoJSON?.geometry?.coordinates?.[1]?.[1] || routeEnd.lat;
+                      const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
+                      const initialBearing = calculateBearing(startPoint.lat, startPoint.lng, destLat, destLng);
+
                       setIsNavigating(true);
-                      map.current?.startNavigation([routeStart.lng, routeStart.lat], initialBearing);
+                      map.current?.startNavigation([startPoint.lng, startPoint.lat], initialBearing);
                     }
                   }}>
                     <Text style={styles.routeStartText}>Start</Text>
@@ -702,12 +729,21 @@ export default function MapScreen() {
 
       {isNavigating && (
           <View style={styles.navigatingOverlay} pointerEvents="box-none">
-            <Pressable
-                accessibilityRole="button"
-                style={styles.pauseRouteBtn}
-                onPress={handlePauseAndSaveRoute}>
-              <Text style={styles.pauseRouteText}>Pause Route</Text>
-            </Pressable>
+            <View style={styles.navigatingActionsRow}>
+              <Pressable
+                  accessibilityRole="button"
+                  style={styles.recenterBtn}
+                  onPress={handleRecenter}>
+                <LocateFixed size={22} color="#ffffff" />
+              </Pressable>
+
+              <Pressable
+                  accessibilityRole="button"
+                  style={styles.pauseRouteBtn}
+                  onPress={handlePauseAndSaveRoute}>
+                <Text style={styles.pauseRouteText}>Pause Route</Text>
+              </Pressable>
+            </View>
           </View>
       )}
 
@@ -1032,6 +1068,8 @@ const styles = StyleSheet.create({
   routeStartBtn: { backgroundColor: '#9b59b6', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, elevation: 2 },
   routeStartText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
   navigatingOverlay: {position: 'absolute', top: 90, left: 0, right: 0, alignItems: 'center', zIndex: 100},
+  navigatingActionsRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  recenterBtn: {backgroundColor: '#0065EB', width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
   pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
   pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
 });
