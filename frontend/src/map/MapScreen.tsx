@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, Switch } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, ShieldAlert, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -78,6 +78,42 @@ function decodePolyline(str: string, precision = 6) {
   return coordinates;
 }
 
+const ROUTE_REASON_MESSAGES: Record<string, string> = {
+  NO_PATH: 'No walking route could be found between these points. If "Avoid Danger Zones" is on, try turning it off.',
+  POINT_IN_DANGER_ZONE: 'One of your points is inside a danger zone. Move it or turn off "Avoid Danger Zones".',
+  TOO_MANY_ZONES: 'Too many danger zones around this route. Try turning off "Avoid Danger Zones".',
+};
+
+function routeFailure(message: string, expected: boolean) {
+  return Object.assign(new Error(message), { expected });
+}
+
+async function requestPedestrianRoute(body: object, signal: AbortSignal) {
+  const res = await fetch(`${environment.apiBaseUrl}/api/v1/routes/pedestrian`, {
+    method: 'POST',
+    signal,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data: any = null;
+  try { data = text ? JSON.parse(text) : null; } catch { /* body non-JSON */ }
+
+  if (res.ok) return data;
+
+  const reason: string | undefined = data?.reason;
+  if (res.status === 422 && reason && ROUTE_REASON_MESSAGES[reason]) {
+    throw routeFailure(ROUTE_REASON_MESSAGES[reason], true);
+  }
+  if ((res.status === 422 || res.status === 400) && typeof data?.detail === 'string') {
+    throw routeFailure(data.detail, true);
+  }
+  if (res.status >= 502 && res.status <= 504) {
+    throw routeFailure('Routing is temporarily unavailable. Please try again in a moment.', false);
+  }
+  throw routeFailure(`Route calculation failed (${res.status}).`, false);
+}
+
 export default function MapScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const compactSearchLayout = windowWidth < 600;
@@ -147,6 +183,9 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+
+  const [avoidDanger, setAvoidDanger] = useState(true);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const locateRef = useRef(locate);
@@ -253,6 +292,7 @@ export default function MapScreen() {
 
     return () => { clearTimeout(timeout); controller.abort(); };
   }, [coordinateQuery, poiSearchNonce]);
+
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
   const [zoneModalVisible, setZoneModalVisible] = useState(false);
   const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -269,6 +309,7 @@ export default function MapScreen() {
     if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
     return features.length > 0 ? { type: 'FeatureCollection' as const, features } : null;
   }, [routeStart, routeStops, routeEnd]);
+
   useEffect(() => {
     if (!style) return;
     async function loadZones() {
@@ -385,38 +426,34 @@ export default function MapScreen() {
   useEffect(() => {
     if (!routeStart || !routeEnd) return;
     const controller = new AbortController();
-    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-    fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        startLat: routeStart.lat,
-        startLng: routeStart.lng,
-        stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
-        endLat: routeEnd.lat,
-        endLng: routeEnd.lng
-      })
-    })
-      .then(res => res.json())
+    requestPedestrianRoute({
+      start: routeStart,
+      end: routeEnd,
+      stops: routeStops.map(s => s.point),
+      avoidDanger,
+    }, controller.signal)
       .then(data => {
         if (data?.trip?.legs?.length) {
           const coords = data.trip.legs.flatMap((leg: any) => decodePolyline(leg.shape, 6));
           setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
+          setRouteError(null);
         } else {
-          console.log('No route found in response');
           setRouteGeoJSON(null);
+          setRouteError('No route found.');
         }
       })
       .catch(err => {
         if (err.name === 'AbortError') return;
-        console.error('Failed to calculate route:', err);
+        if (!err.expected) console.warn('Failed to calculate route:', err);
         setRouteGeoJSON(null);
+        setRouteError(typeof err.expected === 'boolean'
+          ? err.message
+          : 'Could not reach the routing server. Check your connection.');
       });
 
     return () => controller.abort();
-  }, [routeStart, routeEnd, routeStops]);
+  }, [routeStart, routeEnd, routeStops, avoidDanger]);
 
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
@@ -426,7 +463,7 @@ export default function MapScreen() {
         : (routeStart ?? { lat: camera.center[1], lng: camera.center[0] });
       return [...stops, { id, point: previous }];
     });
-    setActiveRouteField(id); // următorul tap pe hartă mută noua oprire
+    setActiveRouteField(id);
   }
 
   function removeStop(id: string) {
@@ -610,8 +647,29 @@ export default function MapScreen() {
               <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
+            {/* TOGGLE NOU: Evitare zone periculoase */}
+            <View style={styles.avoidDangerRow}>
+              <View style={styles.avoidDangerLabel}>
+                <ShieldAlert size={18} color={avoidDanger ? "#d93838" : "#758091"} />
+                <Text style={styles.avoidDangerText}>Avoid Danger Zones</Text>
+              </View>
+              <Switch
+                value={avoidDanger}
+                onValueChange={setAvoidDanger}
+                trackColor={{ false: '#dce2e9', true: '#ffb3b3' }}
+                thumbColor={avoidDanger ? '#d93838' : '#9aa3ae'}
+              />
+            </View>
+
+            {/* Afișare eroare de rutare */}
+            {routeError && (
+              <View style={styles.routeErrorContainer}>
+                <Text style={styles.routeErrorText}>{routeError}</Text>
+              </View>
+            )}
+
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteStops([]); setRouteGeoJSON(null); }}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteStops([]); setRouteGeoJSON(null); setRouteError(null); }}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
               {routeGeoJSON && (
@@ -658,7 +716,6 @@ export default function MapScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
-            // The map centre is the fallback position when location access is unavailable.
             router.push({ pathname: '/events', params: { lat: String(camera.center[1]), lng: String(camera.center[0]) } });
           }} style={styles.menuItem}>
             <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
@@ -902,7 +959,7 @@ const styles = StyleSheet.create({
   routeOverlay: {
     position: 'absolute',
     left: 12,
-    width: 300,
+    width: 310,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
@@ -923,6 +980,41 @@ const styles = StyleSheet.create({
   routeInputActive: { borderColor: '#9b59b6', backgroundColor: '#fdfaee' },
   routeDot: { width: 10, height: 10, borderRadius: 5 },
   routeInputText: { fontSize: 14, color: '#363d47', flex: 1 },
+
+  avoidDangerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: '#edf0f3',
+  },
+  avoidDangerLabel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  avoidDangerText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#263241',
+  },
+  routeErrorContainer: {
+    backgroundColor: '#ffe5e5',
+    padding: 10,
+    borderRadius: 8,
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: '#ff4d4d',
+  },
+  routeErrorText: {
+    color: '#a60000',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
   routeActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   routeCloseBtn: { paddingVertical: 10, paddingHorizontal: 12 },
   routeCloseText: { color: '#758091', fontWeight: '600', fontSize: 15 },
