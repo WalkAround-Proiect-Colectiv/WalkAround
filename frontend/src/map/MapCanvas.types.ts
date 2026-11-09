@@ -5,7 +5,7 @@ import type { MapPoi, MapZone } from './poi';
 import type { EventPinsFeatureCollection } from '../events/mapPins';
 
 export type CameraPosition = { center: [number, number]; zoom: number };
-export type UserLocation = { coordinates: [longitude: number, latitude: number]; accuracy: number } | null;
+export type UserLocation = { coordinates: [longitude: number, latitude: number]; accuracy: number; heading?: number | null; } | null;
 export type ScreenPoint = { x: number; y: number };
 export type MapHandle = {
   fitCoverage(): void;

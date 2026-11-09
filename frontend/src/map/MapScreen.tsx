@@ -96,6 +96,21 @@ function calculateBearing(startLat: number, startLng: number, destLat: number, d
   return (bearing + 360) % 360;
 }
 
+function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaphi = (lat2 - lat1) * Math.PI / 180;
+  const deltalambda = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(deltaphi/2) * Math.sin(deltaphi/2) +
+      Math.cos(phi1) * Math.cos(phi2) *
+      Math.sin(deltalambda/2) * Math.sin(deltalambda/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
+
 export default function MapScreen() {
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const compactSearchLayout = windowWidth < 600;
@@ -168,6 +183,7 @@ export default function MapScreen() {
   const [isNavigating, setIsNavigating] = useState(false);
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
+  const [showArrivalAlert, setShowArrivalAlert] = useState(false);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const locateRef = useRef(locate);
@@ -497,6 +513,32 @@ export default function MapScreen() {
     return () => controller.abort();
   }, [routeStart, routeEnd, routeStops]);
 
+  useEffect(() => {
+    if (isNavigating && userLocation && routeEnd) {
+      const userLat = userLocation.coordinates[1];
+      const userLng = userLocation.coordinates[0];
+
+      const distanceToDestination = calculateDistanceInMeters(userLat, userLng, routeEnd.lat, routeEnd.lng);
+      if (distanceToDestination <= 10)
+      {
+        /* eslint-disable react-hooks/set-state-in-effect */
+        setIsNavigating(false);
+        map.current?.resetNorth();
+        setShowArrivalAlert(true);
+        setTimeout(() => setShowArrivalAlert(false), 5000);
+        /* eslint-enable react-hooks/set-state-in-effect */
+        return;
+      }
+      let currentBearing = userLocation.heading;
+      if (currentBearing === null || currentBearing === undefined) {
+        const destLat = routeGeoJSON?.geometry?.coordinates?.[1]?.[1] || routeEnd.lat;
+        const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
+        currentBearing = calculateBearing(userLat, userLng, destLat, destLng);
+      }
+      map.current?.startNavigation([userLng, userLat], currentBearing);
+    }
+  }, [userLocation, isNavigating, routeEnd, routeGeoJSON]);
+
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
     setRouteStops(stops => {
@@ -724,6 +766,12 @@ export default function MapScreen() {
                   </Pressable>
               )}
             </View>
+          </View>
+      )}
+
+      {showArrivalAlert && (
+          <View style={styles.arrivalAlertContainer}>
+            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
           </View>
       )}
 
@@ -1072,4 +1120,6 @@ const styles = StyleSheet.create({
   recenterBtn: {backgroundColor: '#0065EB', width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
   pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
   pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
+  arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
+  arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });
