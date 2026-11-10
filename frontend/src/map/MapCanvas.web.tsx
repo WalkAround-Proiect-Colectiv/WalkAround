@@ -150,6 +150,15 @@ export default function MapCanvas({
       resetNorth: () => {
         map.current?.easeTo({ bearing: 0, pitch: 0 });
       },
+      startNavigation: (center, bearing) => {
+        map.current?.flyTo({
+          center,
+          zoom: 18.5,
+          pitch: 60,
+          bearing: bearing,
+          duration: 1200,
+        });
+      },
     }),
     [],
   );

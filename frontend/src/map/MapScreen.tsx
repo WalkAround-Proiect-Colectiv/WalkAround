@@ -18,6 +18,9 @@ import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal'
 import { cellToBoundary } from 'h3-js';
 import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
 import { environment } from '../config/environment';
+import { authenticatedRequest } from '../login/api/session';
+import { jsonPost } from '../login/api/http';
+import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
 
 type LatLng = { lat: number; lng: number };
 type RouteStop = { id: string; point: LatLng };
@@ -76,6 +79,36 @@ function decodePolyline(str: string, precision = 6) {
     coordinates.push([lng / factor, lat / factor]);
   }
   return coordinates;
+}
+
+function calculateBearing(startLat: number, startLng: number, destLat: number, destLng: number) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const startLatRad = toRad(startLat);
+  const startLngRad = toRad(startLng);
+  const destLatRad = toRad(destLat);
+  const destLngRad = toRad(destLng);
+
+  const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+  const x = Math.cos(startLatRad) * Math.sin(destLatRad) - Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
+
+  const bearing = toDeg(Math.atan2(y, x));
+  return (bearing + 360) % 360;
+}
+
+function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaphi = (lat2 - lat1) * Math.PI / 180;
+  const deltalambda = (lon2 - lon1) * Math.PI / 180;
+
+  const a = Math.sin(deltaphi/2) * Math.sin(deltaphi/2) +
+      Math.cos(phi1) * Math.cos(phi2) *
+      Math.sin(deltalambda/2) * Math.sin(deltalambda/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
 }
 
 export default function MapScreen() {
@@ -147,6 +180,11 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const [routeInstructions, setRouteInstructions] = useState<any[]>([]);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [showSavedRoutes, setShowSavedRoutes] = useState(false);
+  const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
+  const [showArrivalAlert, setShowArrivalAlert] = useState(false);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const locateRef = useRef(locate);
@@ -196,6 +234,64 @@ export default function MapScreen() {
     }
     immediatePoiQuery.current = query;
     setPoiSearchNonce(value => value + 1);
+  }
+
+  async function handlePauseAndSaveRoute() {
+    setIsNavigating(false);
+    map.current?.resetNorth();
+    if (!session || !routeStart || !routeEnd) return;
+    try {
+      const payload = {
+        startLat: routeStart.lat,
+        startLng: routeStart.lng,
+        endLat: routeEnd.lat,
+        endLng: routeEnd.lng
+      };
+      if (activeSavedRouteId)
+      {
+        await authenticatedRequest(`/api/v1/saved-routes/${activeSavedRouteId}`, {
+          ...jsonPost(payload),
+          method: 'PUT'
+        });
+        console.log('Route successfully updated!');
+      }
+      else
+      {
+        await authenticatedRequest('/api/v1/saved-routes', jsonPost(payload));
+        console.log('New route successfully saved!');
+      }
+
+    } catch (err) {
+      console.error('Error saving/updating route:', err);
+    }
+  }
+
+  function handleRecenter() {
+    if (!userLocation || !routeEnd) return;
+
+    const userLat = userLocation.coordinates[1];
+    const userLng = userLocation.coordinates[0];
+    const bearing = calculateBearing(userLat, userLng, routeEnd.lat, routeEnd.lng);
+
+    map.current?.startNavigation([userLng, userLat], bearing);
+  }
+
+  function handleResumeSavedRoute(destination: { lat: number; lng: number }, routeId: number)
+  {
+    setShowSavedRoutes(false);
+    setRouteMode(true);
+    setActiveSavedRouteId(routeId);
+    if (userLocation)
+    {
+      setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+      map.current?.goTo({ center: [userLocation.coordinates[0], userLocation.coordinates[1]], zoom: 15 });
+    }
+    else
+    {
+      setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
+    }
+    setRouteEnd(destination);
+    setActiveRouteField(null);
   }
 
   function handleMapCoordinateSelect([longitude, latitude]: [number, number]) {
@@ -402,11 +498,30 @@ export default function MapScreen() {
       .then(res => res.json())
       .then(data => {
         if (data?.trip?.legs?.length) {
-          const coords = data.trip.legs.flatMap((leg: any) => decodePolyline(leg.shape, 6));
-          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
+          let allCoords: number[][] = [];
+          let allInstructions: any[] = [];
+
+          data.trip.legs.forEach((leg: any) => {
+            const legCoords = decodePolyline(leg.shape, 6);
+            allCoords = allCoords.concat(legCoords);
+            if (leg.maneuvers) {
+              const legInstructions = leg.maneuvers.map((m: any) => ({
+                instruction: m.instruction,
+                distanceMeters: m.length * 1000,
+                coordinate: legCoords[m.begin_shape_index],
+                type: m.type
+              }));
+              allInstructions = allInstructions.concat(legInstructions);
+            }
+          });
+
+          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: allCoords } });
+          setRouteInstructions(allInstructions);
+          console.log("Extracted Instructions for TTS:", allInstructions);
         } else {
           console.log('No route found in response');
           setRouteGeoJSON(null);
+          setRouteInstructions([]);
         }
       })
       .catch(err => {
@@ -417,6 +532,32 @@ export default function MapScreen() {
 
     return () => controller.abort();
   }, [routeStart, routeEnd, routeStops]);
+
+  useEffect(() => {
+    if (isNavigating && userLocation && routeEnd) {
+      const userLat = userLocation.coordinates[1];
+      const userLng = userLocation.coordinates[0];
+
+      const distanceToDestination = calculateDistanceInMeters(userLat, userLng, routeEnd.lat, routeEnd.lng);
+      if (distanceToDestination <= 10)
+      {
+        /* eslint-disable react-hooks/set-state-in-effect */
+        setIsNavigating(false);
+        map.current?.resetNorth();
+        setShowArrivalAlert(true);
+        setTimeout(() => setShowArrivalAlert(false), 5000);
+        /* eslint-enable react-hooks/set-state-in-effect */
+        return;
+      }
+      let currentBearing = userLocation.heading;
+      if (currentBearing === null || currentBearing === undefined) {
+        const destLat = routeGeoJSON?.geometry?.coordinates?.[1]?.[1] || routeEnd.lat;
+        const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
+        currentBearing = calculateBearing(userLat, userLng, destLat, destLng);
+      }
+      map.current?.startNavigation([userLng, userLat], currentBearing);
+    }
+  }, [userLocation, isNavigating, routeEnd, routeGeoJSON]);
 
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
@@ -571,7 +712,7 @@ export default function MapScreen() {
           </View>
       )}
 
-      {routeMode && (
+      {routeMode && !isNavigating && (
           <View style={[styles.routeOverlay, { top: Math.max(insets.top, 12) + 64 }]}>
             <Text style={styles.routeOverlayTitle}>Plan your route</Text>
 
@@ -611,14 +752,65 @@ export default function MapScreen() {
             </Pressable>
 
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteStops([]); setRouteGeoJSON(null); }}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setIsNavigating(false); setActiveSavedRouteId(null);}}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
+
               {routeGeoJSON && (
-                  <Pressable style={styles.routeStartBtn} onPress={() => console.log('Start navigation task coming next')}>
+                  <Pressable style={styles.routeStartBtn} onPress={() => {
+                    if (!routeEnd) return;
+                    let startPoint = routeStart;
+                    if (userLocation) {
+                      const userLat = userLocation.coordinates[1];
+                      const userLng = userLocation.coordinates[0];
+                      const isDifferent = !routeStart ||
+                          Math.abs(userLat - routeStart.lat) > 0.0001 ||
+                          Math.abs(userLng - routeStart.lng) > 0.0001;
+                      if (isDifferent) {
+                        startPoint = { lat: userLat, lng: userLng };
+                        setRouteStart(startPoint);
+                      }
+                    }
+
+                    if (startPoint)
+                    {
+                      const destLat = routeGeoJSON?.geometry?.coordinates?.[1]?.[1] || routeEnd.lat;
+                      const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
+                      const initialBearing = calculateBearing(startPoint.lat, startPoint.lng, destLat, destLng);
+
+                      setIsNavigating(true);
+                      map.current?.startNavigation([startPoint.lng, startPoint.lat], initialBearing);
+                    }
+                  }}>
                     <Text style={styles.routeStartText}>Start</Text>
                   </Pressable>
               )}
+            </View>
+          </View>
+      )}
+
+      {showArrivalAlert && (
+          <View style={styles.arrivalAlertContainer}>
+            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
+          </View>
+      )}
+
+      {isNavigating && (
+          <View style={styles.navigatingOverlay} pointerEvents="box-none">
+            <View style={styles.navigatingActionsRow}>
+              <Pressable
+                  accessibilityRole="button"
+                  style={styles.recenterBtn}
+                  onPress={handleRecenter}>
+                <LocateFixed size={22} color="#ffffff" />
+              </Pressable>
+
+              <Pressable
+                  accessibilityRole="button"
+                  style={styles.pauseRouteBtn}
+                  onPress={handlePauseAndSaveRoute}>
+                <Text style={styles.pauseRouteText}>Pause Route</Text>
+              </Pressable>
             </View>
           </View>
       )}
@@ -656,6 +848,14 @@ export default function MapScreen() {
           }} style={styles.menuItem}>
             <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
           </Pressable>
+          {session && (
+              <Pressable accessibilityRole="button" onPress={() => {
+                setMenuOpen(false);
+                setShowSavedRoutes(true);
+              }} style={styles.menuItem}>
+                <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>My Routes</Text>
+              </Pressable>
+          )}
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
             // The map centre is the fallback position when location access is unavailable.
@@ -827,6 +1027,13 @@ export default function MapScreen() {
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
       {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
     </View>
+    {session && (
+        <SavedRoutesModal
+            visible={showSavedRoutes}
+            onClose={() => setShowSavedRoutes(false)}
+            onSelectRoute={handleResumeSavedRoute}
+        />
+    )}
   </View>;
 }
 
@@ -928,4 +1135,11 @@ const styles = StyleSheet.create({
   routeCloseText: { color: '#758091', fontWeight: '600', fontSize: 15 },
   routeStartBtn: { backgroundColor: '#9b59b6', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, elevation: 2 },
   routeStartText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
+  navigatingOverlay: {position: 'absolute', top: 90, left: 0, right: 0, alignItems: 'center', zIndex: 100},
+  navigatingActionsRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  recenterBtn: {backgroundColor: '#0065EB', width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
+  pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
+  pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
+  arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
+  arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });

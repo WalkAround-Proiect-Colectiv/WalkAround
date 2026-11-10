@@ -44,63 +44,71 @@ export default function MapCanvas({
   const currentZoom = useRef(PLACES[0].zoom);
   const center = useRef(PLACES[0].center);
   const lastPress = useRef<{ time: number; point: [number, number] } | null>(null);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      fitCoverage: () =>
-        camera.current?.fitBounds([...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]], {
-          padding: { top: 24, right: 24, bottom: 24, left: 24 },
-          duration: 900,
-          bearing: 0,
-          pitch: 0,
+    useImperativeHandle(
+        ref,
+        () => ({
+            fitCoverage: () =>
+                camera.current?.fitBounds([...ROMANIA_BOUNDS[0], ...ROMANIA_BOUNDS[1]], {
+                    padding: { top: 24, right: 24, bottom: 24, left: 24 },
+                    duration: 900,
+                    bearing: 0,
+                    pitch: 0,
+                }),
+            goTo: position =>
+                camera.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }),
+            zoomBy: delta =>
+                camera.current?.zoomTo(
+                    Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom.current + delta)),
+                    { duration: 250 },
+                ),
+            resetNorth: () =>
+                camera.current?.easeTo({
+                    center: center.current,
+                    bearing: 0,
+                    pitch: 0,
+                    duration: 250,
+                }),
+            startNavigation: (navCenter, bearing) => {
+                camera.current?.flyTo({
+                    center: navCenter,
+                    zoom: 18.5,
+                    pitch: 45,
+                    bearing: bearing,
+                    duration: 1200,
+                });
+            },
         }),
-      goTo: position =>
-        camera.current?.flyTo({ ...position, bearing: 0, pitch: 0, duration: 900 }),
-      zoomBy: delta =>
-        camera.current?.zoomTo(
-          Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, currentZoom.current + delta)),
-          { duration: 250 },
-        ),
-      resetNorth: () =>
-        camera.current?.easeTo({
-          center: center.current,
-          bearing: 0,
-          pitch: 0,
-          duration: 250,
-        }),
-    }),
-    [],
-  );
+        [],
+    );
 
-  const updateSelectedPinScreenPoint = useCallback(async () => {
-    if (!onSelectedPinScreenPoint) {
-      return;
-    }
-    if (!selectedEventPinCoordinates || !nativeMap.current) {
-      onSelectedPinScreenPoint(null);
-      return;
-    }
-    try {
-      const pixel = await nativeMap.current.project(selectedEventPinCoordinates);
-      if (
-        Array.isArray(pixel) &&
-        pixel.length >= 2 &&
-        Number.isFinite(pixel[0]) &&
-        Number.isFinite(pixel[1])
-      ) {
-        onSelectedPinScreenPoint({ x: pixel[0], y: pixel[1] });
-      } else {
-        onSelectedPinScreenPoint(null);
-      }
-    } catch {
-      onSelectedPinScreenPoint(null);
-    }
-  }, [onSelectedPinScreenPoint, selectedEventPinCoordinates]);
+    const updateSelectedPinScreenPoint = useCallback(async () => {
+        if (!onSelectedPinScreenPoint) {
+            return;
+        }
+        if (!selectedEventPinCoordinates || !nativeMap.current) {
+            onSelectedPinScreenPoint(null);
+            return;
+        }
+        try {
+            const pixel = await nativeMap.current.project(selectedEventPinCoordinates);
+            if (
+                Array.isArray(pixel) &&
+                pixel.length >= 2 &&
+                Number.isFinite(pixel[0]) &&
+                Number.isFinite(pixel[1])
+            ) {
+                onSelectedPinScreenPoint({ x: pixel[0], y: pixel[1] });
+            } else {
+                onSelectedPinScreenPoint(null);
+            }
+        } catch {
+            onSelectedPinScreenPoint(null);
+        }
+    }, [onSelectedPinScreenPoint, selectedEventPinCoordinates]);
 
-  useEffect(() => {
-    void updateSelectedPinScreenPoint();
-  }, [updateSelectedPinScreenPoint]);
+    useEffect(() => {
+        void updateSelectedPinScreenPoint();
+    }, [updateSelectedPinScreenPoint]);
 
   const accuracyRadius = userLocation
     ? Math.max(
