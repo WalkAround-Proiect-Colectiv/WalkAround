@@ -185,6 +185,7 @@ export default function MapScreen() {
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
   const [showArrivalAlert, setShowArrivalAlert] = useState(false);
+  const lastClickedCoords = useRef<[number, number] | null>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const locateRef = useRef(locate);
@@ -309,6 +310,11 @@ export default function MapScreen() {
     handleMapCoordinateSelect(result.coordinates);
     setCoordinateQuery(result.name);
     map.current?.goTo({ center: result.coordinates, zoom: 15 });
+    setSelectedPoi({
+      name: result.name,
+      category: result.detail || 'Search Result',
+      coordinates: result.coordinates
+    } as any);
   }
 
   useEffect(() => {
@@ -582,13 +588,26 @@ export default function MapScreen() {
   }
 
   function handlePoiSelect(poi: MapPoi | null) {
-    setSelectedPoi(poi);
     if (poi) {
-      mapEvents.clearSelection();
+      setTimeout(() => {
+        const coordsToUse = lastClickedCoords.current || camera.center;
+        setSelectedPoi({
+          ...poi,
+          coordinates: coordsToUse
+        } as any);
+        mapEvents.clearSelection();
+      }, 0);
+    }
+    else
+    {
+      setSelectedPoi(null);
     }
   }
 
   function handleMapClick(zone: { intensity: number; categories: string[] } | null, coords?: [number, number]) {
+    if (coords) {
+      lastClickedCoords.current = coords;
+    }
     if (routeMode && activeRouteField && coords) {
       const point = { lng: coords[0], lat: coords[1] };
       if (activeRouteField === 'start') {
@@ -884,7 +903,42 @@ export default function MapScreen() {
     {selectedPoi && <View style={styles.poiDetails}>
       <View style={styles.poiHeading}>
         <Text accessibilityRole="header" style={styles.poiName}>{selectedPoi.name}</Text>
-        <Tool label="Close place details" icon={X} onPress={() => setSelectedPoi(null)} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Tool
+              label="Calculate Route"
+              icon={Route}
+              onPress={() => {
+                const destCoords = (selectedPoi as any).coordinates || searchedLocation || camera.center;
+                setSelectedPoi(null);
+                setCoordinateQuery('');
+                setPoiResults([]);
+                setSearchedLocation(null);
+                setCoordinateError(null);
+                setRouteMode(true);
+                if (userLocation)
+                {
+                  setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+                }
+                else
+                {
+                  setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
+                }
+                setRouteEnd({ lat: destCoords[1], lng: destCoords[0] });
+                setActiveRouteField(null);
+              }}
+          />
+          <Tool
+              label="Close place details"
+              icon={X}
+              onPress={() => {
+                setSelectedPoi(null);
+                setCoordinateQuery('');
+                setPoiResults([]);
+                setSearchedLocation(null);
+                setCoordinateError(null);
+              }}
+          />
+        </View>
       </View>
       <ScrollView style={styles.poiDescription}>
         <Text style={styles.poiCategory}>{selectedPoi.category}</Text>
@@ -1075,7 +1129,6 @@ const styles = StyleSheet.create({
   infoCardText: { color: '#363d47', fontSize: 14 },
   closeInfoButton: { marginTop: 12, paddingVertical: 8 },
   closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 },
-
   searchArea: { position: 'absolute', left: 70, right: 70, zIndex: 20 },
   searchAreaCompact: { left: 12, right: 12 },
   searchAreaExpanded: { left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 8, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d8e0ea', elevation: 8, shadowColor: '#14243f', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
@@ -1106,20 +1159,7 @@ const styles = StyleSheet.create({
   poiResultDetail: { fontSize: 13, color: '#758091', marginTop: 2 },
   poiAttribution: { fontSize: 10, color: '#8793a2', textAlign: 'center', paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#edf0f3' },
   coordinateError: { backgroundColor: '#ffe5e5', color: '#a60000', padding: 10, borderRadius: 8, marginTop: 6, fontSize: 13, borderWidth: 1, borderColor: '#ff0000' },
-  routeOverlay: {
-    position: 'absolute',
-    left: 12,
-    width: 300,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    elevation: 6,
-    shadowColor: '#14243f',
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    zIndex: 100
-  },
+  routeOverlay: {position: 'absolute', left: 12, width: 300, backgroundColor: '#ffffff', borderRadius: 16, padding: 16, elevation: 6, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, zIndex: 100},
   routeOverlayTitle: { fontSize: 16, fontWeight: '700', color: '#263241', marginBottom: 12 },
   routeInput: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, marginBottom: 10, backgroundColor: '#f9f9fb' },
   routeStopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
@@ -1142,4 +1182,6 @@ const styles = StyleSheet.create({
   pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
   arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
   arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
+  calculateRouteBtn: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0065EB', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginTop: 12,},
+  calculateRouteBtnText: {color: '#ffffff', fontWeight: '600', fontSize: 15,},
 });
