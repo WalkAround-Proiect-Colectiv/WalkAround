@@ -180,6 +180,7 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
+  const [routeInstructions, setRouteInstructions] = useState<any[]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
@@ -497,11 +498,30 @@ export default function MapScreen() {
       .then(res => res.json())
       .then(data => {
         if (data?.trip?.legs?.length) {
-          const coords = data.trip.legs.flatMap((leg: any) => decodePolyline(leg.shape, 6));
-          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
+          let allCoords: number[][] = [];
+          let allInstructions: any[] = [];
+
+          data.trip.legs.forEach((leg: any) => {
+            const legCoords = decodePolyline(leg.shape, 6);
+            allCoords = allCoords.concat(legCoords);
+            if (leg.maneuvers) {
+              const legInstructions = leg.maneuvers.map((m: any) => ({
+                instruction: m.instruction,
+                distanceMeters: m.length * 1000,
+                coordinate: legCoords[m.begin_shape_index],
+                type: m.type
+              }));
+              allInstructions = allInstructions.concat(legInstructions);
+            }
+          });
+
+          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: allCoords } });
+          setRouteInstructions(allInstructions);
+          console.log("Extracted Instructions for TTS:", allInstructions);
         } else {
           console.log('No route found in response');
           setRouteGeoJSON(null);
+          setRouteInstructions([]);
         }
       })
       .catch(err => {
@@ -732,7 +752,7 @@ export default function MapScreen() {
             </Pressable>
 
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setIsNavigating(false); setActiveSavedRouteId(null);}}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setIsNavigating(false); setActiveSavedRouteId(null);}}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
 
