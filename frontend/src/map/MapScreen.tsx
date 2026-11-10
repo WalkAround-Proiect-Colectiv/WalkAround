@@ -895,6 +895,7 @@ export default function MapScreen() {
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
         <Tool label="Reset north" icon={Compass} disabled={!style || loading} onPress={() => map.current?.resetNorth()} />
         <Tool label="My location" icon={LocateFixed} disabled={!style || loading || locating} onPress={locate} />
+        {!routeMode && !isSelectingLocation && <DangerousZoneButton onPress={handleReportPress} />}
       </View>
       {displayedError && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{displayedError}</Text>
   {error && <Tool label="Retry map" icon={RotateCcw} onPress={retryMap} />}
@@ -1060,7 +1061,7 @@ export default function MapScreen() {
             <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
             <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}><Text style={styles.confirmText}>Confirm Location</Text></Pressable>
           </View>
-      ) : (!routeMode && <DangerousZoneButton onPress={handleReportPress} />)}
+      ) : null}
     </View>
     {reportLocation && (
         <DangerousZoneModal

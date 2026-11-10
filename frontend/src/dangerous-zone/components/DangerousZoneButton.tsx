@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { AlertTriangle } from 'lucide-react-native';
 
@@ -7,40 +7,49 @@ export type DangerousZoneButtonProps = {
 };
 
 export default function DangerousZoneButton({ onPress }: DangerousZoneButtonProps) {
+    const [hovered, setHovered] = useState(false);
+
     return (
         <Pressable
             accessibilityRole="button"
             accessibilityLabel="Report dangerous zone"
+            onHoverIn={() => setHovered(true)}
+            onHoverOut={() => setHovered(false)}
             onPress={onPress}
-            style={styles.fab}
+            style={({ pressed }) => [styles.tool, pressed && styles.dim]}
         >
-            <AlertTriangle size={24} color="#ffffff" />
+            <AlertTriangle size={21} color="#d93838" />
+            {hovered && <Text style={styles.tooltip}>Report Danger</Text>}
         </Pressable>
     );
 }
 
 const styles = StyleSheet.create({
-    fab: {
-        position: 'absolute',
-        right: 20,
-        bottom: 80,
-        flexDirection: 'row',
+    tool: {
+        width: 44,
+        height: 44,
         alignItems: 'center',
-        backgroundColor: '#d93838',
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: 30,
-        gap: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-        zIndex: 100,
+        justifyContent: 'center',
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: '#dce2e9',
+        backgroundColor: '#ffffff',
+        marginTop: 8,
     },
-    fabText: {
-        color: '#ffffff',
-        fontWeight: '700',
-        fontSize: 14,
+    dim: {
+        opacity: 0.55,
+    },
+    tooltip: {
+        position: 'absolute',
+        right: 52,
+        backgroundColor: '#ffffff',
+        color: '#363d47',
+        padding: 8,
+        borderRadius: 4,
+        width: 110,
+        fontSize: 12,
+        borderWidth: 1,
+        borderColor: '#dce2e9',
+        textAlign: 'center',
     },
 });
