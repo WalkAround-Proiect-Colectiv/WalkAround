@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View, Switch } from 'react-native';
+import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, ShieldAlert, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -18,6 +18,9 @@ import DangerousZoneModal from '../dangerous-zone/components/DangerousZoneModal'
 import { cellToBoundary } from 'h3-js';
 import { fetchDangerousZonesHeatmap } from '../dangerous-zone/api/dangerousZoneApi';
 import { environment } from '../config/environment';
+import { authenticatedRequest } from '../login/api/session';
+import { jsonPost } from '../login/api/http';
+import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
 
 type LatLng = { lat: number; lng: number };
 type RouteStop = { id: string; point: LatLng };
@@ -78,40 +81,34 @@ function decodePolyline(str: string, precision = 6) {
   return coordinates;
 }
 
-const ROUTE_REASON_MESSAGES: Record<string, string> = {
-  NO_PATH: 'No walking route could be found between these points. If "Avoid Danger Zones" is on, try turning it off.',
-  POINT_IN_DANGER_ZONE: 'One of your points is inside a danger zone. Move it or turn off "Avoid Danger Zones".',
-  TOO_MANY_ZONES: 'Too many danger zones around this route. Try turning off "Avoid Danger Zones".',
-};
+function calculateBearing(startLat: number, startLng: number, destLat: number, destLng: number) {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const startLatRad = toRad(startLat);
+  const startLngRad = toRad(startLng);
+  const destLatRad = toRad(destLat);
+  const destLngRad = toRad(destLng);
 
-function routeFailure(message: string, expected: boolean) {
-  return Object.assign(new Error(message), { expected });
+  const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+  const x = Math.cos(startLatRad) * Math.sin(destLatRad) - Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
+
+  const bearing = toDeg(Math.atan2(y, x));
+  return (bearing + 360) % 360;
 }
 
-async function requestPedestrianRoute(body: object, signal: AbortSignal) {
-  const res = await fetch(`${environment.apiBaseUrl}/api/v1/routes/pedestrian`, {
-    method: 'POST',
-    signal,
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  let data: any = null;
-  try { data = text ? JSON.parse(text) : null; } catch { /* body non-JSON */ }
+function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const phi1 = lat1 * Math.PI / 180;
+  const phi2 = lat2 * Math.PI / 180;
+  const deltaphi = (lat2 - lat1) * Math.PI / 180;
+  const deltalambda = (lon2 - lon1) * Math.PI / 180;
 
-  if (res.ok) return data;
+  const a = Math.sin(deltaphi/2) * Math.sin(deltaphi/2) +
+      Math.cos(phi1) * Math.cos(phi2) *
+      Math.sin(deltalambda/2) * Math.sin(deltalambda/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
-  const reason: string | undefined = data?.reason;
-  if (res.status === 422 && reason && ROUTE_REASON_MESSAGES[reason]) {
-    throw routeFailure(ROUTE_REASON_MESSAGES[reason], true);
-  }
-  if ((res.status === 422 || res.status === 400) && typeof data?.detail === 'string') {
-    throw routeFailure(data.detail, true);
-  }
-  if (res.status >= 502 && res.status <= 504) {
-    throw routeFailure('Routing is temporarily unavailable. Please try again in a moment.', false);
-  }
-  throw routeFailure(`Route calculation failed (${res.status}).`, false);
+  return R * c;
 }
 
 export default function MapScreen() {
@@ -183,9 +180,11 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
-
-  const [avoidDanger, setAvoidDanger] = useState(true);
-  const [routeError, setRouteError] = useState<string | null>(null);
+  const [routeInstructions, setRouteInstructions] = useState<any[]>([]);
+  const [isNavigating, setIsNavigating] = useState(false);
+  const [showSavedRoutes, setShowSavedRoutes] = useState(false);
+  const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
+  const [showArrivalAlert, setShowArrivalAlert] = useState(false);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const locateRef = useRef(locate);
@@ -235,6 +234,64 @@ export default function MapScreen() {
     }
     immediatePoiQuery.current = query;
     setPoiSearchNonce(value => value + 1);
+  }
+
+  async function handlePauseAndSaveRoute() {
+    setIsNavigating(false);
+    map.current?.resetNorth();
+    if (!session || !routeStart || !routeEnd) return;
+    try {
+      const payload = {
+        startLat: routeStart.lat,
+        startLng: routeStart.lng,
+        endLat: routeEnd.lat,
+        endLng: routeEnd.lng
+      };
+      if (activeSavedRouteId)
+      {
+        await authenticatedRequest(`/api/v1/saved-routes/${activeSavedRouteId}`, {
+          ...jsonPost(payload),
+          method: 'PUT'
+        });
+        console.log('Route successfully updated!');
+      }
+      else
+      {
+        await authenticatedRequest('/api/v1/saved-routes', jsonPost(payload));
+        console.log('New route successfully saved!');
+      }
+
+    } catch (err) {
+      console.error('Error saving/updating route:', err);
+    }
+  }
+
+  function handleRecenter() {
+    if (!userLocation || !routeEnd) return;
+
+    const userLat = userLocation.coordinates[1];
+    const userLng = userLocation.coordinates[0];
+    const bearing = calculateBearing(userLat, userLng, routeEnd.lat, routeEnd.lng);
+
+    map.current?.startNavigation([userLng, userLat], bearing);
+  }
+
+  function handleResumeSavedRoute(destination: { lat: number; lng: number }, routeId: number)
+  {
+    setShowSavedRoutes(false);
+    setRouteMode(true);
+    setActiveSavedRouteId(routeId);
+    if (userLocation)
+    {
+      setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+      map.current?.goTo({ center: [userLocation.coordinates[0], userLocation.coordinates[1]], zoom: 15 });
+    }
+    else
+    {
+      setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
+    }
+    setRouteEnd(destination);
+    setActiveRouteField(null);
   }
 
   function handleMapCoordinateSelect([longitude, latitude]: [number, number]) {
@@ -292,7 +349,6 @@ export default function MapScreen() {
 
     return () => { clearTimeout(timeout); controller.abort(); };
   }, [coordinateQuery, poiSearchNonce]);
-
   const [isSelectingLocation, setIsSelectingLocation] = useState(false);
   const [zoneModalVisible, setZoneModalVisible] = useState(false);
   const [reportLocation, setReportLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -309,7 +365,6 @@ export default function MapScreen() {
     if (routeEnd) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeEnd.lng, routeEnd.lat] }, properties: { type: 'end' } });
     return features.length > 0 ? { type: 'FeatureCollection' as const, features } : null;
   }, [routeStart, routeStops, routeEnd]);
-
   useEffect(() => {
     if (!style) return;
     async function loadZones() {
@@ -426,34 +481,83 @@ export default function MapScreen() {
   useEffect(() => {
     if (!routeStart || !routeEnd) return;
     const controller = new AbortController();
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-    requestPedestrianRoute({
-      start: routeStart,
-      end: routeEnd,
-      stops: routeStops.map(s => s.point),
-      avoidDanger,
-    }, controller.signal)
+    fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startLat: routeStart.lat,
+        startLng: routeStart.lng,
+        stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
+        endLat: routeEnd.lat,
+        endLng: routeEnd.lng
+      })
+    })
+      .then(res => res.json())
       .then(data => {
         if (data?.trip?.legs?.length) {
-          const coords = data.trip.legs.flatMap((leg: any) => decodePolyline(leg.shape, 6));
-          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords } });
-          setRouteError(null);
+          let allCoords: number[][] = [];
+          let allInstructions: any[] = [];
+
+          data.trip.legs.forEach((leg: any) => {
+            const legCoords = decodePolyline(leg.shape, 6);
+            allCoords = allCoords.concat(legCoords);
+            if (leg.maneuvers) {
+              const legInstructions = leg.maneuvers.map((m: any) => ({
+                instruction: m.instruction,
+                distanceMeters: m.length * 1000,
+                coordinate: legCoords[m.begin_shape_index],
+                type: m.type
+              }));
+              allInstructions = allInstructions.concat(legInstructions);
+            }
+          });
+
+          setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: allCoords } });
+          setRouteInstructions(allInstructions);
+          console.log("Extracted Instructions for TTS:", allInstructions);
         } else {
+          console.log('No route found in response');
           setRouteGeoJSON(null);
-          setRouteError('No route found.');
+          setRouteInstructions([]);
         }
       })
       .catch(err => {
         if (err.name === 'AbortError') return;
-        if (!err.expected) console.warn('Failed to calculate route:', err);
+        console.error('Failed to calculate route:', err);
         setRouteGeoJSON(null);
-        setRouteError(typeof err.expected === 'boolean'
-          ? err.message
-          : 'Could not reach the routing server. Check your connection.');
       });
 
     return () => controller.abort();
-  }, [routeStart, routeEnd, routeStops, avoidDanger]);
+  }, [routeStart, routeEnd, routeStops]);
+
+  useEffect(() => {
+    if (isNavigating && userLocation && routeEnd) {
+      const userLat = userLocation.coordinates[1];
+      const userLng = userLocation.coordinates[0];
+
+      const distanceToDestination = calculateDistanceInMeters(userLat, userLng, routeEnd.lat, routeEnd.lng);
+      if (distanceToDestination <= 10)
+      {
+        /* eslint-disable react-hooks/set-state-in-effect */
+        setIsNavigating(false);
+        map.current?.resetNorth();
+        setShowArrivalAlert(true);
+        setTimeout(() => setShowArrivalAlert(false), 5000);
+        /* eslint-enable react-hooks/set-state-in-effect */
+        return;
+      }
+      let currentBearing = userLocation.heading;
+      if (currentBearing === null || currentBearing === undefined) {
+        const destLat = routeGeoJSON?.geometry?.coordinates?.[1]?.[1] || routeEnd.lat;
+        const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
+        currentBearing = calculateBearing(userLat, userLng, destLat, destLng);
+      }
+      map.current?.startNavigation([userLng, userLat], currentBearing);
+    }
+  }, [userLocation, isNavigating, routeEnd, routeGeoJSON]);
 
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
@@ -463,7 +567,7 @@ export default function MapScreen() {
         : (routeStart ?? { lat: camera.center[1], lng: camera.center[0] });
       return [...stops, { id, point: previous }];
     });
-    setActiveRouteField(id);
+    setActiveRouteField(id); // următorul tap pe hartă mută noua oprire
   }
 
   function removeStop(id: string) {
@@ -608,7 +712,7 @@ export default function MapScreen() {
           </View>
       )}
 
-      {routeMode && (
+      {routeMode && !isNavigating && (
           <View style={[styles.routeOverlay, { top: Math.max(insets.top, 12) + 64 }]}>
             <Text style={styles.routeOverlayTitle}>Plan your route</Text>
 
@@ -647,36 +751,66 @@ export default function MapScreen() {
               <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
-            {/* TOGGLE NOU: Evitare zone periculoase */}
-            <View style={styles.avoidDangerRow}>
-              <View style={styles.avoidDangerLabel}>
-                <ShieldAlert size={18} color={avoidDanger ? "#d93838" : "#758091"} />
-                <Text style={styles.avoidDangerText}>Avoid Danger Zones</Text>
-              </View>
-              <Switch
-                value={avoidDanger}
-                onValueChange={setAvoidDanger}
-                trackColor={{ false: '#dce2e9', true: '#ffb3b3' }}
-                thumbColor={avoidDanger ? '#d93838' : '#9aa3ae'}
-              />
-            </View>
-
-            {/* Afișare eroare de rutare */}
-            {routeError && (
-              <View style={styles.routeErrorContainer}>
-                <Text style={styles.routeErrorText}>{routeError}</Text>
-              </View>
-            )}
-
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteStops([]); setRouteGeoJSON(null); setRouteError(null); }}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setIsNavigating(false); setActiveSavedRouteId(null);}}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
+
               {routeGeoJSON && (
-                  <Pressable style={styles.routeStartBtn} onPress={() => console.log('Start navigation task coming next')}>
+                  <Pressable style={styles.routeStartBtn} onPress={() => {
+                    if (!routeEnd) return;
+                    let startPoint = routeStart;
+                    if (userLocation) {
+                      const userLat = userLocation.coordinates[1];
+                      const userLng = userLocation.coordinates[0];
+                      const isDifferent = !routeStart ||
+                          Math.abs(userLat - routeStart.lat) > 0.0001 ||
+                          Math.abs(userLng - routeStart.lng) > 0.0001;
+                      if (isDifferent) {
+                        startPoint = { lat: userLat, lng: userLng };
+                        setRouteStart(startPoint);
+                      }
+                    }
+
+                    if (startPoint)
+                    {
+                      const destLat = routeGeoJSON?.geometry?.coordinates?.[1]?.[1] || routeEnd.lat;
+                      const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
+                      const initialBearing = calculateBearing(startPoint.lat, startPoint.lng, destLat, destLng);
+
+                      setIsNavigating(true);
+                      map.current?.startNavigation([startPoint.lng, startPoint.lat], initialBearing);
+                    }
+                  }}>
                     <Text style={styles.routeStartText}>Start</Text>
                   </Pressable>
               )}
+            </View>
+          </View>
+      )}
+
+      {showArrivalAlert && (
+          <View style={styles.arrivalAlertContainer}>
+            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
+          </View>
+      )}
+
+      {isNavigating && (
+          <View style={styles.navigatingOverlay} pointerEvents="box-none">
+            <View style={styles.navigatingActionsRow}>
+              <Pressable
+                  accessibilityRole="button"
+                  style={styles.recenterBtn}
+                  onPress={handleRecenter}>
+                <LocateFixed size={22} color="#ffffff" />
+              </Pressable>
+
+              <Pressable
+                  accessibilityRole="button"
+                  style={styles.pauseRouteBtn}
+                  onPress={handlePauseAndSaveRoute}>
+                <Text style={styles.pauseRouteText}>Pause Route</Text>
+              </Pressable>
             </View>
           </View>
       )}
@@ -714,8 +848,17 @@ export default function MapScreen() {
           }} style={styles.menuItem}>
             <MapIcon size={20} color="#0065EB" /><Text style={styles.menuItemText}>Route Search</Text>
           </Pressable>
+          {session && (
+              <Pressable accessibilityRole="button" onPress={() => {
+                setMenuOpen(false);
+                setShowSavedRoutes(true);
+              }} style={styles.menuItem}>
+                <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>My Routes</Text>
+              </Pressable>
+          )}
           <Pressable accessibilityRole="button" onPress={() => {
             setMenuOpen(false);
+            // The map centre is the fallback position when location access is unavailable.
             router.push({ pathname: '/events', params: { lat: String(camera.center[1]), lng: String(camera.center[0]) } });
           }} style={styles.menuItem}>
             <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
@@ -884,6 +1027,13 @@ export default function MapScreen() {
       <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
       {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
     </View>
+    {session && (
+        <SavedRoutesModal
+            visible={showSavedRoutes}
+            onClose={() => setShowSavedRoutes(false)}
+            onSelectRoute={handleResumeSavedRoute}
+        />
+    )}
   </View>;
 }
 
@@ -959,7 +1109,7 @@ const styles = StyleSheet.create({
   routeOverlay: {
     position: 'absolute',
     left: 12,
-    width: 310,
+    width: 300,
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 16,
@@ -980,44 +1130,16 @@ const styles = StyleSheet.create({
   routeInputActive: { borderColor: '#9b59b6', backgroundColor: '#fdfaee' },
   routeDot: { width: 10, height: 10, borderRadius: 5 },
   routeInputText: { fontSize: 14, color: '#363d47', flex: 1 },
-
-  avoidDangerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    marginVertical: 4,
-    borderTopWidth: 1,
-    borderTopColor: '#edf0f3',
-  },
-  avoidDangerLabel: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  avoidDangerText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#263241',
-  },
-  routeErrorContainer: {
-    backgroundColor: '#ffe5e5',
-    padding: 10,
-    borderRadius: 8,
-    marginVertical: 6,
-    borderWidth: 1,
-    borderColor: '#ff4d4d',
-  },
-  routeErrorText: {
-    color: '#a60000',
-    fontSize: 13,
-    fontWeight: '500',
-  },
-
   routeActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
   routeCloseBtn: { paddingVertical: 10, paddingHorizontal: 12 },
   routeCloseText: { color: '#758091', fontWeight: '600', fontSize: 15 },
   routeStartBtn: { backgroundColor: '#9b59b6', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, elevation: 2 },
   routeStartText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
+  navigatingOverlay: {position: 'absolute', top: 90, left: 0, right: 0, alignItems: 'center', zIndex: 100},
+  navigatingActionsRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
+  recenterBtn: {backgroundColor: '#0065EB', width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
+  pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
+  pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
+  arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
+  arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });
