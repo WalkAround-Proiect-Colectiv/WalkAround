@@ -51,3 +51,4 @@ app:
     audience: ${JWT_AUDIENCE:walkaround-api}
   valhalla:
     url: ${VALHALLA_URL}
+    language: ${VALHALLA_LANGUAGE:en-US}

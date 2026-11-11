@@ -24,6 +24,10 @@ public class RouteService
 
     @Value("${app.valhalla.url}")
     private String valhallaUrl;
+
+    @Value("${app.valhalla.language:en-US}")
+    private String valhallaLanguage;
+
     public RouteService()
     {
         this.restTemplate = new RestTemplate();
@@ -53,7 +57,10 @@ public class RouteService
         Map<String, Object> requestBody = Map.of(
                 "locations", locations,
                 "costing", "pedestrian",
-                "directions_options", Map.of("units", "kilometers")
+                "directions_options", Map.of(
+                        "units", "kilometers",
+                        "language", valhallaLanguage
+                )
         );
 
         HttpHeaders headers = new HttpHeaders();
