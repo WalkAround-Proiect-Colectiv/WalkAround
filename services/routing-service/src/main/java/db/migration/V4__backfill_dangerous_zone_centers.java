@@ -8,7 +8,7 @@ import org.flywaydb.core.api.migration.Context;
 import java.sql.*;
 import java.util.*;
 
-public class V3__backfill_dangerous_zone_centers extends BaseJavaMigration
+public class V4__backfill_dangerous_zone_centers extends BaseJavaMigration
 {
     @Override
     public void migrate(Context context) throws Exception
