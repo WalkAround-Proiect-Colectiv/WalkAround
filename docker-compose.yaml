@@ -51,6 +51,16 @@ services:
     volumes:
       - valhalla-data:/custom_files
 
+  piper:
+    build:
+      context: ./services/tts
+      args:
+        PIPER_VOICE: ${PIPER_VOICE}
+    container_name: walkaround-piper
+    ports:
+      - "127.0.0.1:${PIPER_HOST_PORT}:${PIPER_CONTAINER_PORT}"
+    restart: unless-stopped
+
   kafka:
     image: apache/kafka:4.1.1
     container_name: kafka
