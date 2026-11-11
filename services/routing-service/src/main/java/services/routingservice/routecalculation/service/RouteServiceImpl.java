@@ -72,7 +72,7 @@ public class RouteServiceImpl implements RouteService {
                 }
 
                 if (!avoidPolygons.isEmpty()) {
-                    requestBody.put("avoid_polygons", avoidPolygons);
+                    requestBody.put("exclude_polygons", avoidPolygons);
                 }
             }
         }
