@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, Style
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -21,6 +21,8 @@ import { environment } from '../config/environment';
 import { authenticatedRequest } from '../login/api/session';
 import { jsonPost } from '../login/api/http';
 import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
+import type { RouteInstruction } from '../audio-directions/phrases';
+import { useAudioDirections } from '../hooks/useAudioDirections';
 
 type LatLng = { lat: number; lng: number };
 type RouteStop = { id: string; point: LatLng };
@@ -180,13 +182,24 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
-  const [routeInstructions, setRouteInstructions] = useState<any[]>([]);
+  const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
   const [showArrivalAlert, setShowArrivalAlert] = useState(false);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
+  const {
+    muted: audioMuted,
+    toggleMuted: toggleAudioMuted,
+    speakStartCue,
+    speakArrivalCue,
+  } = useAudioDirections({
+    instructions: routeInstructions,
+    userLocation,
+    isNavigating,
+    signedIn: Boolean(session),
+  });
   const locateRef = useRef(locate);
   useEffect(() => {
     locateRef.current = locate;
@@ -499,17 +512,19 @@ export default function MapScreen() {
       .then(data => {
         if (data?.trip?.legs?.length) {
           let allCoords: number[][] = [];
-          let allInstructions: any[] = [];
+          let allInstructions: RouteInstruction[] = [];
 
           data.trip.legs.forEach((leg: any) => {
             const legCoords = decodePolyline(leg.shape, 6);
             allCoords = allCoords.concat(legCoords);
             if (leg.maneuvers) {
-              const legInstructions = leg.maneuvers.map((m: any) => ({
+              const legInstructions: RouteInstruction[] = leg.maneuvers.map((m: any) => ({
                 instruction: m.instruction,
                 distanceMeters: m.length * 1000,
-                coordinate: legCoords[m.begin_shape_index],
-                type: m.type
+                coordinate: legCoords[m.begin_shape_index] as [number, number],
+                type: m.type,
+                verbalAlert: m.verbal_transition_alert_instruction,
+                verbalPre: m.verbal_pre_transition_instruction,
               }));
               allInstructions = allInstructions.concat(legInstructions);
             }
@@ -517,7 +532,6 @@ export default function MapScreen() {
 
           setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: allCoords } });
           setRouteInstructions(allInstructions);
-          console.log("Extracted Instructions for TTS:", allInstructions);
         } else {
           console.log('No route found in response');
           setRouteGeoJSON(null);
@@ -542,6 +556,7 @@ export default function MapScreen() {
       if (distanceToDestination <= 10)
       {
         /* eslint-disable react-hooks/set-state-in-effect */
+        speakArrivalCue();
         setIsNavigating(false);
         map.current?.resetNorth();
         setShowArrivalAlert(true);
@@ -557,7 +572,7 @@ export default function MapScreen() {
       }
       map.current?.startNavigation([userLng, userLat], currentBearing);
     }
-  }, [userLocation, isNavigating, routeEnd, routeGeoJSON]);
+  }, [userLocation, isNavigating, routeEnd, routeGeoJSON, speakArrivalCue]);
 
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
@@ -779,6 +794,7 @@ export default function MapScreen() {
                       const initialBearing = calculateBearing(startPoint.lat, startPoint.lng, destLat, destLng);
 
                       setIsNavigating(true);
+                      speakStartCue(routeInstructions);
                       map.current?.startNavigation([startPoint.lng, startPoint.lat], initialBearing);
                     }
                   }}>
@@ -800,10 +816,21 @@ export default function MapScreen() {
             <View style={styles.navigatingActionsRow}>
               <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Recenter map"
                   style={styles.recenterBtn}
                   onPress={handleRecenter}>
                 <LocateFixed size={22} color="#ffffff" />
               </Pressable>
+
+              {session && (
+                  <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={audioMuted ? 'Unmute audio directions' : 'Mute audio directions'}
+                      style={styles.recenterBtn}
+                      onPress={toggleAudioMuted}>
+                    {audioMuted ? <VolumeX size={22} color="#ffffff" /> : <Volume2 size={22} color="#ffffff" />}
+                  </Pressable>
+              )}
 
               <Pressable
                   accessibilityRole="button"
@@ -812,6 +839,16 @@ export default function MapScreen() {
                 <Text style={styles.pauseRouteText}>Pause Route</Text>
               </Pressable>
             </View>
+            {!session && (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Sign in to hear audio directions"
+                    style={styles.audioSignInHint}
+                    onPress={() => router.push('/login')}>
+                  <VolumeX size={15} color="#0065EB" />
+                  <Text style={styles.audioSignInHintText}>Sign in to hear audio directions</Text>
+                </Pressable>
+            )}
           </View>
       )}
 
@@ -1140,6 +1177,8 @@ const styles = StyleSheet.create({
   recenterBtn: {backgroundColor: '#0065EB', width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
   pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
   pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
+  audioSignInHint: {marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 6},
+  audioSignInHintText: {color: '#0065EB', fontWeight: '600', fontSize: 13},
   arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
   arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
 });
