@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -96,6 +96,16 @@ function calculateBearing(startLat: number, startLng: number, destLat: number, d
   return (bearing + 360) % 360;
 }
 
+function toLocalIsoWithOffset(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    + `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
 function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
   const phi1 = lat1 * Math.PI / 180;
@@ -109,6 +119,31 @@ function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
   return R * c;
+}
+
+type RouteError = { title: string; message: string; hint?: string };
+
+const ROUTE_ERROR_HINTS: Record<string, string> = {
+  POINT_IN_DANGER_ZONE: 'Move the start, stop or destination outside the dangerous area, or turn off “Avoid dangerous zones”.',
+  TOO_MANY_ZONES: 'Try a shorter route or turn off “Avoid dangerous zones”.',
+  NO_PATH: 'Try different points or turn off “Avoid dangerous zones”.',
+};
+
+async function parseRouteError(res: Response): Promise<RouteError> {
+  let body: { title?: string; detail?: string; reason?: string } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null; // non-JSON response (e.g. gateway error page)
+  }
+  const fallback = res.status >= 500
+    ? 'The routing service is unavailable right now. Please try again later.'
+    : 'The route request could not be processed.';
+  return {
+    title: body?.title || 'Could not calculate route',
+    message: body?.detail || fallback,
+    hint: body?.reason ? ROUTE_ERROR_HINTS[body.reason] : undefined,
+  };
 }
 
 export default function MapScreen() {
@@ -176,6 +211,8 @@ export default function MapScreen() {
   const [routeMode, setRouteMode] = useState(false);
   const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
   const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
+  const [avoidDanger, setAvoidDanger] = useState(false);
+  const [routeError, setRouteError] = useState<RouteError | null>(null);
   const [activeRouteField, setActiveRouteField] = useState<string | null>(null);
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
@@ -489,23 +526,37 @@ export default function MapScreen() {
     const controller = new AbortController();
     const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-    fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        startLat: routeStart.lat,
-        startLng: routeStart.lng,
-        stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
-        endLat: routeEnd.lat,
-        endLng: routeEnd.lng
-      })
-    })
-      .then(res => res.json())
-      .then(data => {
+    const calculateRoute = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start: { lat: routeStart.lat, lng: routeStart.lng },
+            end: { lat: routeEnd.lat, lng: routeEnd.lng },
+            stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
+            avoidDanger,
+            departureTime: avoidDanger ? toLocalIsoWithOffset() : undefined,
+          }),
+        });
+
+        if (!res.ok) {
+          const problem = await parseRouteError(res);
+          if (controller.signal.aborted) return;
+          setRouteGeoJSON(null);
+          setRouteInstructions([]);
+          setRouteError(problem);
+          return;
+        }
+
+        const data = await res.json();
+        if (controller.signal.aborted) return;
+
         if (data?.trip?.legs?.length) {
           let allCoords: number[][] = [];
           let allInstructions: any[] = [];
+
           data.trip.legs.forEach((leg: any) => {
             const legCoords = decodePolyline(leg.shape, 6);
             allCoords = allCoords.concat(legCoords);
@@ -514,28 +565,33 @@ export default function MapScreen() {
                 instruction: m.instruction,
                 distanceMeters: m.length * 1000,
                 coordinate: legCoords[m.begin_shape_index],
-                type: m.type
+                type: m.type,
               }));
               allInstructions = allInstructions.concat(legInstructions);
             }
           });
+
           setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: allCoords } });
           setRouteInstructions(allInstructions);
-          console.log("Extracted Instructions for TTS:", allInstructions);
+          setRouteError(null);
+          console.log('Extracted Instructions for TTS:', allInstructions);
         } else {
-          console.log('No route found in response');
           setRouteGeoJSON(null);
           setRouteInstructions([]);
+          setRouteError({ title: 'No route found', message: 'No walking route could be found between the selected points.' });
         }
-      })
-      .catch(err => {
-        if (err.name === 'AbortError') return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || controller.signal.aborted) return;
         console.error('Failed to calculate route:', err);
         setRouteGeoJSON(null);
-      });
+        setRouteInstructions([]);
+        setRouteError({ title: 'Connection problem', message: 'Could not reach the server. Check your internet connection and try again.' });
+      }
+    };
 
+    void calculateRoute();
     return () => controller.abort();
-  }, [routeStart, routeEnd, routeStops]);
+  }, [routeStart, routeEnd, routeStops, avoidDanger]);
 
   useEffect(() => {
     if (isNavigating && userLocation && routeEnd) {
@@ -768,8 +824,28 @@ export default function MapScreen() {
               <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
+            <View style={styles.avoidDangerRow}>
+              <ShieldAlert size={18} color="#d93838" />
+              <Text style={styles.avoidDangerText}>Avoid dangerous zones</Text>
+              <Switch
+                accessibilityLabel="Avoid dangerous zones"
+                value={avoidDanger}
+                onValueChange={setAvoidDanger}
+                trackColor={{ false: '#dce2e9', true: '#9b59b6' }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {routeError && (
+              <View accessibilityRole="alert" style={styles.routeError}>
+                <Text style={styles.routeErrorTitle}>{routeError.title}</Text>
+                <Text style={styles.routeErrorText}>{routeError.message}</Text>
+                {!!routeError.hint && <Text style={styles.routeErrorHint}>{routeError.hint}</Text>}
+              </View>
+            )}
+
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setIsNavigating(false); setActiveSavedRouteId(null);}}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setRouteError(null); setIsNavigating(false); setActiveSavedRouteId(null); }}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
 
@@ -812,38 +888,44 @@ export default function MapScreen() {
           </View>
       )}
 
-      <View style={[styles.leftControlsOverlay, { bottom: compactSearchLayout && mobileSearchExpanded
-            ? mobileSearchHeight + 12
-            : Math.max(insets.bottom, 12) + 64 }]}>
-        {isNavigating && (
+      {showArrivalAlert && (
+          <View style={styles.arrivalAlertContainer}>
+            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
+          </View>
+      )}
+
+        <View style={[styles.leftControlsOverlay, { bottom: compactSearchLayout && mobileSearchExpanded
+                ? mobileSearchHeight + 12
+                : Math.max(insets.bottom, 12) + 64 }]}>
+            {isNavigating && (
+                <Pressable
+                    accessibilityRole="button"
+                    style={styles.pauseRouteBtn}
+                    onPress={handlePauseAndSaveRoute}>
+                    <Pause size={20} color="#ffffff" />
+                </Pressable>
+            )}
             <Pressable
                 accessibilityRole="button"
-                style={styles.pauseRouteBtn}
-                onPress={handlePauseAndSaveRoute}>
-              <Pause size={20} color="#ffffff" />
+                disabled={!style || loading || locating}
+                style={styles.recenterNavBtn}
+                onPress={() => {
+                    if (isNavigating)
+                    {
+                        handleRecenter();
+                    }
+                    else
+                    {
+                        locate();
+                    }
+                }}>
+                {locating ? (
+                    <ActivityIndicator size="small" color="#0065EB" />
+                ) : (
+                    <LocateFixed size={22} color="#0065EB" />
+                )}
             </Pressable>
-        )}
-        <Pressable
-            accessibilityRole="button"
-            disabled={!style || loading || locating}
-            style={styles.recenterNavBtn}
-            onPress={() => {
-              if (isNavigating)
-              {
-                handleRecenter();
-              }
-              else
-              {
-                locate();
-              }
-            }}>
-          {locating ? (
-              <ActivityIndicator size="small" color="#0065EB" />
-          ) : (
-              <LocateFixed size={22} color="#0065EB" />
-          )}
-        </Pressable>
-      </View>
+        </View>
 
       <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
@@ -1169,7 +1251,28 @@ const styles = StyleSheet.create({
   poiResultDetail: { fontSize: 13, color: '#758091', marginTop: 2 },
   poiAttribution: { fontSize: 10, color: '#8793a2', textAlign: 'center', paddingHorizontal: 8, paddingVertical: 8, borderTopWidth: 1, borderTopColor: '#edf0f3' },
   coordinateError: { backgroundColor: '#ffe5e5', color: '#a60000', padding: 10, borderRadius: 8, marginTop: 6, fontSize: 13, borderWidth: 1, borderColor: '#ff0000' },
-  routeOverlay: {position: 'absolute', left: 12, width: 300, backgroundColor: '#ffffff', borderRadius: 16, padding: 16, elevation: 6, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, zIndex: 100},
+  routeOverlay: {
+    position: 'absolute',
+    left: 12,
+    width: 300,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 16,
+    elevation: 6,
+    shadowColor: '#14243f',
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    zIndex: 100
+  },
+
+  routeError: { backgroundColor: '#ffe5e5', borderWidth: 1, borderColor: '#ff0000', borderRadius: 10, padding: 10, marginBottom: 6, gap: 2 },
+  routeErrorTitle: { fontSize: 13, fontWeight: '700', color: '#a60000' },
+  routeErrorText: { fontSize: 13, color: '#a60000' },
+  routeErrorHint: { fontSize: 12, color: '#626b78', marginTop: 4 },
+
+  avoidDangerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, marginBottom: 6 },
+  avoidDangerText: { flex: 1, fontSize: 14, color: '#363d47' },
   routeOverlayTitle: { fontSize: 16, fontWeight: '700', color: '#263241', marginBottom: 12 },
   routeInput: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, marginBottom: 10, backgroundColor: '#f9f9fb' },
   routeStopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
