@@ -26,8 +26,8 @@ export default function DangerousZoneButton({ onPress }: DangerousZoneButtonProp
 
 const styles = StyleSheet.create({
     tool: {
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 6,
