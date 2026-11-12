@@ -1,0 +1,3 @@
+ALTER TABLE dangerous_zones
+    ADD COLUMN center_lat DOUBLE PRECISION,
+    ADD COLUMN center_lng DOUBLE PRECISION;
