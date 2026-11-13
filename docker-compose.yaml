@@ -46,11 +46,10 @@ services:
       - "${VALHALLA_HOST_PORT}:${VALHALLA_CONTAINER_PORT}"
     environment:
       - tile_urls=https://download.geofabrik.de/europe/romania-latest.osm.pbf
-      - build_tar=True
       - serve_tiles=True
       - server_threads=${VALHALLA_SERVER_THREADS:-2}
     volumes:
-      - ./valhalla_custom_data:/custom_files
+      - valhalla-data:/custom_files
 
   kafka:
     image: apache/kafka:4.1.1
@@ -66,3 +65,4 @@ volumes:
   application-api-db-data:
   kafka-data:
   routing-api-db-data:
+  valhalla-data:

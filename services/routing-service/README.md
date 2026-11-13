@@ -38,16 +38,24 @@ Example request body:
 
 ## Local Environment & Valhalla Setup
 
-Because map tiles are massive, the local `valhalla_custom_data/` folder is ignored in Git. However, the Docker configuration handles everything automatically.
+To avoid cross-OS file permission issues and I/O bottlenecks, Valhalla uses a managed Docker volume `valhalla-data` to store its massive routing graphs natively inside the Linux environment.
 
-To initialize the Valhalla routing engine locally:
+To initialize or reset the Valhalla routing engine locally:
 
-1. Start the Valhalla container from the root of the project (where `docker-compose.yaml` is):
+**1. Clean up legacy data (if applicable):**
+If you previously used a local bind mount directory, stop the containers, remove old volumes, and manually delete the legacy folder to prevent conflicts and save space:
+```sh
+docker compose down -v
+rm -rf valhalla_custom_data/ # (or delete it manually via File Explorer)
+```
+
+**2. Start the Valhalla container from the root of the project (where `docker-compose.yaml` is):**
 ```sh
 docker-compose up -d valhalla
 ```
 
-Wait for the build process: On its first run, the container will automatically create the valhalla_custom_data/ folder, download the OpenStreetMap data for Romania, and build the routing tiles. (Note: This building process may take several minutes depending on your CPU). The Compose service limits Valhalla to `VALHALLA_SERVER_THREADS=2` by default; increasing it can exhaust Docker's open-file limit during server startup.
+Wait for the build process:
+On its first run (or after clearing volumes), the container will automatically download the OpenStreetMap data for Romania and build the routing tiles internally. This process takes ~10-15 minutes depending on your CPU. Do not attempt to calculate routes during this time. The Compose service limits Valhalla to VALHALLA_SERVER_THREADS=2 by default; increasing it can exhaust Docker's open-file limit during server startup.
 
 Verify Valhalla is ready by checking its logs (the container listens on port 8002, mapped to `VALHALLA_HOST_PORT` on the host):
 
