@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, UserRound, MapPin, Search, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -98,6 +98,16 @@ function calculateBearing(startLat: number, startLng: number, destLat: number, d
   return (bearing + 360) % 360;
 }
 
+function toLocalIsoWithOffset(date: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const offsetMinutes = -date.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? '+' : '-';
+  const abs = Math.abs(offsetMinutes);
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+    + `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+    + `${sign}${pad(Math.floor(abs / 60))}:${pad(abs % 60)}`;
+}
+
 function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3;
   const phi1 = lat1 * Math.PI / 180;
@@ -111,6 +121,31 @@ function calculateDistanceInMeters(lat1: number, lon1: number, lat2: number, lon
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 
   return R * c;
+}
+
+type RouteError = { title: string; message: string; hint?: string };
+
+const ROUTE_ERROR_HINTS: Record<string, string> = {
+  POINT_IN_DANGER_ZONE: 'Move the start, stop or destination outside the dangerous area, or turn off “Avoid dangerous zones”.',
+  TOO_MANY_ZONES: 'Try a shorter route or turn off “Avoid dangerous zones”.',
+  NO_PATH: 'Try different points or turn off “Avoid dangerous zones”.',
+};
+
+async function parseRouteError(res: Response): Promise<RouteError> {
+  let body: { title?: string; detail?: string; reason?: string } | null = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null; // non-JSON response (e.g. gateway error page)
+  }
+  const fallback = res.status >= 500
+    ? 'The routing service is unavailable right now. Please try again later.'
+    : 'The route request could not be processed.';
+  return {
+    title: body?.title || 'Could not calculate route',
+    message: body?.detail || fallback,
+    hint: body?.reason ? ROUTE_ERROR_HINTS[body.reason] : undefined,
+  };
 }
 
 export default function MapScreen() {
@@ -178,6 +213,8 @@ export default function MapScreen() {
   const [routeMode, setRouteMode] = useState(false);
   const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
   const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
+  const [avoidDanger, setAvoidDanger] = useState(false);
+  const [routeError, setRouteError] = useState<RouteError | null>(null);
   const [activeRouteField, setActiveRouteField] = useState<string | null>(null);
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
@@ -187,6 +224,7 @@ export default function MapScreen() {
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
   const [showArrivalAlert, setShowArrivalAlert] = useState(false);
+  const lastClickedCoords = useRef<[number, number] | null>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
   const {
@@ -322,6 +360,11 @@ export default function MapScreen() {
     handleMapCoordinateSelect(result.coordinates);
     setCoordinateQuery(result.name);
     map.current?.goTo({ center: result.coordinates, zoom: 15 });
+    setSelectedPoi({
+      name: result.name,
+      category: result.detail || 'Search Result',
+      coordinates: result.coordinates
+    } as any);
   }
 
   useEffect(() => {
@@ -496,20 +539,33 @@ export default function MapScreen() {
     const controller = new AbortController();
     const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
 
-    fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        startLat: routeStart.lat,
-        startLng: routeStart.lng,
-        stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
-        endLat: routeEnd.lat,
-        endLng: routeEnd.lng
-      })
-    })
-      .then(res => res.json())
-      .then(data => {
+    const calculateRoute = async () => {
+      try {
+        const res = await fetch(`${baseUrl}/api/v1/routes/pedestrian`, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start: { lat: routeStart.lat, lng: routeStart.lng },
+            end: { lat: routeEnd.lat, lng: routeEnd.lng },
+            stops: routeStops.map(s => ({ lat: s.point.lat, lng: s.point.lng })),
+            avoidDanger,
+            departureTime: avoidDanger ? toLocalIsoWithOffset() : undefined,
+          }),
+        });
+
+        if (!res.ok) {
+          const problem = await parseRouteError(res);
+          if (controller.signal.aborted) return;
+          setRouteGeoJSON(null);
+          setRouteInstructions([]);
+          setRouteError(problem);
+          return;
+        }
+
+        const data = await res.json();
+        if (controller.signal.aborted) return;
+
         if (data?.trip?.legs?.length) {
           let allCoords: number[][] = [];
           let allInstructions: RouteInstruction[] = [];
@@ -532,20 +588,25 @@ export default function MapScreen() {
 
           setRouteGeoJSON({ type: 'Feature', geometry: { type: 'LineString', coordinates: allCoords } });
           setRouteInstructions(allInstructions);
+          setRouteError(null);
+          console.log('Extracted Instructions for TTS:', allInstructions);
         } else {
-          console.log('No route found in response');
           setRouteGeoJSON(null);
           setRouteInstructions([]);
+          setRouteError({ title: 'No route found', message: 'No walking route could be found between the selected points.' });
         }
-      })
-      .catch(err => {
-        if (err.name === 'AbortError') return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError' || controller.signal.aborted) return;
         console.error('Failed to calculate route:', err);
         setRouteGeoJSON(null);
-      });
+        setRouteInstructions([]);
+        setRouteError({ title: 'Connection problem', message: 'Could not reach the server. Check your internet connection and try again.' });
+      }
+    };
 
+    void calculateRoute();
     return () => controller.abort();
-  }, [routeStart, routeEnd, routeStops]);
+  }, [routeStart, routeEnd, routeStops, avoidDanger]);
 
   useEffect(() => {
     if (isNavigating && userLocation && routeEnd) {
@@ -582,7 +643,7 @@ export default function MapScreen() {
         : (routeStart ?? { lat: camera.center[1], lng: camera.center[0] });
       return [...stops, { id, point: previous }];
     });
-    setActiveRouteField(id); // următorul tap pe hartă mută noua oprire
+    setActiveRouteField(id);
   }
 
   function removeStop(id: string) {
@@ -597,13 +658,26 @@ export default function MapScreen() {
   }
 
   function handlePoiSelect(poi: MapPoi | null) {
-    setSelectedPoi(poi);
     if (poi) {
-      mapEvents.clearSelection();
+      setTimeout(() => {
+        const coordsToUse = lastClickedCoords.current || camera.center;
+        setSelectedPoi({
+          ...poi,
+          coordinates: coordsToUse
+        } as any);
+        mapEvents.clearSelection();
+      }, 0);
+    }
+    else
+    {
+      setSelectedPoi(null);
     }
   }
 
   function handleMapClick(zone: { intensity: number; categories: string[] } | null, coords?: [number, number]) {
+    if (coords) {
+      lastClickedCoords.current = coords;
+    }
     if (routeMode && activeRouteField && coords) {
       const point = { lng: coords[0], lat: coords[1] };
       if (activeRouteField === 'start') {
@@ -657,67 +731,67 @@ export default function MapScreen() {
 
   return <View style={styles.screen}>
     <View
-      style={styles.map}
-      onLayout={event => {
-        const { width, height } = event.nativeEvent.layout;
-        setMapLayout(current =>
-          current && current.width === width && current.height === height
-            ? current
-            : { width, height },
-        );
-      }}
+        style={styles.map}
+        onLayout={event => {
+          const { width, height } = event.nativeEvent.layout;
+          setMapLayout(current =>
+              current && current.width === width && current.height === height
+                  ? current
+                  : { width, height },
+          );
+        }}
     >
-{style && (
-  <MapCanvas
-    key={attempt}
-    ref={map}
-    style={style}
-    userLocation={userLocation}
-    searchedLocation={searchedLocation}
-    zoomLevel={camera.zoom}
-    dangerousZonesData={dangerousZonesData}
-    routeData={routeGeoJSON}
-    routePointsData={routePointsData}
-    eventPinsData={mapEvents.geoJSON}
-    selectedEventPinId={mapEvents.selectedPinId}
-    selectedEventPinCoordinates={mapEvents.selectedPin?.coordinates ?? null}
-    onEventPinPress={routeMode && activeRouteField ? undefined : handleEventPinPress}
-    onSelectedPinScreenPoint={setSelectedPinScreenPoint}
-    onMove={setCamera}
-    onCoordinateSelect={handleMapCoordinateSelect}
-    onPoiSelect={handlePoiSelect}
-    onReady={() => {
-      setLoading(false);
-      setMapReady(true);
-    }}
-    onError={() => {
-      setLoading(false);
-      setMapReady(false);
-      setError('Some map resources could not load. Check your connection or retry.');
-    }}
-    onPress={handleMapClick}
-  />
-)}
+      {style && (
+          <MapCanvas
+              key={attempt}
+              ref={map}
+              style={style}
+              userLocation={userLocation}
+              searchedLocation={searchedLocation}
+              zoomLevel={camera.zoom}
+              dangerousZonesData={dangerousZonesData}
+              routeData={routeGeoJSON}
+              routePointsData={routePointsData}
+              eventPinsData={mapEvents.geoJSON}
+              selectedEventPinId={mapEvents.selectedPinId}
+              selectedEventPinCoordinates={mapEvents.selectedPin?.coordinates ?? null}
+              onEventPinPress={routeMode && activeRouteField ? undefined : handleEventPinPress}
+              onSelectedPinScreenPoint={setSelectedPinScreenPoint}
+              onMove={setCamera}
+              onCoordinateSelect={handleMapCoordinateSelect}
+              onPoiSelect={handlePoiSelect}
+              onReady={() => {
+                setLoading(false);
+                setMapReady(true);
+              }}
+              onError={() => {
+                setLoading(false);
+                setMapReady(false);
+                setError('Some map resources could not load. Check your connection or retry.');
+              }}
+              onPress={handleMapClick}
+          />
+      )}
       {mapEvents.selectedEvent && selectedPinScreenPoint && !routeMode && !isSelectingLocation && (
-        <EventMapPopup
-          event={mapEvents.selectedEvent}
-          currentIndex={mapEvents.selectedEventIndex}
-          totalCount={mapEvents.selectedPinCount}
-          screenPoint={selectedPinScreenPoint}
-          containerWidth={mapLayout?.width ?? windowWidth}
-          containerHeight={mapLayout?.height ?? windowHeight}
-          topInset={Math.max(insets.top, 12)}
-          onClose={mapEvents.clearSelection}
-          onPrevious={mapEvents.previousEvent}
-          onNext={mapEvents.nextEvent}
-          onSeeMore={selected => {
-            mapEvents.clearSelection();
-            router.push({
-              pathname: '/events/details',
-              params: { localityKey: selected.localityKey, eventKey: selected.key },
-            });
-          }}
-        />
+          <EventMapPopup
+              event={mapEvents.selectedEvent}
+              currentIndex={mapEvents.selectedEventIndex}
+              totalCount={mapEvents.selectedPinCount}
+              screenPoint={selectedPinScreenPoint}
+              containerWidth={mapLayout?.width ?? windowWidth}
+              containerHeight={mapLayout?.height ?? windowHeight}
+              topInset={Math.max(insets.top, 12)}
+              onClose={mapEvents.clearSelection}
+              onPrevious={mapEvents.previousEvent}
+              onNext={mapEvents.nextEvent}
+              onSeeMore={selected => {
+                mapEvents.clearSelection();
+                router.push({
+                  pathname: '/events/details',
+                  params: { localityKey: selected.localityKey, eventKey: selected.key },
+                });
+              }}
+          />
       )}
       {loading && <View pointerEvents="none" style={styles.loading}><ActivityIndicator color="#0065EB" accessibilityLabel="Loading map" /></View>}
 
@@ -737,23 +811,23 @@ export default function MapScreen() {
             </Pressable>
 
             {routeStops.map((stop, index) => (
-              <View key={stop.id} style={styles.routeStopRow}>
-                <Pressable
-                  onPress={() => setActiveRouteField(stop.id)}
-                  style={[styles.routeInput, styles.routeStopInput, activeRouteField === stop.id && styles.routeInputActive]}>
-                  <View style={[styles.routeDot, { backgroundColor: '#9157a2' }]} />
-                  <Text style={styles.routeInputText}>
-                    {`Stop ${index + 1}: ${stop.point.lat.toFixed(4)}, ${stop.point.lng.toFixed(4)}`}
-                  </Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove stop ${index + 1}`}
-                  onPress={() => removeStop(stop.id)}
-                  style={styles.removeStopBtn}>
-                  <X size={18} color="#758091" />
-                </Pressable>
-              </View>
+                <View key={stop.id} style={styles.routeStopRow}>
+                  <Pressable
+                      onPress={() => setActiveRouteField(stop.id)}
+                      style={[styles.routeInput, styles.routeStopInput, activeRouteField === stop.id && styles.routeInputActive]}>
+                    <View style={[styles.routeDot, { backgroundColor: '#9157a2' }]} />
+                    <Text style={styles.routeInputText}>
+                      {`Stop ${index + 1}: ${stop.point.lat.toFixed(4)}, ${stop.point.lng.toFixed(4)}`}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove stop ${index + 1}`}
+                      onPress={() => removeStop(stop.id)}
+                      style={styles.removeStopBtn}>
+                    <X size={18} color="#758091" />
+                  </Pressable>
+                </View>
             ))}
 
             <Pressable accessibilityRole="button" accessibilityLabel="Add stop" onPress={addStop} style={styles.addStopBtn}>
@@ -766,8 +840,28 @@ export default function MapScreen() {
               <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
+            <View style={styles.avoidDangerRow}>
+              <ShieldAlert size={18} color="#d93838" />
+              <Text style={styles.avoidDangerText}>Avoid dangerous zones</Text>
+              <Switch
+                accessibilityLabel="Avoid dangerous zones"
+                value={avoidDanger}
+                onValueChange={setAvoidDanger}
+                trackColor={{ false: '#dce2e9', true: '#9b59b6' }}
+                thumbColor="#ffffff"
+              />
+            </View>
+
+            {routeError && (
+              <View accessibilityRole="alert" style={styles.routeError}>
+                <Text style={styles.routeErrorTitle}>{routeError.title}</Text>
+                <Text style={styles.routeErrorText}>{routeError.message}</Text>
+                {!!routeError.hint && <Text style={styles.routeErrorHint}>{routeError.hint}</Text>}
+              </View>
+            )}
+
             <View style={styles.routeActions}>
-              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setIsNavigating(false); setActiveSavedRouteId(null);}}>
+              <Pressable style={styles.routeCloseBtn} onPress={() => { setRouteMode(false); setActiveRouteField(null); setRouteStart(null); setRouteEnd(null); setRouteGeoJSON(null); setRouteInstructions([]); setRouteError(null); setIsNavigating(false); setActiveSavedRouteId(null); }}>
                 <Text style={styles.routeCloseText}>Cancel</Text>
               </Pressable>
 
@@ -811,46 +905,44 @@ export default function MapScreen() {
           </View>
       )}
 
-      {isNavigating && (
-          <View style={styles.navigatingOverlay} pointerEvents="box-none">
-            <View style={styles.navigatingActionsRow}>
-              <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Recenter map"
-                  style={styles.recenterBtn}
-                  onPress={handleRecenter}>
-                <LocateFixed size={22} color="#ffffff" />
-              </Pressable>
-
-              {session && (
-                  <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={audioMuted ? 'Unmute audio directions' : 'Mute audio directions'}
-                      style={styles.recenterBtn}
-                      onPress={toggleAudioMuted}>
-                    {audioMuted ? <VolumeX size={22} color="#ffffff" /> : <Volume2 size={22} color="#ffffff" />}
-                  </Pressable>
-              )}
-
-              <Pressable
-                  accessibilityRole="button"
-                  style={styles.pauseRouteBtn}
-                  onPress={handlePauseAndSaveRoute}>
-                <Text style={styles.pauseRouteText}>Pause Route</Text>
-              </Pressable>
-            </View>
-            {!session && (
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Sign in to hear audio directions"
-                    style={styles.audioSignInHint}
-                    onPress={() => router.push('/login')}>
-                  <VolumeX size={15} color="#0065EB" />
-                  <Text style={styles.audioSignInHintText}>Sign in to hear audio directions</Text>
-                </Pressable>
-            )}
+      {showArrivalAlert && (
+          <View style={styles.arrivalAlertContainer}>
+            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
           </View>
       )}
+
+        <View style={[styles.leftControlsOverlay, { bottom: compactSearchLayout && mobileSearchExpanded
+                ? mobileSearchHeight + 12
+                : Math.max(insets.bottom, 12) + 64 }]}>
+            {isNavigating && (
+                <Pressable
+                    accessibilityRole="button"
+                    style={styles.pauseRouteBtn}
+                    onPress={handlePauseAndSaveRoute}>
+                    <Pause size={20} color="#ffffff" />
+                </Pressable>
+            )}
+            <Pressable
+                accessibilityRole="button"
+                disabled={!style || loading || locating}
+                style={styles.recenterNavBtn}
+                onPress={() => {
+                    if (isNavigating)
+                    {
+                        handleRecenter();
+                    }
+                    else
+                    {
+                        locate();
+                    }
+                }}>
+                {locating ? (
+                    <ActivityIndicator size="small" color="#0065EB" />
+                ) : (
+                    <LocateFixed size={22} color="#0065EB" />
+                )}
+            </Pressable>
+        </View>
 
       <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
@@ -901,7 +993,7 @@ export default function MapScreen() {
             <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Account' : 'Sign in'}
-            onPress={() => { setMenuOpen(false); router.push(session ? '/home' : '/login'); }} style={styles.menuItem}>
+                     onPress={() => { setMenuOpen(false); router.push(session ? '/home' : '/login'); }} style={styles.menuItem}>
             <UserRound size={20} color="#0065EB" />
             <Text style={styles.menuItemText}>{session ? 'Account' : 'Sign in'}</Text>
           </Pressable>
@@ -912,16 +1004,50 @@ export default function MapScreen() {
         <Tool label="Zoom in" icon={Plus} disabled={!style || loading} onPress={() => map.current?.zoomBy(1)} />
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
         <Tool label="Reset north" icon={Compass} disabled={!style || loading} onPress={() => map.current?.resetNorth()} />
-        <Tool label="My location" icon={LocateFixed} disabled={!style || loading || locating} onPress={locate} />
       </View>
       {displayedError && <View style={styles.error}><Text accessibilityRole="alert" style={styles.errorText}>{displayedError}</Text>
-  {error && <Tool label="Retry map" icon={RotateCcw} onPress={retryMap} />}
+        {error && <Tool label="Retry map" icon={RotateCcw} onPress={retryMap} />}
       </View>}
     </View>
     {selectedPoi && <View style={styles.poiDetails}>
       <View style={styles.poiHeading}>
         <Text accessibilityRole="header" style={styles.poiName}>{selectedPoi.name}</Text>
-        <Tool label="Close place details" icon={X} onPress={() => setSelectedPoi(null)} />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Tool
+              label="Calculate Route"
+              icon={Route}
+              onPress={() => {
+                const destCoords = (selectedPoi as any).coordinates || searchedLocation || camera.center;
+                setSelectedPoi(null);
+                setCoordinateQuery('');
+                setPoiResults([]);
+                setSearchedLocation(null);
+                setCoordinateError(null);
+                setRouteMode(true);
+                if (userLocation)
+                {
+                  setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+                }
+                else
+                {
+                  setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
+                }
+                setRouteEnd({ lat: destCoords[1], lng: destCoords[0] });
+                setActiveRouteField(null);
+              }}
+          />
+          <Tool
+              label="Close place details"
+              icon={X}
+              onPress={() => {
+                setSelectedPoi(null);
+                setCoordinateQuery('');
+                setPoiResults([]);
+                setSearchedLocation(null);
+                setCoordinateError(null);
+              }}
+          />
+        </View>
       </View>
       <ScrollView style={styles.poiDescription}>
         <Text style={styles.poiCategory}>{selectedPoi.category}</Text>
@@ -933,22 +1059,22 @@ export default function MapScreen() {
 
     <View style={[styles.searchArea, compactSearchLayout ? styles.searchAreaCompact : null,
       compactSearchLayout && mobileSearchExpanded ? styles.searchAreaExpanded : null, compactSearchLayout ? {
-      bottom: mobileSearchExpanded ? 0 : Math.max(insets.bottom, 4),
-      maxHeight: Math.max(180, Math.min(440, windowHeight - Math.max(insets.top, 12) - 30)),
-      paddingBottom: mobileSearchExpanded ? Math.max(insets.bottom, 8) : undefined,
-    } : { top: Math.max(insets.top, 12) + 1 }]}
-      onLayout={event => setMobileSearchHeight(height => height === event.nativeEvent.layout.height ? height : event.nativeEvent.layout.height)}>
+        bottom: mobileSearchExpanded ? 0 : Math.max(insets.bottom, 4),
+        maxHeight: Math.max(180, Math.min(440, windowHeight - Math.max(insets.top, 12) - 30)),
+        paddingBottom: mobileSearchExpanded ? Math.max(insets.bottom, 8) : undefined,
+      } : { top: Math.max(insets.top, 12) + 1 }]}
+          onLayout={event => setMobileSearchHeight(height => height === event.nativeEvent.layout.height ? height : event.nativeEvent.layout.height)}>
       {compactSearchLayout && <View style={[styles.mobileSearchHandle, mobileSearchExpanded && styles.mobileSearchHandleExpanded]}>
         <Pressable
-          {...mobileSearchPanResponder.panHandlers}
-          accessibilityRole="button"
-          accessibilityLabel={mobileSearchExpanded ? 'Hide location search' : 'Show location search'}
-          accessibilityState={{ expanded: mobileSearchExpanded }}
-          onPress={event => {
-            event.stopPropagation();
-            setMobileSearchExpanded(expanded => !expanded);
-          }}
-          style={[styles.mobileSearchHandleTarget, mobileSearchExpanded ? styles.mobileSearchHandleTargetExpanded : styles.mobileSearchHandleCollapsed]}
+            {...mobileSearchPanResponder.panHandlers}
+            accessibilityRole="button"
+            accessibilityLabel={mobileSearchExpanded ? 'Hide location search' : 'Show location search'}
+            accessibilityState={{ expanded: mobileSearchExpanded }}
+            onPress={event => {
+              event.stopPropagation();
+              setMobileSearchExpanded(expanded => !expanded);
+            }}
+            style={[styles.mobileSearchHandleTarget, mobileSearchExpanded ? styles.mobileSearchHandleTargetExpanded : styles.mobileSearchHandleCollapsed]}
         >
           <View style={styles.mobileSearchGrip} />
         </Pressable>
@@ -957,67 +1083,67 @@ export default function MapScreen() {
         opacity: searchReveal,
         transform: [{ translateY: searchReveal.interpolate({ inputRange: [0, 1], outputRange: [12, 0] }) }],
       } : undefined}>
-      <View style={!compactSearchLayout && showPlanTripLink ? styles.desktopSearchGroup : undefined}>
-      <View style={[styles.searchRow, !compactSearchLayout && showPlanTripLink && styles.searchRowJoinedTop]}>
-        <Search size={19} color="#0065EB" style={styles.searchIcon} />
-        <TextInput
-          accessibilityLabel="Search coordinates or places"
-          accessibilityHint="Enter latitude and longitude, or a place name, then press Enter"
-          value={coordinateQuery}
-          onChangeText={value => { setCoordinateQuery(value); setCoordinateError(null); setPoiResults([]); }}
-          onSubmitEditing={searchCoordinates}
-          placeholder="Search places or coordinates"
-          placeholderTextColor="#8491a2"
-          returnKeyType="search"
-          editable
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={styles.searchInput}
-        />
-        {searchingPoi ? <ActivityIndicator size="small" color="#0065EB" style={styles.searchSpinner} /> : (searchedLocation || coordinateQuery.length > 0) && <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={searchedLocation ? 'Clear search and remove map marker' : 'Clear search'}
-          onPress={() => { setSearchedLocation(null); setCoordinateQuery(''); setPoiResults([]); setCoordinateError(null); }}
-          style={styles.clearMarkerButton}
-        ><X size={20} color="#0065EB" /></Pressable>}
-      </View>
-      {showPlanTripLink && <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Plan a trip"
-        onPress={() => { if (compactSearchLayout) setMobileSearchExpanded(false); router.push('/trip-plan'); }}
-        style={[styles.planTripSearchLink, !compactSearchLayout && styles.planTripSearchLinkJoined]}
-      >
-        <View style={styles.planTripSearchIcon}><Route size={20} color="#0065EB" /></View>
-        <Text style={styles.planTripSearchText}>Plan a trip</Text>
-        <Plus size={23} color="#0065EB" />
-      </Pressable>}
-      {poiResults.length > 0 && <View style={[styles.poiResults, !compactSearchLayout && showPlanTripLink && styles.poiResultsJoined]}>
-        <ScrollView
-          style={styles.poiResultsList}
-          keyboardShouldPersistTaps="always"
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
-        >
-        {poiResults.map((result, index) => <Pressable
-          key={`${result.name}-${result.coordinates[0]}-${result.coordinates[1]}-${index}`}
-          accessibilityRole="button"
-          accessibilityLabel={`Select ${result.name}${result.detail ? `, ${result.detail}` : ''}`}
-          onPress={() => {
-            selectPoiResult(result);
-          }}
-          style={[styles.poiResult, index > 0 && styles.poiResultBorder]}
-        >
-          <MapPin size={17} color="#0065EB" />
-          <View style={styles.poiResultText}>
-            <Text numberOfLines={1} style={styles.poiResultName}>{result.name}</Text>
-            {!!result.detail && <Text numberOfLines={1} style={styles.poiResultDetail}>{result.detail}</Text>}
+        <View style={!compactSearchLayout && showPlanTripLink ? styles.desktopSearchGroup : undefined}>
+          <View style={[styles.searchRow, !compactSearchLayout && showPlanTripLink && styles.searchRowJoinedTop]}>
+            <Search size={19} color="#0065EB" style={styles.searchIcon} />
+            <TextInput
+                accessibilityLabel="Search coordinates or places"
+                accessibilityHint="Enter latitude and longitude, or a place name, then press Enter"
+                value={coordinateQuery}
+                onChangeText={value => { setCoordinateQuery(value); setCoordinateError(null); setPoiResults([]); }}
+                onSubmitEditing={searchCoordinates}
+                placeholder="Search places or coordinates"
+                placeholderTextColor="#8491a2"
+                returnKeyType="search"
+                editable
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.searchInput}
+            />
+            {searchingPoi ? <ActivityIndicator size="small" color="#0065EB" style={styles.searchSpinner} /> : (searchedLocation || coordinateQuery.length > 0) && <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={searchedLocation ? 'Clear search and remove map marker' : 'Clear search'}
+                onPress={() => { setSearchedLocation(null); setCoordinateQuery(''); setPoiResults([]); setCoordinateError(null); }}
+                style={styles.clearMarkerButton}
+            ><X size={20} color="#0065EB" /></Pressable>}
           </View>
-        </Pressable>)}
-        </ScrollView>
-        <Text style={styles.poiAttribution}>Place search by Photon · © OpenStreetMap contributors</Text>
-      </View>}
-      {coordinateError && <Text accessibilityRole="alert" style={styles.coordinateError}>{coordinateError}</Text>}
-      </View>
+          {showPlanTripLink && <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Plan a trip"
+              onPress={() => { if (compactSearchLayout) setMobileSearchExpanded(false); router.push('/trip-plan'); }}
+              style={[styles.planTripSearchLink, !compactSearchLayout && styles.planTripSearchLinkJoined]}
+          >
+            <View style={styles.planTripSearchIcon}><Route size={20} color="#0065EB" /></View>
+            <Text style={styles.planTripSearchText}>Plan a trip</Text>
+            <Plus size={23} color="#0065EB" />
+          </Pressable>}
+          {poiResults.length > 0 && <View style={[styles.poiResults, !compactSearchLayout && showPlanTripLink && styles.poiResultsJoined]}>
+            <ScrollView
+                style={styles.poiResultsList}
+                keyboardShouldPersistTaps="always"
+                nestedScrollEnabled
+                showsVerticalScrollIndicator={false}
+            >
+              {poiResults.map((result, index) => <Pressable
+                  key={`${result.name}-${result.coordinates[0]}-${result.coordinates[1]}-${index}`}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${result.name}${result.detail ? `, ${result.detail}` : ''}`}
+                  onPress={() => {
+                    selectPoiResult(result);
+                  }}
+                  style={[styles.poiResult, index > 0 && styles.poiResultBorder]}
+              >
+                <MapPin size={17} color="#0065EB" />
+                <View style={styles.poiResultText}>
+                  <Text numberOfLines={1} style={styles.poiResultName}>{result.name}</Text>
+                  {!!result.detail && <Text numberOfLines={1} style={styles.poiResultDetail}>{result.detail}</Text>}
+                </View>
+              </Pressable>)}
+            </ScrollView>
+            <Text style={styles.poiAttribution}>Place search by Photon · © OpenStreetMap contributors</Text>
+          </View>}
+          {coordinateError && <Text accessibilityRole="alert" style={styles.coordinateError}>{coordinateError}</Text>}
+        </View>
       </Animated.View>}
     </View>
 
@@ -1036,14 +1162,14 @@ export default function MapScreen() {
     )}
 
     <View style={[styles.bottomOverlayArea, { bottom: compactSearchLayout && mobileSearchExpanded
-      ? mobileSearchHeight + 12
-      : Math.max(insets.bottom, 12) + 64 }]}>
+          ? mobileSearchHeight + 12
+          : Math.max(insets.bottom, 12) + 64 }]}>
       {isSelectingLocation ? (
           <View style={styles.actionButtonsRow}>
             <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
             <Pressable style={styles.confirmButton} onPress={handleConfirmLocation}><Text style={styles.confirmText}>Confirm Location</Text></Pressable>
           </View>
-      ) : (!routeMode && <DangerousZoneButton onPress={handleReportPress} />)}
+      ) : (!selectedPoi && <DangerousZoneButton onPress={handleReportPress} />)}
     </View>
     {reportLocation && (
         <DangerousZoneModal
@@ -1112,7 +1238,6 @@ const styles = StyleSheet.create({
   infoCardText: { color: '#363d47', fontSize: 14 },
   closeInfoButton: { marginTop: 12, paddingVertical: 8 },
   closeInfoText: { color: '#0065EB', fontWeight: '600', fontSize: 14 },
-
   searchArea: { position: 'absolute', left: 70, right: 70, zIndex: 20 },
   searchAreaCompact: { left: 12, right: 12 },
   searchAreaExpanded: { left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 8, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d8e0ea', elevation: 8, shadowColor: '#14243f', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
@@ -1157,6 +1282,14 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     zIndex: 100
   },
+
+  routeError: { backgroundColor: '#ffe5e5', borderWidth: 1, borderColor: '#ff0000', borderRadius: 10, padding: 10, marginBottom: 6, gap: 2 },
+  routeErrorTitle: { fontSize: 13, fontWeight: '700', color: '#a60000' },
+  routeErrorText: { fontSize: 13, color: '#a60000' },
+  routeErrorHint: { fontSize: 12, color: '#626b78', marginTop: 4 },
+
+  avoidDangerRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4, marginBottom: 6 },
+  avoidDangerText: { flex: 1, fontSize: 14, color: '#363d47' },
   routeOverlayTitle: { fontSize: 16, fontWeight: '700', color: '#263241', marginBottom: 12 },
   routeInput: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderWidth: 1, borderColor: '#dce2e9', borderRadius: 10, marginBottom: 10, backgroundColor: '#f9f9fb' },
   routeStopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
@@ -1172,13 +1305,11 @@ const styles = StyleSheet.create({
   routeCloseText: { color: '#758091', fontWeight: '600', fontSize: 15 },
   routeStartBtn: { backgroundColor: '#9b59b6', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 20, elevation: 2 },
   routeStartText: { color: '#ffffff', fontWeight: '700', fontSize: 15 },
-  navigatingOverlay: {position: 'absolute', top: 90, left: 0, right: 0, alignItems: 'center', zIndex: 100},
-  navigatingActionsRow: {flexDirection: 'row', alignItems: 'center', gap: 12},
-  recenterBtn: {backgroundColor: '#0065EB', width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
-  pauseRouteBtn: {backgroundColor: '#9b59b6', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8},
-  pauseRouteText: {color: '#ffffff', fontWeight: '700', fontSize: 15},
-  audioSignInHint: {marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 6},
-  audioSignInHintText: {color: '#0065EB', fontWeight: '600', fontSize: 13},
+  leftControlsOverlay: { position: 'absolute', left: 20, alignItems: 'center', zIndex: 100, gap: 12 },
+  recenterNavBtn: { backgroundColor: '#ffffff', width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', elevation: 6},
+  pauseRouteBtn: { backgroundColor: '#9b59b6', width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', elevation: 6},
   arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
   arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
+  calculateRouteBtn: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0065EB', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginTop: 12,},
+  calculateRouteBtnText: {color: '#ffffff', fontWeight: '600', fontSize: 15,},
 });

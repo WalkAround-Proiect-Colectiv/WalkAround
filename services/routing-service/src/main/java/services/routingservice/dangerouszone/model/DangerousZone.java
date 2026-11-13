@@ -36,4 +36,8 @@ public class DangerousZone
     private UUID reportedBy;
     @Column(name = "created_at", insertable = false, updatable = false)
     private ZonedDateTime createdAt;
+    @Column(name = "center_lat", nullable = false)
+    private double centerLat;
+    @Column(name = "center_lng", nullable = false)
+    private double centerLng;
 }

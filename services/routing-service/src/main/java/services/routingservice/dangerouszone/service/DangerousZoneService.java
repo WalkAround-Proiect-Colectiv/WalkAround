@@ -1,6 +1,8 @@
 package services.routingservice.dangerouszone.service;
 
 import com.uber.h3core.H3Core;
+import com.uber.h3core.util.LatLng;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import services.routingservice.dangerouszone.dto.DangerousZoneHeatmapResponse;
@@ -18,6 +20,8 @@ import java.util.stream.Collectors;
 @Service
 public class DangerousZoneService
 {
+    @Value("${app.routing.h3-resolution:9}")
+    private int h3Resolution;
     private final DangerousZoneRepository repository;
     private final H3Core h3;
     private final KafkaTemplate<String, Object> kafkaTemplate;
@@ -29,10 +33,13 @@ public class DangerousZoneService
     }
     public void reportZone(DangerousZoneRequest request, UUID userId)
     {
-        String h3Index = h3.latLngToCellAddress(request.lat(), request.lng(), 11);
+        String h3Index = h3.latLngToCellAddress(request.lat(), request.lng(), h3Resolution);
+        LatLng center = h3.cellToLatLng(h3Index);
         DangerousZone zone = DangerousZone.builder()
                 .h3Index(h3Index)
                 .category(request.category())
+                .centerLat(center.lat)
+                .centerLng(center.lng)
                 .description(request.description())
                 .is24_7(request.is24_7())
                 .startTime(request.is24_7() ? null : request.startTime())
