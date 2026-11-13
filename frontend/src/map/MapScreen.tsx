@@ -905,15 +905,29 @@ export default function MapScreen() {
           </View>
       )}
 
-      {showArrivalAlert && (
-          <View style={styles.arrivalAlertContainer}>
-            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
-          </View>
+      {isNavigating && !session && (
+          <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sign in to hear audio directions"
+              style={[styles.audioSignInHint, { top: Math.max(insets.top, 12) + 68 }]}
+              onPress={() => router.push('/login')}>
+            <VolumeX size={15} color="#0065EB" />
+            <Text style={styles.audioSignInHintText}>Sign in to hear audio directions</Text>
+          </Pressable>
       )}
 
         <View style={[styles.leftControlsOverlay, { bottom: compactSearchLayout && mobileSearchExpanded
                 ? mobileSearchHeight + 12
                 : Math.max(insets.bottom, 12) + 64 }]}>
+            {isNavigating && session && (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={audioMuted ? 'Unmute audio directions' : 'Mute audio directions'}
+                    style={styles.recenterNavBtn}
+                    onPress={toggleAudioMuted}>
+                    {audioMuted ? <VolumeX size={22} color="#0065EB" /> : <Volume2 size={22} color="#0065EB" />}
+                </Pressable>
+            )}
             {isNavigating && (
                 <Pressable
                     accessibilityRole="button"
@@ -1308,6 +1322,8 @@ const styles = StyleSheet.create({
   leftControlsOverlay: { position: 'absolute', left: 20, alignItems: 'center', zIndex: 100, gap: 12 },
   recenterNavBtn: { backgroundColor: '#ffffff', width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', elevation: 6},
   pauseRouteBtn: { backgroundColor: '#9b59b6', width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', elevation: 6},
+  audioSignInHint: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 6, zIndex: 100 },
+  audioSignInHintText: { color: '#0065EB', fontWeight: '600', fontSize: 13 },
   arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
   arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
   calculateRouteBtn: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0065EB', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginTop: 12,},
