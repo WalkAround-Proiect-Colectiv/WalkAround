@@ -51,3 +51,7 @@ app:
     audience: ${JWT_AUDIENCE:walkaround-api}
   valhalla:
     url: ${VALHALLA_URL}
+  routing:
+    h3-resolution: ${H3_RESOLUTION:11}
+    danger-zones-size-limit: ${DANGER_ZONES_LIMIT:50}
+    extra-radius: ${EXTRA_RADIUS:0.02}

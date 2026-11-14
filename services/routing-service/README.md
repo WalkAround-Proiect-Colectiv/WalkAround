@@ -7,43 +7,55 @@ This is a Spring Boot service responsible for managing geographical routing data
 The service exposes secure REST APIs to manage pedestrian mobility and safety:
 
 **1. Dangerous Zones**
-- Fetches dangerous zones heatmaps (publicly accessible).
-- Allows users to report new dangerous zones (requires valid user session).
-- Calculates the corresponding H3 index based on latitude and longitude.
-- Persists the report in the PostgreSQL database (`dangerous_zones` table).
-- Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
+*   Fetches dangerous zones heatmaps (publicly accessible).
+*   Allows users to report new dangerous zones (requires valid user session).
+*   Calculates the corresponding H3 index based on latitude and longitude, and now calculates and saves the cell's center coordinates (`center_lat` and `center_lng`) to allow highly optimized spatial bounding-box database queries.
+*   Persists the report in the PostgreSQL database (`dangerous_zones` table).
+*   Produces a real-time event to the `dangerous-zones-topic` via Kafka to be processed by downstream services.
 
 **2. Route Calculation**
-- Provides pedestrian-optimized route calculation (publicly accessible) via `POST /api/v1/routes/pedestrian`.
-- Receives start and end coordinates plus an optional ordered list of intermediate stops. Routes with and without stops use the same endpoint.
-- Builds the Valhalla `locations` list as start → stops (in the order received) → end, and calls the local Valhalla container with `pedestrian` costing. Valhalla returns a single route covering all points, with one leg per segment.
+*   Provides pedestrian-optimized route calculation (publicly accessible) via `POST /api/v1/routes/pedestrian`.
+*   Receives start and end coordinates plus an optional ordered list of intermediate stops. Routes with and without stops use the same endpoint.
+*   Supports dynamic **Danger Zone Avoidance**: When `avoidDanger` is requested, the service calculates a bounding box (with an added safety buffer) around the route, filters temporally active zones from the database using their center coordinates, and validates in $O(1)$ time that no user waypoint falls directly inside a danger zone.
+*   Uses `H3Core` to natively group adjacent dangerous cells into continuous clusters, extracting only their outer perimeters (ignoring internal holes) to pass as `avoid_polygons` directly into Valhalla's routing graph.
+*   Builds the Valhalla `locations` list as start → stops (in the order received) → end, and calls the local Valhalla container with `pedestrian` costing. Letting Spring serialize the request avoids locale-dependent decimal formatting in the JSON body. Valhalla returns a single route covering all points, with one leg per segment.
+*   Employs RFC 7807 Problem Details to handle routing exceptions gracefully, returning a `422 Unprocessable Entity` with specific reasons (e.g., `POINT_IN_DANGER_ZONE`, `NO_PATH`, or `TOO_MANY_ZONES` if the graph becomes too fragmented for Valhalla to compute).
 
 Example request body:
 
-    {
-      "startLat": 44.4268,
-      "startLng": 26.1025,
-      "endLat": 44.4378,
-      "endLng": 26.0969,
-      "stops": [
-        { "lat": 44.4323, "lng": 26.1063 }
-      ]
-    }
-
-`stops` may be an empty array for a direct route.
+```json
+{
+  "start": { "lat": 44.4268, "lng": 26.1025 },
+  "end": { "lat": 44.4378, "lng": 26.0969 },
+  "stops": [
+    { "lat": 44.4323, "lng": 26.1063 }
+  ],
+  "avoidDanger": true,
+  "departureTime": "2026-11-09T22:30:00+02:00"
+}
+```
+`stops` may be an empty array for a direct route. If `departureTime` is omitted, the service falls back to the local system time (Europe/Bucharest) to determine active danger zones.
 
 ## Local Environment & Valhalla Setup
 
-Because map tiles are massive, the local `valhalla_custom_data/` folder is ignored in Git. However, the Docker configuration handles everything automatically.
+To avoid cross-OS file permission issues and I/O bottlenecks, Valhalla uses a managed Docker volume `valhalla-data` to store its massive routing graphs natively inside the Linux environment.
 
-To initialize the Valhalla routing engine locally:
+To initialize or reset the Valhalla routing engine locally:
 
-1. Start the Valhalla container from the root of the project (where `docker-compose.yaml` is):
+**1. Clean up legacy data (if applicable):**
+If you previously used a local bind mount directory, stop the containers, remove old volumes, and manually delete the legacy folder to prevent conflicts and save space:
+```sh
+docker compose down -v
+rm -rf valhalla_custom_data/ # (or delete it manually via File Explorer)
+```
+
+**2. Start the Valhalla container from the root of the project (where `docker-compose.yaml` is):**
 ```sh
 docker-compose up -d valhalla
 ```
 
-Wait for the build process: On its first run, the container will automatically create the valhalla_custom_data/ folder, download the OpenStreetMap data for Romania, and build the routing tiles. (Note: This building process may take several minutes depending on your CPU). The Compose service limits Valhalla to `VALHALLA_SERVER_THREADS=2` by default; increasing it can exhaust Docker's open-file limit during server startup.
+Wait for the build process:
+On its first run (or after clearing volumes), the container will automatically download the OpenStreetMap data for Romania and build the routing tiles internally. This process takes ~10-15 minutes depending on your CPU. Do not attempt to calculate routes during this time. The Compose service limits Valhalla to VALHALLA_SERVER_THREADS=2 by default; increasing it can exhaust Docker's open-file limit during server startup.
 
 Verify Valhalla is ready by checking its logs (the container listens on port 8002, mapped to `VALHALLA_HOST_PORT` on the host):
 
