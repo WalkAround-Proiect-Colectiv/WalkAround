@@ -64,6 +64,25 @@ Prerequisites: Node.js/npm, Java 25, and Docker Compose 2.20.3 or newer for `inc
 
 The root `.env.example` contains placeholders rather than ready-to-run values. Frontend configuration is separate and uses `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
 
+## Container Resource Limits
+
+The central Compose project sets per-container memory and CPU ceilings. Defaults are intended for local development with roughly 16 GiB available to Docker; they are upper bounds, not reserved capacity. Set the matching variables in the root `.env` or `services/map-data/.env` before restarting a service to tune them.
+
+| Container | Memory | CPUs |
+| --- | ---: | ---: |
+| Application API database | 1 GiB | 1 |
+| Routing API database | 1 GiB | 1 |
+| Valhalla | 5 GiB | 4 |
+| Kafka | 1.5 GiB | 2 |
+| Map database | 3 GiB | 3 |
+| Map import/update job | 3 GiB | 2 |
+| Map schema job | 128 MiB | 0.5 |
+| Map migration job | 768 MiB | 1 |
+| Martin | 512 MiB | 1 |
+| Map gateway | 128 MiB | 0.5 |
+
+The map import and schema/migration jobs run only when needed. Valhalla tile building and a full map import can both use substantial memory; run them at separate times if Docker approaches its available memory. Check actual usage with `docker stats` and raise a service's limit in its `.env` if it is killed at its cap. The Spring Boot applications and frontend run outside these containers and are not covered by these limits.
+
 ## Documentation
 
 - [Frontend](frontend/README.md)

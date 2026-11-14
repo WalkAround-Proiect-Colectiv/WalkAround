@@ -124,7 +124,9 @@ After adding or changing the published port, recreate `map-db` with `docker comp
 
 ## Prerequisites
 
-Run Docker with Linux containers, Docker Compose 2.20.3 or newer with `include` and `--wait` support, internet access for images/data, and SSD storage. A country import needs several GB of RAM plus significantly more disk space than the compressed PBF; start with at least 4 GB assigned to Docker and monitor actual usage. The 512 MB importer cache is not its total memory limit. Do not download the full planet for this stack.
+Run Docker with Linux containers, Docker Compose 2.20.3 or newer with `include` and `--wait` support, internet access for images/data, and SSD storage. The combined local stack is configured for roughly 16 GiB available to Docker. A country import needs several GB of RAM plus significantly more disk space than the compressed PBF; monitor actual usage and avoid running a Valhalla rebuild at the same time. The 512 MB importer cache is not its total memory limit. Do not download the full planet for this stack.
+
+The map containers have configurable CPU and memory ceilings in this module's `.env`: PostGIS 3 GiB/3 CPUs, the import job 3 GiB/2 CPUs, schema setup 128 MiB/0.5 CPU, Flyway 768 MiB/1 CPU, Martin 512 MiB/1 CPU, and the gateway 128 MiB/0.5 CPU. These are per-container caps, not a shared pool. The importer's 512 MB osm2pgsql cache is inside its 3 GiB container cap. Monitor a full import before lowering either cap; a container killed for exceeding its memory limit will interrupt the job. The root README lists all service limits.
 
 Docker's engine was unavailable during implementation. Compose/style/contracts and Lua mapping tests can be checked without it, but image builds, the real PostGIS/Martin smoke test, full Romania import, live replication, and native rendering still need runtime verification. Do not switch a working deployment before those checks pass.
 
