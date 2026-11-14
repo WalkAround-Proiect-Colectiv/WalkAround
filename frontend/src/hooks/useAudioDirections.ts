@@ -99,8 +99,20 @@ export function useAudioDirections({
     routeCoordinatesRef.current = routeCoordinates;
   }, [routeCoordinates]);
 
+  const userLocationRef = useRef(userLocation);
+  useEffect(() => {
+    userLocationRef.current = userLocation;
+  }, [userLocation]);
+
+  const isNavigatingRef = useRef(isNavigating);
+  useEffect(() => {
+    isNavigatingRef.current = isNavigating;
+  }, [isNavigating]);
+
   const trackerRef = useRef<ManeuverTracker>(createTracker(instructions));
   const dangerTrackerRef = useRef<DangerTracker>(createDangerTracker());
+  const prevInstructionsRef = useRef(instructions);
+  const prevRouteCoordinatesRef = useRef(routeCoordinates);
   const activeAbortRef = useRef<AbortController | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const activeSourceDisposeRef = useRef<(() => void) | null>(null);
@@ -196,6 +208,31 @@ export function useAudioDirections({
     [cueAllowed, handleFailure, player]
   );
 
+  const evaluateDangerNow = useCallback(
+    (announceWhenClear: boolean, overrideRoute?: LngLat[]) => {
+      if (!signedInRef.current || !cueAllowed('danger') || authFailedRef.current) return;
+      const route = overrideRoute ?? routeCoordinatesRef.current;
+      const loc = userLocationRef.current;
+      let position: { lat: number; lng: number } | null = null;
+      if (loc && Number.isFinite(loc.coordinates[1]) && Number.isFinite(loc.coordinates[0])) {
+        position = { lat: loc.coordinates[1], lng: loc.coordinates[0] };
+      } else if (route.length > 0) {
+        position = { lat: route[0][1], lng: route[0][0] };
+      }
+      const dangerAnnouncements = advanceDangerTracker(
+        dangerTrackerRef.current,
+        dangerIndexRef.current,
+        position,
+        route,
+        announceWhenClear
+      );
+      if (dangerAnnouncements.length > 0) {
+        playPhrase(dangerAnnouncements[dangerAnnouncements.length - 1], 'danger');
+      }
+    },
+    [cueAllowed, playPhrase]
+  );
+
   // Configure audio session when navigation starts for signed-in users.
   useEffect(() => {
     if (!isNavigating || !signedIn) return;
@@ -205,11 +242,19 @@ export function useAudioDirections({
     }).catch(() => {});
   }, [isNavigating, signedIn]);
 
-  // Reset trackers and state when instructions change or navigation stops.
+  // Reset trackers and state when instructions/route change or navigation stops.
   useEffect(() => {
-    trackerRef.current = createTracker(instructions);
-    dangerTrackerRef.current = createDangerTracker();
-    prefetchedSetRef.current.clear();
+    const routeChanged =
+      prevInstructionsRef.current !== instructions ||
+      prevRouteCoordinatesRef.current !== routeCoordinates;
+    prevInstructionsRef.current = instructions;
+    prevRouteCoordinatesRef.current = routeCoordinates;
+
+    if (!isNavigating || routeChanged) {
+      trackerRef.current = createTracker(instructions);
+      dangerTrackerRef.current = createDangerTracker();
+      prefetchedSetRef.current.clear();
+    }
 
     if (!isNavigating) {
       warnedForTripRef.current = false;
@@ -221,31 +266,45 @@ export function useAudioDirections({
     }
 
     triggerPrefetch(collectPrefetchPhrases(trackerRef.current));
-  }, [instructions, isNavigating, stopPlayback, triggerPrefetch]);
+  }, [instructions, isNavigating, routeCoordinates, stopPlayback, triggerPrefetch]);
 
-  // Advance maneuver and danger-zone trackers as GPS updates arrive during active navigation.
+  // Advance maneuver or danger-zone tracker as GPS updates, mode, route, or danger zones change.
   useEffect(() => {
-    if (!isNavigating || !signedIn || authFailedRef.current || !userLocation) return;
+    if (!isNavigating || !signedIn || authFailedRef.current) return;
 
-    const [lng, lat] = userLocation.coordinates;
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+    const hasValidLocation =
+      userLocation !== null &&
+      Number.isFinite(userLocation.coordinates[1]) &&
+      Number.isFinite(userLocation.coordinates[0]);
 
-    const { announcements, prefetchPhrases } = advanceTracker(trackerRef.current, { lat, lng });
-    triggerPrefetch(prefetchPhrases);
-
-    const dangerAnnouncements = advanceDangerTracker(
-      dangerTrackerRef.current,
-      dangerIndexRef.current,
-      { lat, lng },
-      routeCoordinatesRef.current
-    );
-
-    if (cueAllowed('route') && announcements.length > 0) {
-      playPhrase(announcements[announcements.length - 1], 'route');
-    } else if (cueAllowed('danger') && dangerAnnouncements.length > 0) {
-      playPhrase(dangerAnnouncements[dangerAnnouncements.length - 1], 'danger');
+    if (mode === 'full') {
+      if (!hasValidLocation) return;
+      const [lng, lat] = userLocation.coordinates;
+      const { announcements, prefetchPhrases } = advanceTracker(trackerRef.current, { lat, lng });
+      triggerPrefetch(prefetchPhrases);
+      if (announcements.length > 0) {
+        playPhrase(announcements[announcements.length - 1], 'route');
+      }
+      return;
     }
-  }, [cueAllowed, isNavigating, playPhrase, signedIn, triggerPrefetch, userLocation]);
+
+    if (mode === 'danger') {
+      const position = hasValidLocation
+        ? { lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] }
+        : routeCoordinates.length > 0
+          ? { lat: routeCoordinates[0][1], lng: routeCoordinates[0][0] }
+          : null;
+      const dangerAnnouncements = advanceDangerTracker(
+        dangerTrackerRef.current,
+        dangerIndex,
+        position,
+        routeCoordinates
+      );
+      if (dangerAnnouncements.length > 0) {
+        playPhrase(dangerAnnouncements[dangerAnnouncements.length - 1], 'danger');
+      }
+    }
+  }, [dangerIndex, isNavigating, mode, playPhrase, routeCoordinates, signedIn, triggerPrefetch, userLocation]);
 
   // Clean up on unmount.
   useEffect(() => {
@@ -260,16 +319,25 @@ export function useAudioDirections({
     modeRef.current = next;
     setMode(next);
     stopPlayback();
-  }, [stopPlayback]);
+    if (next === 'danger' && isNavigatingRef.current) {
+      dangerTrackerRef.current = createDangerTracker();
+      evaluateDangerNow(true);
+    }
+  }, [evaluateDangerNow, stopPlayback]);
 
   const speakStartCue = useCallback(
     (overrideInstructions?: RouteInstruction[]) => {
       authFailedRef.current = false;
       if (!signedInRef.current) return;
+      if (modeRef.current === 'danger') {
+        dangerTrackerRef.current = createDangerTracker();
+        evaluateDangerNow(true);
+        return;
+      }
       const list = overrideInstructions ?? instructionsRef.current;
       playPhrase(startPhrase(list[0] ?? null), 'route');
     },
-    [playPhrase]
+    [evaluateDangerNow, playPhrase]
   );
 
   const speakArrivalCue = useCallback(() => {

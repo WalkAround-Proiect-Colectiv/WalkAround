@@ -73,3 +73,7 @@ export function dangerAheadPhrase(meters: number, categories?: string[]): string
 export function dangerLeavePhrase(): string {
   return 'You have left the dangerous area.';
 }
+
+export function dangerClearPhrase(): string {
+  return 'No dangerous areas reported along your route.';
+}
