@@ -1,7 +1,13 @@
+include:
+  - path: services/map-data/compose.yaml
+    env_file: ${MAP_DATA_ENV_FILE_LOCATION:-services/map-data/.env}
+
 services:
   application-api-db:
     image: postgres:18
     container_name: application-api-db
+    mem_limit: ${APPLICATION_API_DB_MEMORY_LIMIT:-1g}
+    cpus: ${APPLICATION_API_DB_CPU_LIMIT:-1.0}
     env_file:
       - "${APPLICATION_API_DB_ENV_FILE_LOCATION}"
     ports:
@@ -22,6 +28,8 @@ services:
   routing-api-db:
     image: postgres:18
     container_name: routing-api-db
+    mem_limit: ${ROUTING_API_DB_MEMORY_LIMIT:-1g}
+    cpus: ${ROUTING_API_DB_CPU_LIMIT:-1.0}
     env_file:
       - "${ROUTING_API_DB_ENV_FILE_LOCATION}"
     ports:
@@ -42,6 +50,8 @@ services:
   valhalla:
     image: ghcr.io/gis-ops/docker-valhalla/valhalla:latest
     container_name: walkaround-valhalla
+    mem_limit: ${VALHALLA_MEMORY_LIMIT:-5g}
+    cpus: ${VALHALLA_CPU_LIMIT:-4.0}
     ports:
       - "${VALHALLA_HOST_PORT}:${VALHALLA_CONTAINER_PORT}"
     environment:
@@ -57,6 +67,8 @@ services:
       args:
         PIPER_VOICE: ${PIPER_VOICE}
     container_name: walkaround-piper
+    mem_limit: ${PIPER_MEMORY_LIMIT:-1g}
+    cpus: ${PIPER_CPU_LIMIT:-2.0}
     ports:
       - "127.0.0.1:${PIPER_HOST_PORT}:${PIPER_CONTAINER_PORT}"
     restart: unless-stopped
@@ -64,6 +76,8 @@ services:
   kafka:
     image: apache/kafka:4.1.1
     container_name: kafka
+    mem_limit: ${KAFKA_MEMORY_LIMIT:-1536m}
+    cpus: ${KAFKA_CPU_LIMIT:-2.0}
     ports:
       - "${KAFKA_HOST_PORT}:${KAFKA_CONTAINER_PORT}"
     env_file:

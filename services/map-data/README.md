@@ -13,7 +13,7 @@ flowchart LR
 	Gateway --> Client["MapLibre web / native"]
 ```
 
-- `compose.yaml` is a separate Compose project. Root Compose and the existing application database are unchanged.
+- The root `docker-compose.yaml` includes this module's `compose.yaml`. Map paths and interpolation defaults come from `services/map-data/`, while all normal services share the root Compose project. The map database remains separate from the Application API database.
 - `importer/flex.lua` owns the OSM-to-feature mapping; `osm.features` stores selected display geometry in Web Mercator (EPSG:3857). Osm2pgsql maintains object identities and the separate `osm_middle` state needed for updates. Do not remove the middle tables or use `--drop`.
 - `database/migrations/` contains this module's Flyway migrations, not the Application API's migrations. Apply future SQL changes with new versions. Initial extension/role setup runs once on a fresh database volume.
 - `tiles.basemap(z, x, y)` produces an MVT layer named `features`, with `kind`, `class`, optional `name`, and POI `point_count` attributes. Geometry indexes and zoom filtering limit each query to the tile envelope. MVT extent is 4096 with a 64-unit buffer for base features to avoid clipped strokes at tile edges.
@@ -24,7 +24,7 @@ This is a first self-hosted basemap implementation, not a production-tuned repla
 
 ## POI Source Strategy and Model
 
-The POI foundation is separate from the osm2pgsql-owned basemap. V2 defines source/provenance tables, V3 adds explicit record reconciliation and review, and V4 publishes a separate POI tile layer. These migrations do not fetch external APIs or populate a real enriched dataset. Future enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment/reconciliation step in `setup`/`start`.
+The POI foundation is separate from the osm2pgsql-owned basemap. V3 defines source/provenance tables, V4 adds explicit record reconciliation and review, and V5 publishes a separate POI tile layer. These migrations do not fetch external APIs or populate a real enriched dataset. Future enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment/reconciliation step in `setup`/`start`.
 
 ### Initial Sources
 
@@ -76,7 +76,7 @@ Matching rules are deliberately conservative:
 - An exact case/spacing/punctuation-normalized name, same category/subtype, compatible country, and distance within 50 meters produces a `proposed` link, not an automatic merge. More than one candidate returns `ambiguous`. Accent differences are not automatically folded.
 - If no candidate or known identifier exists, `created` establishes one canonical POI and confirmed originating record. Unnamed records require identifiers or explicit review to deduplicate reliably. These thresholds are initial conservative policies, not measured matching accuracy guarantees.
 
-Review proposals as the import role, not the tile role. An authorized operator can open `psql` using the module's Compose configuration (`docker compose --env-file .env --profile maintenance run --rm --entrypoint psql map-job -X`) and call `places.confirm_match(source_record_uuid, target_poi_uuid, reviewer_name)` with UUID/text arguments. Confirmation records the reviewer/time, checks eligibility, category/country/location and conflicting identities, and does not overwrite canonical fields. If the proposed target is wrong, create the correct canonical record explicitly before confirming it; there is no fuzzy auto-approval or review UI in this change. Do not mark a provider approved simply to make test markers visible.
+Review proposals as the import role, not the tile role. From the repository root, an authorized operator can open `psql` with `docker compose --profile maintenance run --rm --entrypoint psql map-job -X` and call `places.confirm_match(source_record_uuid, target_poi_uuid, reviewer_name)` with UUID/text arguments. Confirmation records the reviewer/time, checks eligibility, category/country/location and conflicting identities, and does not overwrite canonical fields. If the proposed target is wrong, create the correct canonical record explicitly before confirming it; there is no fuzzy auto-approval or review UI in this change. Do not mark a provider approved simply to make test markers visible.
 
 ### Published POIs and Map Behavior
 
@@ -101,7 +101,7 @@ For an existing, completed regional setup, run `node services/map-data/manage.mj
 The Docker smoke test runs transactional POI model/reconciliation checks after migrations, then seeds canonical/duplicate source records only in its guarded disposable fixture stack and decodes the resulting POI tiles. It checks matching, repeatability, review, conflicts, rejection/withdrawal, attribution, zoom filtering, and explicit OSM suppression. Transactional test changes are rolled back; the HTTP fixture is removed with the smoke project's volumes. The transactional tests can also be explicitly run from this module with:
 
 ```sh
-docker compose --env-file .env --profile maintenance run --rm --no-deps map-job test-poi-model
+docker compose --profile maintenance run --rm --no-deps map-job test-poi-model
 ```
 
 Run the lightweight contracts from the repository root with `node --test services/map-data/tests/contracts.test.mjs`. They validate the real style and check wiring, not SQL execution. Docker was unavailable for this POI extension, so running pending migrations and the PostGIS/Martin smoke tests remains required on a Docker-enabled machine. Browser checks here used clearly labeled synthetic GeoJSON markers to exercise selection, source attribution, dismissal, and desktop/mobile layout; they do not prove real database deduplication or tile output. Native device testing remains required.
@@ -120,17 +120,19 @@ After updating an existing map stack, run `node services/map-data/manage.mjs sta
 
 The map database listens on `127.0.0.1` at `MAP_DB_HOST_PORT` from this module's `.env` (default `5435`). In a desktop PostgreSQL client, use database `map`, user `map_admin`, and the local `MAP_DB_ADMIN_PASSWORD`. For example, the JDBC URL is `jdbc:postgresql://127.0.0.1:5435/map`. Change the port in `.env` if it conflicts with another local service; the container's internal port stays `5432`.
 
-After adding or changing the published port, recreate `map-db` with `docker compose --env-file .env up -d --no-deps --force-recreate map-db` from `services/map-data/`. Its named database volume is retained. Keep the database bound to loopback and do not share the admin password.
+After adding or changing the published port, recreate `map-db` with `docker compose up -d --no-deps --force-recreate map-db` from the repository root. Its named database volume is retained. Keep the database bound to loopback and do not share the admin password.
 
 ## Prerequisites
 
-Run Docker with Linux containers, Docker Compose v2 with `--wait` support, internet access for images/data, and SSD storage. A country import needs several GB of RAM plus significantly more disk space than the compressed PBF; start with at least 4 GB assigned to Docker and monitor actual usage. The 512 MB importer cache is not its total memory limit. Do not download the full planet for this stack.
+Run Docker with Linux containers, Docker Compose 2.20.3 or newer with `include` and `--wait` support, internet access for images/data, and SSD storage. The combined local stack is configured for roughly 16 GiB available to Docker. A country import needs several GB of RAM plus significantly more disk space than the compressed PBF; monitor actual usage and avoid running a Valhalla rebuild at the same time. The 512 MB importer cache is not its total memory limit. Do not download the full planet for this stack.
+
+The map containers have configurable CPU and memory ceilings in this module's `.env`: PostGIS 3 GiB/3 CPUs, the import job 3 GiB/2 CPUs, schema setup 128 MiB/0.5 CPU, Flyway 768 MiB/1 CPU, Martin 512 MiB/1 CPU, and the gateway 128 MiB/0.5 CPU. These are per-container caps, not a shared pool. The importer's 512 MB osm2pgsql cache is inside its 3 GiB container cap. Monitor a full import before lowering either cap; a container killed for exceeding its memory limit will interrupt the job. The root README lists all service limits.
 
 Docker's engine was unavailable during implementation. Compose/style/contracts and Lua mapping tests can be checked without it, but image builds, the real PostGIS/Martin smoke test, full Romania import, live replication, and native rendering still need runtime verification. Do not switch a working deployment before those checks pass.
 
 ## Team Quick Start
 
-Each colleague builds their own database from the public regional extract. No database dump, Docker volume, or OSM download needs to be committed to Git. Prerequisites are Node.js 22.13 or newer, a running Docker Linux engine, Docker Compose v2 with `--wait` support, and sufficient RAM/disk for the regional import. Install frontend npm dependencies first because the smoke test uses its vector-tile decoder.
+Each colleague builds their own database from the public regional extract. No database dump, Docker volume, or OSM download needs to be committed to Git. Prerequisites are Node.js 22.13 or newer, a running Docker Linux engine, Docker Compose 2.20.3 or newer, and sufficient RAM/disk for the regional import. Install frontend npm dependencies first because the smoke test uses its vector-tile decoder.
 
 From the repository root, run:
 
@@ -142,7 +144,7 @@ node services/map-data/manage.mjs connect
 npm --prefix frontend run web
 ```
 
-On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`. The Node management script itself works on Windows, macOS, and Linux and invokes Docker without a shell. Its Compose paths are anchored to the module, so `node /absolute/path/to/manage.mjs <command>` also works from another working directory.
+On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`. The Node management script itself works on Windows, macOS, and Linux and invokes Docker without a shell. It targets the root Compose project while loading the root `.env` and the map env file named by `MAP_DATA_ENV_FILE_LOCATION` in the root `.env` (default: `services/map-data/.env`). Relative paths are resolved from the repository root, so `node /absolute/path/to/manage.mjs <command>` also works from another working directory. Create the root `.env` as described in the repository README before running `setup`.
 
 `doctor` checks for a reachable Linux Docker engine and Compose. If it reports the engine is unavailable, start Docker Desktop in Linux-container mode (or start Docker Engine on Linux) and rerun it. Then run `smoke`: it uses the tiny synthetic OSM fixture, not a country download. The first run still downloads/builds container images. Resolve smoke failures before spending time on the full import; do not share passwords or secret-bearing configuration when reporting errors.
 
@@ -160,7 +162,7 @@ node services/map-data/manage.mjs update
 node services/map-data/manage.mjs stop
 ```
 
-`start` requires a completed import and does not download/import again. `status` shows containers and, when PostGIS is running, import/replication state. `verify` checks database permissions/geometry, the style, TileJSON, local fonts, and nonempty MVT responses around Bucharest, Cluj-Napoca, Brasov, and Constanta. These checks are stronger than liveness but do not establish completeness, decode every production feature, or benchmark the country; the smoke test decodes its fixture tiles and manual map inspection is still required. `update` applies regional replication diffs, verifies endpoints, and prints checkpoint status. Run it against a started stack. `stop` stops containers but preserves all volumes; none of these commands deletes database volumes or resets an import.
+`start` requires a completed import and does not download/import again. `status` shows map containers and, when PostGIS is running, import/replication state. `verify` checks database permissions/geometry, the style, TileJSON, local fonts, and nonempty MVT responses around Bucharest, Cluj-Napoca, Brasov, and Constanta. These checks are stronger than liveness but do not establish completeness, decode every production feature, or benchmark the country; the smoke test decodes its fixture tiles and manual map inspection is still required. `update` applies regional replication diffs, verifies endpoints, and prints checkpoint status. Run it against a started stack. `stop` stops only the map containers and preserves all volumes; none of these commands deletes database volumes or resets an import.
 
 Schedule the `update` command weekly with an absolute script path if desired. The scheduler should run as the same user with Docker access; the script does not install an OS task. Other than `init` and `help`, the operational commands require Docker. `init` can generate local credentials in advance without starting services.
 
@@ -168,7 +170,18 @@ Schedule the `update` command weekly with an absolute script path if desired. Th
 
 Commit the Compose definition, Dockerfiles, importer, SQL migrations, style, scripts, documentation, and small synthetic test fixtures. The module ignore rules exclude local environment variants (except `.env.example`), `data/`, `backups/`, PBF extracts, compressed diffs, and database backup files. Normal imports put the database and PBF in Docker-managed named volumes, not in the repository at all. Never replace the synthetic fixtures with real database dumps.
 
-Preserve the local map `.env` alongside its database volumes: generating new passwords does not change passwords already stored in Postgres. Do not share that file with colleagues; each setup generates its own. On Unix it is created with owner-only permissions; Windows protection follows the local filesystem ACL. If multiple checkouts share one Docker engine, the fixed `walkaround-map` project name and port also share a stack; use the lower-level Compose `-p` option and a different port for a genuinely separate staging instance.
+Preserve the local map `.env` alongside its database volumes: generating new passwords does not change passwords already stored in Postgres. Do not share that file with colleagues; each setup generates its own. On Unix it is created with owner-only permissions; Windows protection follows the local filesystem ACL. `MAP_VOLUME_PREFIX=walkaround-map` keeps the original volume names (`walkaround-map_map-db-data`, `walkaround-map_map-downloads`, and `walkaround-map_map-locks`) when the root project starts the map services. The disposable smoke test uses a unique prefix and dynamic host ports so it cannot mount those volumes. If multiple checkouts share one Docker engine, use a distinct prefix and host ports for a separate stack.
+
+### Moving from the Standalone Map Project
+
+The root Compose project now includes the map services. Stop the old standalone project's containers once before starting the central project; this releases their host ports without deleting the existing map volumes. From the repository root, run:
+
+```sh
+docker compose -f services/map-data/compose.yaml --env-file services/map-data/.env -p walkaround-map down
+docker compose up -d
+```
+
+Do not add `--volumes` to the first command. The root Compose project mounts the same named volumes and uses the credentials and port settings already in `services/map-data/.env`. An existing completed import needs no new download or import. After the switch, use root `docker compose` commands or `node services/map-data/manage.mjs` for map operations.
 
 ### Help With Runtime Testing
 
@@ -176,15 +189,15 @@ Start Docker, run `doctor`, then `smoke`. Once smoke passes, run `setup`, `conne
 
 ## Initial Romania Import
 
-Run these commands from `services/map-data/`. Copy `.env.example` to `.env` and replace all three password placeholders with separate random values. Use URL-safe characters for `MAP_TILES_PASSWORD` because it is embedded in Martin's connection URL. The `.env` file is ignored; never commit it or print resolved Compose configuration containing its credentials.
+Run these commands from the repository root. Create the root `.env` as described in the repository README and copy `services/map-data/.env.example` to `services/map-data/.env`, replacing all three password placeholders with separate random values. Use URL-safe characters for `MAP_TILES_PASSWORD` because it is embedded in Martin's connection URL. Both `.env` files are ignored; never commit them or print resolved Compose configuration containing their credentials.
 
 ```sh
-docker compose --env-file .env up -d --wait map-db
-docker compose --env-file .env --profile maintenance run --build --rm map-job download
-docker compose --env-file .env --profile maintenance run --rm map-job import
-docker compose --env-file .env --profile maintenance run --rm map-job replication-init
-docker compose --env-file .env up --build -d --wait map-gateway
-docker compose --env-file .env --profile maintenance run --rm map-job verify
+docker compose up -d --wait map-db
+docker compose --profile maintenance run --build --rm map-job download
+docker compose --profile maintenance run --rm map-job import
+docker compose --profile maintenance run --rm map-job replication-init
+docker compose up --build -d --wait map-gateway
+docker compose --profile maintenance run --rm map-job verify
 ```
 
 The download uses Geofabrik's Romania extract and verifies its published MD5 checksum with `md5sum -c` (the Alpine/BusyBox-compatible syntax) before promoting the partial file. This is an integrity check, not a cryptographic authenticity guarantee; transport uses HTTPS. The PBF remains in a persistent volume for checkpoint initialization. Do not replace it with a newer snapshot after import and use it to reset replication.
@@ -220,11 +233,11 @@ Leave the frontend variable empty to keep the hosted prototype during rollout. I
 Use the **same regional replication feed as the PBF**. `replication-init` reads the original PBF headers, validates the configured feed, and preserves an existing complete checkpoint. The tool has separate state for feed URL, sequence, and timestamp in `osm_middle.osm2pgsql_properties`. Never manually advance these values or initialize against the newest feed sequence: that would skip changes.
 
 ```sh
-docker compose --env-file .env --profile maintenance run --rm map-job update
-docker compose --env-file .env --profile maintenance run --rm map-job status
+docker compose --profile maintenance run --rm map-job update
+docker compose --profile maintenance run --rm map-job status
 ```
 
-Schedule `update` weekly with the deployment scheduler, cron, or Windows Task Scheduler, using the module as the working directory and the same Compose project/volume configuration. No OS task is installed automatically. This catches up through the missing daily regional diffs in bounded batches (100 MB target per batch), with osm2pgsql applying changes to existing rows. It is not a weekly full reimport. Do not feed unprocessed arbitrary planet diffs straight to append mode; the replication utility merges/simplifies the regional changes correctly.
+Schedule `node services/map-data/manage.mjs update` weekly with the deployment scheduler, cron, or Windows Task Scheduler. The script locates the central Compose project from any working directory. No OS task is installed automatically. This catches up through the missing daily regional diffs in bounded batches (100 MB target per batch), with osm2pgsql applying changes to existing rows. It is not a weekly full reimport. Do not feed unprocessed arbitrary planet diffs straight to append mode; the replication utility merges/simplifies the regional changes correctly.
 
 Monitor exit codes and replication timestamp lag; a successful health check is not a freshness check. Geofabrik diffs have finite retention (roughly three months), so long outages may require a new full import in a separate staging stack. Other countries need compatible extracts and update feeds; combining datasets requires a planned merge/replication strategy, not switching feeds in-place.
 
@@ -237,7 +250,7 @@ Imports and updates are not globally atomic across all osm2pgsql work. Do not se
 From the repository root, with frontend npm dependencies installed:
 
 ```sh
-docker compose --env-file services/map-data/.env.example -f services/map-data/compose.yaml --profile maintenance config --quiet
+docker compose --profile maintenance config --quiet
 node --test services/map-data/tests/contracts.test.mjs
 node --test services/map-data/tests/manage.test.mjs
 node services/map-data/tests/smoke.mjs

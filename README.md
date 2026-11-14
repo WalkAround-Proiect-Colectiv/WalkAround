@@ -21,6 +21,8 @@ flowchart LR
 - `frontend/` contains the Expo Router application and platform-specific session transports.
 - `services/application-api/` owns registration, login, JWT validation, user lookup, and refresh-session persistence.
 - `services/realtime-service/` is a separate Spring Boot service with WebSocket and Kafka dependencies. It currently has no message handlers or Kafka producers/consumers.
+- `services/map-data/` owns the independent OSM import/update jobs, map PostGIS database, Flyway tile function, Martin tile/font serving, and map gateway. Its services are included in the root Compose project and do not share the Application API database.
+- `docker-compose.yaml` starts the local databases, Kafka, Valhalla, and the map stack. The frontend and Java services are run separately.
 - `services/map-data/` owns the independent OSM import/update jobs, map PostGIS database, Flyway tile function, Martin tile/font serving, and map gateway. Its separate Compose project does not share the Application API database.
 - `services/tts/` defines the local Piper neural text-to-speech image used by the Application API for turn-by-turn audio directions.
 - `docker-compose.yaml` starts PostgreSQL, Valhalla, Piper TTS, and Kafka. The frontend and Java services are run separately.
@@ -57,14 +59,34 @@ The self-hosted basemap module includes a flex mapping, versioned tile query, ma
 
 ## Local Development
 
-Prerequisites: Node.js/npm, Java 25, and Docker Compose. Google OAuth credentials and application configuration are needed for end-to-end authentication.
+Prerequisites: Node.js/npm, Java 25, and Docker Compose 2.20.3 or newer for `include`. Google OAuth credentials and application configuration are needed for end-to-end authentication.
 
-1. Copy `.env.example` to `.env` and replace its placeholders. Create the database and Kafka env files referenced by `APPLICATION_API_DB_ENV_FILE_LOCATION` and `KAFKA_ENV_FILE_LOCATION`.
-2. Start local infrastructure with `docker compose up -d` from the repository root.
+1. Copy `.env.example` to `.env` and replace its placeholders. Create the database and Kafka env files referenced by `APPLICATION_API_DB_ENV_FILE_LOCATION` and `KAFKA_ENV_FILE_LOCATION`. Set `MAP_DATA_ENV_FILE_LOCATION` to the map env file path relative to the repository root (default: `services/map-data/.env`); run `node services/map-data/manage.mjs init` if that file does not exist.
+2. If the map database has not been imported yet, run `node services/map-data/manage.mjs setup` first. Otherwise, stop the old standalone map Compose project as described in [the map guide](services/map-data/README.md#moving-from-the-standalone-map-project), then start local infrastructure with `docker compose up -d` from the repository root.
 3. Configure and run the Application API as described in [services/application-api/README.md](services/application-api/README.md).
 4. Configure and run the app as described in [frontend/README.md](frontend/README.md).
 
 The root `.env.example` contains placeholders rather than ready-to-run values. Frontend configuration is separate and uses `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
+
+## Container Resource Limits
+
+The central Compose project sets per-container memory and CPU ceilings. Defaults are intended for local development with roughly 16 GiB available to Docker; they are upper bounds, not reserved capacity. Set the matching variables in the root `.env` or `services/map-data/.env` before restarting a service to tune them.
+
+| Container | Memory | CPUs |
+| --- | ---: | ---: |
+| Application API database | 1 GiB | 1 |
+| Routing API database | 1 GiB | 1 |
+| Valhalla | 5 GiB | 4 |
+| Piper TTS | 1 GiB | 2 |
+| Kafka | 1.5 GiB | 2 |
+| Map database | 3 GiB | 3 |
+| Map import/update job | 3 GiB | 2 |
+| Map schema job | 128 MiB | 0.5 |
+| Map migration job | 768 MiB | 1 |
+| Martin | 512 MiB | 1 |
+| Map gateway | 128 MiB | 0.5 |
+
+The map import and schema/migration jobs run only when needed. Valhalla tile building and a full map import can both use substantial memory; run them at separate times if Docker approaches its available memory. Check actual usage with `docker stats` and raise a service's limit in its `.env` if it is killed at its cap. The Spring Boot applications and frontend run outside these containers and are not covered by these limits.
 
 ## Documentation
 
