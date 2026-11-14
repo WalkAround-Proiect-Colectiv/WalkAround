@@ -12,6 +12,7 @@ flowchart LR
 	App --> Google["Google Identity"]
 	App --> API["Application API<br/>Spring Boot"]
 	API --> DB[("PostgreSQL")]
+	API --> Piper["Piper TTS<br/>Docker"]
 	App -. future realtime .-> Realtime["Realtime service<br/>Spring Boot"]
 	API -. dependency present .-> Kafka
 	Realtime -. dependency present .-> Kafka
@@ -22,6 +23,9 @@ flowchart LR
 - `services/realtime-service/` is a separate Spring Boot service with WebSocket and Kafka dependencies. It currently has no message handlers or Kafka producers/consumers.
 - `services/map-data/` owns the independent OSM import/update jobs, map PostGIS database, Flyway tile function, Martin tile/font serving, and map gateway. Its services are included in the root Compose project and do not share the Application API database.
 - `docker-compose.yaml` starts the local databases, Kafka, Valhalla, and the map stack. The frontend and Java services are run separately.
+- `services/map-data/` owns the independent OSM import/update jobs, map PostGIS database, Flyway tile function, Martin tile/font serving, and map gateway. Its separate Compose project does not share the Application API database.
+- `services/tts/` defines the local Piper neural text-to-speech image used by the Application API for turn-by-turn audio directions.
+- `docker-compose.yaml` starts PostgreSQL, Valhalla, Piper TTS, and Kafka. The frontend and Java services are run separately.
 
 The frontend talks directly to the Application API. PostgreSQL stores user profiles, Google identities, and refresh-session hashes. Kafka and the Realtime service are infrastructure for future functionality; they are not currently part of the registration/login request path.
 
@@ -89,4 +93,5 @@ The map import and schema/migration jobs run only when needed. Valhalla tile bui
 - [Application API](services/application-api/README.md)
 - [Realtime service](services/realtime-service/README.md)
 - [Upcoming events: backend](services/application-api/src/main/java/services/applicationapi/events/README.md) and [frontend](frontend/src/events/README.md)
+- [Audio directions: Piper container](services/tts/README.md) and [Application API TTS](services/application-api/src/main/java/services/applicationapi/tts/README.md)
 - [Map data and self-hosted tiles](services/map-data/README.md)

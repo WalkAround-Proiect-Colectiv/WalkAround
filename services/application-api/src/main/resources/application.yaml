@@ -96,6 +96,12 @@ app:
     details-timeout: ${EVENTS_DETAILS_TIMEOUT:PT8S}
   routing-service:
     url: ${ROUTING_SERVICE_URL}
+  tts:
+    provider: ${TTS_PROVIDER:piper}
+    base-url: ${TTS_BASE_URL:http://localhost:5000}
+    timeout: ${TTS_TIMEOUT:PT5S}
+    max-text-length: ${TTS_MAX_TEXT_LENGTH:200}
+    cache-max-entries: ${TTS_CACHE_MAX_ENTRIES:500}
 
   trip-plan:
     city-provider: ${CITY_PROVIDER:geonames}
@@ -109,6 +115,7 @@ app:
     serp-api-base-url: ${SERP_API_BASE_URL:https://serpapi.com}
     serp-api-timeout: ${SERP_API_TIMEOUT:PT15S}
     flight-search-max-date-range-days: ${FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS:7}
+    flight-search-max-arrival-offset-days: ${FLIGHT_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
     accommodation-provider: ${ACCOMMODATION_PROVIDER:serpapi}
     accommodation-search-max-results: ${ACCOMMODATION_SEARCH_MAX_RESULTS:3}
     attraction-provider: ${ATTRACTION_PROVIDER:serpapi}
