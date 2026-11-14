@@ -57,7 +57,7 @@ The self-hosted basemap module includes a flex mapping, versioned tile query, ma
 
 Prerequisites: Node.js/npm, Java 25, and Docker Compose 2.20.3 or newer for `include`. Google OAuth credentials and application configuration are needed for end-to-end authentication.
 
-1. Copy `.env.example` to `.env` and replace its placeholders. Create the database and Kafka env files referenced by `APPLICATION_API_DB_ENV_FILE_LOCATION` and `KAFKA_ENV_FILE_LOCATION`. Keep the map settings and credentials in `services/map-data/.env`; run `node services/map-data/manage.mjs init` if that file does not exist.
+1. Copy `.env.example` to `.env` and replace its placeholders. Create the database and Kafka env files referenced by `APPLICATION_API_DB_ENV_FILE_LOCATION` and `KAFKA_ENV_FILE_LOCATION`. Set `MAP_DATA_ENV_FILE_LOCATION` to the map env file path relative to the repository root (default: `services/map-data/.env`); run `node services/map-data/manage.mjs init` if that file does not exist.
 2. If the map database has not been imported yet, run `node services/map-data/manage.mjs setup` first. Otherwise, stop the old standalone map Compose project as described in [the map guide](services/map-data/README.md#moving-from-the-standalone-map-project), then start local infrastructure with `docker compose up -d` from the repository root.
 3. Configure and run the Application API as described in [services/application-api/README.md](services/application-api/README.md).
 4. Configure and run the app as described in [frontend/README.md](frontend/README.md).

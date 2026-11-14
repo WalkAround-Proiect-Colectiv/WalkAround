@@ -1,6 +1,6 @@
 include:
   - path: services/map-data/compose.yaml
-    env_file: services/map-data/.env
+    env_file: ${MAP_DATA_ENV_FILE_LOCATION:-services/map-data/.env}
 
 services:
   application-api-db:

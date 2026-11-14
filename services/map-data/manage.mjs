@@ -8,12 +8,25 @@ import { parseEnv } from 'node:util';
 export const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 const workspaceDirectory = resolve(moduleDirectory, '../..');
 
-export async function initializeEnvironment(directory = moduleDirectory) {
+async function mapEnvironmentFile() {
+  let setting = process.env.MAP_DATA_ENV_FILE_LOCATION;
+  if (!setting) {
+    try {
+      const rootEnvironment = parseEnv(await readFile(join(workspaceDirectory, '.env'), 'utf8'));
+      setting = rootEnvironment.MAP_DATA_ENV_FILE_LOCATION;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return resolve(workspaceDirectory, setting || 'services/map-data/.env');
+}
+
+export async function initializeEnvironment(directory = moduleDirectory, filename = join(directory, '.env')) {
   const template = await readFile(join(directory, '.env.example'), 'utf8');
   const content = template.replace(/^MAP_(DB_ADMIN|IMPORT|TILES)_PASSWORD=.*$/gm,
     (_line, role) => `MAP_${role}_PASSWORD=${randomBytes(32).toString('hex')}`);
   try {
-    await writeFile(join(directory, '.env'), content, { flag: 'wx', mode: 0o600 });
+    await writeFile(filename, content, { flag: 'wx', mode: 0o600 });
     return true;
   } catch (error) {
     if (error.code === 'EEXIST') return false;
@@ -21,9 +34,9 @@ export async function initializeEnvironment(directory = moduleDirectory) {
   }
 }
 
-export async function localConfiguration(directory = moduleDirectory) {
+export async function localConfiguration(directory = moduleDirectory, filename = join(directory, '.env')) {
   let content;
-  try { content = await readFile(join(directory, '.env'), 'utf8'); }
+  try { content = await readFile(filename, 'utf8'); }
   catch (error) {
     if (error.code === 'ENOENT') throw new Error('Local map configuration is missing. Run: node services/map-data/manage.mjs init');
     throw error;
@@ -38,10 +51,10 @@ export async function localConfiguration(directory = moduleDirectory) {
   return { ...config, MAP_TILES_PORT: port };
 }
 
-export function composeArguments(args, directory = moduleDirectory) {
+export function composeArguments(args, directory = moduleDirectory, environmentFile = join(directory, '.env')) {
   return ['compose', '--project-directory', workspaceDirectory,
     '--env-file', join(workspaceDirectory, '.env'),
-    '--env-file', join(directory, '.env'),
+    '--env-file', environmentFile,
     '-f', join(workspaceDirectory, 'docker-compose.yaml'),
     '--profile', 'maintenance', ...args];
 }
@@ -133,7 +146,8 @@ export async function main(args = process.argv.slice(2)) {
     return;
   }
   if (command === 'init') {
-    console.log(await initializeEnvironment() ? 'Created ignored local map configuration with unique credentials.' : 'Existing local map configuration preserved.');
+    const environmentFile = await mapEnvironmentFile();
+    console.log(await initializeEnvironment(moduleDirectory, environmentFile) ? 'Created local map configuration with unique credentials.' : 'Existing local map configuration preserved.');
     return;
   }
   if (command === 'doctor') { checkDocker(); console.log('Docker Linux engine and Compose are available.'); return; }
@@ -143,10 +157,11 @@ export async function main(args = process.argv.slice(2)) {
     execute(process.execPath, [join(moduleDirectory, 'tests/smoke.mjs')]);
     return;
   }
-  if (command === 'setup') await initializeEnvironment();
-  const config = await localConfiguration();
+  const environmentFile = await mapEnvironmentFile();
+  if (command === 'setup') await initializeEnvironment(moduleDirectory, environmentFile);
+  const config = await localConfiguration(moduleDirectory, environmentFile);
   const environment = { ...process.env, ...config };
-  const compose = (steps, capture = false) => execute('docker', composeArguments(steps), { capture, environment });
+  const compose = (steps, capture = false) => execute('docker', composeArguments(steps, moduleDirectory, environmentFile), { capture, environment });
   const job = (name, capture = false) => compose(['run', '--rm', '--no-deps', '-T', 'map-job', name], capture);
   const base = gatewayUrl(config);
   const verify = async () => {

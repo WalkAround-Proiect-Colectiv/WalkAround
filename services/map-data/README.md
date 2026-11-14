@@ -144,7 +144,7 @@ node services/map-data/manage.mjs connect
 npm --prefix frontend run web
 ```
 
-On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`. The Node management script itself works on Windows, macOS, and Linux and invokes Docker without a shell. It targets the root Compose project while loading the root `.env` and this module's `.env`, so `node /absolute/path/to/manage.mjs <command>` also works from another working directory. Create the root `.env` as described in the repository README before running `setup`.
+On Windows PowerShell, use `npm.cmd` if the execution policy blocks `npm.ps1`. The Node management script itself works on Windows, macOS, and Linux and invokes Docker without a shell. It targets the root Compose project while loading the root `.env` and the map env file named by `MAP_DATA_ENV_FILE_LOCATION` in the root `.env` (default: `services/map-data/.env`). Relative paths are resolved from the repository root, so `node /absolute/path/to/manage.mjs <command>` also works from another working directory. Create the root `.env` as described in the repository README before running `setup`.
 
 `doctor` checks for a reachable Linux Docker engine and Compose. If it reports the engine is unavailable, start Docker Desktop in Linux-container mode (or start Docker Engine on Linux) and rerun it. Then run `smoke`: it uses the tiny synthetic OSM fixture, not a country download. The first run still downloads/builds container images. Resolve smoke failures before spending time on the full import; do not share passwords or secret-bearing configuration when reporting errors.
 
