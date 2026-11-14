@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -104,9 +105,8 @@ public class FlightSearchServiceImpl implements FlightSearchService {
                 !date.isAfter(request.departureUntil().toLocalDate());
                 date = date.plusDays(1)) {
             if (request.ticketOption() == TicketOption.ROUND_TRIP) {
-                LocalDate returnDate = date.plusDays(request.stayingNights());
                 roundTripCandidates.addAll(findRoundTripCandidates(
-                        request, origin, destinations, date, returnDate));
+                        request, origin, destinations, date));
             } else {
                 searchSeparateTickets(request, origin, destinations,
                         date, oneWayReturnsByDate, results);
@@ -146,21 +146,40 @@ public class FlightSearchServiceImpl implements FlightSearchService {
             FlightSearchRequest request,
             String origin,
             List<String> destinations,
-            LocalDate date,
-            LocalDate returnDate
+            LocalDate date
     ) {
-        List<FlightOffer> outboundOffers = provider.searchRoundTrip(
-                origin, destinations, date, returnDate, request.budget(),
-                earliestDeparture(request, date), latestDeparture(request, date));
         List<RoundTripCandidate> candidates = new ArrayList<>();
 
-        for (FlightOffer outbound : outboundOffers) {
-            if (isOutbound(outbound, origin, request)
-                    && outbound.price().compareTo(request.budget()) <= 0
-                    && outbound.departureToken() != null) {
-                candidates.add(new RoundTripCandidate(outbound, date, returnDate));
+        for (int arrivalOffset = 0;
+                arrivalOffset <= properties.flightSearchMaxArrivalOffsetDays();
+                arrivalOffset++) {
+            LocalDate returnDate = date.plusDays(request.stayingNights() + arrivalOffset);
+
+            List<FlightOffer> outboundOffers = provider.searchRoundTrip(
+                    origin, destinations, date, returnDate, request.budget(),
+                    earliestDeparture(request, date), latestDeparture(request, date));
+
+            for (FlightOffer outbound : outboundOffers) {
+                if (!isOutbound(outbound, origin, request)
+                        || outbound.price().compareTo(request.budget()) > 0) {
+                    continue;
+                }
+
+                Optional<LocalDate> arrivalDate = finalOutboundArrivalDate(outbound);
+                if (arrivalDate.isEmpty()) {
+                    continue;
+                }
+
+                LocalDate neededReturnDate = arrivalDate.get().plusDays(request.stayingNights());
+                if (neededReturnDate.equals(returnDate)
+                        && outbound.departureToken() != null) {
+                    candidates.add(new RoundTripCandidate(outbound, date, returnDate));
+                }
             }
         }
+
+        log.debug("Searched {} return dates for outbound date {} and found {} round-trip candidates",
+                properties.flightSearchMaxArrivalOffsetDays() + 1, date, candidates.size());
 
         return candidates;
     }
@@ -174,7 +193,7 @@ public class FlightSearchServiceImpl implements FlightSearchService {
     ) {
         candidates.sort(Comparator.comparing(candidate -> candidate.outbound().price()));
         int returnLookups = 0;
-        Set<String> searchedTokens = new HashSet<>();
+        Set<RoundTripSearchKey> searchedTokens = new HashSet<>();
 
         for (RoundTripCandidate candidate : candidates) {
             if (results.size() >= properties.flightSearchMaxResults()
@@ -182,7 +201,11 @@ public class FlightSearchServiceImpl implements FlightSearchService {
                 break;
             }
 
-            if (!searchedTokens.add(candidate.outbound().departureToken())) {
+            RoundTripSearchKey searchKey = new RoundTripSearchKey(
+                    candidate.outbound().departureToken(),
+                    candidate.outboundDate(),
+                    candidate.returnDate());
+            if (!searchedTokens.add(searchKey)) {
                 continue;
             }
 
@@ -232,17 +255,12 @@ public class FlightSearchServiceImpl implements FlightSearchService {
         }
 
         for (FlightOffer outbound : outboundOffers) {
-            LocalDate arrivalDate;
-
-            try {
-                String arrivalTime = outbound.segments().getLast().arrivalTime();
-                arrivalDate = LocalDateTime.parse(arrivalTime, FLIGHT_TIME).toLocalDate();
-            } catch (DateTimeParseException | NullPointerException exception) {
-                log.debug("SerpApi returned an unparseable final outbound arrival time");
+            Optional<LocalDate> arrivalDate = finalOutboundArrivalDate(outbound);
+            if (arrivalDate.isEmpty()) {
                 continue;
             }
 
-            LocalDate returnDate = arrivalDate.plusDays(request.stayingNights());
+            LocalDate returnDate = arrivalDate.get().plusDays(request.stayingNights());
             List<FlightOffer> returningOffers = returnsByDate.computeIfAbsent(returnDate,
                     day -> provider.searchOneWay(
                             destinations, List.of(origin), day, request.budget(), null, null));
@@ -262,6 +280,16 @@ public class FlightSearchServiceImpl implements FlightSearchService {
                     ));
                 }
             }
+        }
+    }
+
+    private Optional<LocalDate> finalOutboundArrivalDate(FlightOffer outbound) {
+        try {
+            String arrivalTime = outbound.segments().getLast().arrivalTime();
+            return Optional.of(LocalDateTime.parse(arrivalTime, FLIGHT_TIME).toLocalDate());
+        } catch (DateTimeParseException | NullPointerException exception) {
+            log.debug("SerpApi returned an unparseable final outbound arrival time");
+            return Optional.empty();
         }
     }
 
@@ -314,6 +342,13 @@ public class FlightSearchServiceImpl implements FlightSearchService {
 
     private record RoundTripCandidate(
             FlightOffer outbound,
+            LocalDate outboundDate,
+            LocalDate returnDate
+    ) {
+    }
+
+    private record RoundTripSearchKey(
+            String departureToken,
             LocalDate outboundDate,
             LocalDate returnDate
     ) {
