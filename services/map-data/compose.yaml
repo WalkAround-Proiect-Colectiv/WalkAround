@@ -110,5 +110,8 @@ services:
 
 volumes:
   map-db-data:
+    name: ${MAP_VOLUME_PREFIX:-walkaround-map}_map-db-data
   map-downloads:
+    name: ${MAP_VOLUME_PREFIX:-walkaround-map}_map-downloads
   map-locks:
+    name: ${MAP_VOLUME_PREFIX:-walkaround-map}_map-locks

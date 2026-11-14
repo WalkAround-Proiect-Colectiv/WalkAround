@@ -1,3 +1,7 @@
+include:
+  - path: services/map-data/compose.yaml
+    env_file: services/map-data/.env
+
 services:
   application-api-db:
     image: postgres:18

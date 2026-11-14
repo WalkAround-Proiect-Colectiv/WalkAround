@@ -20,8 +20,8 @@ flowchart LR
 - `frontend/` contains the Expo Router application and platform-specific session transports.
 - `services/application-api/` owns registration, login, JWT validation, user lookup, and refresh-session persistence.
 - `services/realtime-service/` is a separate Spring Boot service with WebSocket and Kafka dependencies. It currently has no message handlers or Kafka producers/consumers.
-- `services/map-data/` owns the independent OSM import/update jobs, map PostGIS database, Flyway tile function, Martin tile/font serving, and map gateway. Its separate Compose project does not share the Application API database.
-- `docker-compose.yaml` starts PostgreSQL and Kafka only. The frontend and Java services are run separately.
+- `services/map-data/` owns the independent OSM import/update jobs, map PostGIS database, Flyway tile function, Martin tile/font serving, and map gateway. Its services are included in the root Compose project and do not share the Application API database.
+- `docker-compose.yaml` starts the local databases, Kafka, Valhalla, and the map stack. The frontend and Java services are run separately.
 
 The frontend talks directly to the Application API. PostgreSQL stores user profiles, Google identities, and refresh-session hashes. Kafka and the Realtime service are infrastructure for future functionality; they are not currently part of the registration/login request path.
 
@@ -55,10 +55,10 @@ The self-hosted basemap module includes a flex mapping, versioned tile query, ma
 
 ## Local Development
 
-Prerequisites: Node.js/npm, Java 25, and Docker Compose. Google OAuth credentials and application configuration are needed for end-to-end authentication.
+Prerequisites: Node.js/npm, Java 25, and Docker Compose 2.20.3 or newer for `include`. Google OAuth credentials and application configuration are needed for end-to-end authentication.
 
-1. Copy `.env.example` to `.env` and replace its placeholders. Create the database and Kafka env files referenced by `APPLICATION_API_DB_ENV_FILE_LOCATION` and `KAFKA_ENV_FILE_LOCATION`.
-2. Start local infrastructure with `docker compose up -d` from the repository root.
+1. Copy `.env.example` to `.env` and replace its placeholders. Create the database and Kafka env files referenced by `APPLICATION_API_DB_ENV_FILE_LOCATION` and `KAFKA_ENV_FILE_LOCATION`. Keep the map settings and credentials in `services/map-data/.env`; run `node services/map-data/manage.mjs init` if that file does not exist.
+2. If the map database has not been imported yet, run `node services/map-data/manage.mjs setup` first. Otherwise, stop the old standalone map Compose project as described in [the map guide](services/map-data/README.md#moving-from-the-standalone-map-project), then start local infrastructure with `docker compose up -d` from the repository root.
 3. Configure and run the Application API as described in [services/application-api/README.md](services/application-api/README.md).
 4. Configure and run the app as described in [frontend/README.md](frontend/README.md).
 

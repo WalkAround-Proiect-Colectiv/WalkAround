@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseEnv } from 'node:util';
 
 export const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+const workspaceDirectory = resolve(moduleDirectory, '../..');
 
 export async function initializeEnvironment(directory = moduleDirectory) {
   const template = await readFile(join(directory, '.env.example'), 'utf8');
@@ -38,8 +39,11 @@ export async function localConfiguration(directory = moduleDirectory) {
 }
 
 export function composeArguments(args, directory = moduleDirectory) {
-  return ['compose', '--project-directory', directory, '--env-file', join(directory, '.env'),
-    '-f', join(directory, 'compose.yaml'), '--profile', 'maintenance', ...args];
+  return ['compose', '--project-directory', workspaceDirectory,
+    '--env-file', join(workspaceDirectory, '.env'),
+    '--env-file', join(directory, '.env'),
+    '-f', join(workspaceDirectory, 'docker-compose.yaml'),
+    '--profile', 'maintenance', ...args];
 }
 
 function execute(program, args, { capture = false, environment = process.env } = {}) {
@@ -151,9 +155,13 @@ export async function main(args = process.argv.slice(2)) {
     console.log('Database checks, style/fonts, and basemap/POI endpoints for four Romania cities passed.');
   };
   compose(['config', '--quiet']);
-  if (command === 'stop') { compose(['stop']); console.log('Map containers stopped. Volumes and credentials are preserved.'); return; }
+  if (command === 'stop') {
+    compose(['stop', 'map-gateway', 'martin', 'map-db']);
+    console.log('Map containers stopped. Volumes and credentials are preserved.');
+    return;
+  }
   if (command === 'status') {
-    compose(['ps']);
+    compose(['ps', 'map-db', 'martin', 'map-gateway']);
     const running = compose(['ps', '--status', 'running', '--services'], true);
     if (running.split(/\r?\n/).includes('map-db')) {
       compose(['build', 'map-job']);
