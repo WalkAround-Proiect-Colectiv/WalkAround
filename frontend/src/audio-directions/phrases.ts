@@ -42,3 +42,34 @@ export function startPhrase(first?: RouteInstruction | null): string {
 export function arrivalPhrase(): string {
   return 'You have arrived at your destination';
 }
+
+const DANGER_CATEGORY_SPEECH: Record<string, string> = {
+  CRIME: 'high crime rate',
+  WILD_ANIMALS: 'wild animals or stray dogs',
+  NO_LIGHTING: 'no public lighting',
+  HARASSMENT_RISK: 'people with bad intentions',
+  BAD_INFRASTRUCTURE: 'a difficult area to traverse',
+};
+
+function speakCategories(categories: string[] | undefined): string {
+  const labels = (categories ?? [])
+    .map(category => DANGER_CATEGORY_SPEECH[category] ?? category.toLowerCase().replace(/_/g, ' '))
+    .filter(label => label.length > 0);
+  if (labels.length === 0) return '';
+  const joined = labels.length === 1
+    ? labels[0]
+    : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+  return ` Reported for ${joined}.`;
+}
+
+export function dangerEnterPhrase(categories?: string[]): string {
+  return `Caution. You are entering a dangerous area.${speakCategories(categories)}`;
+}
+
+export function dangerAheadPhrase(meters: number, categories?: string[]): string {
+  return `Caution. Dangerous area in ${formatDistance(meters)}.${speakCategories(categories)}`;
+}
+
+export function dangerLeavePhrase(): string {
+  return 'You have left the dangerous area.';
+}

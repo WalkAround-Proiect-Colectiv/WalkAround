@@ -12,6 +12,23 @@ This module provides foreground turn-by-turn voice narration for started walking
   - **Web (`ttsPlayback.web.ts`):** Because `expo-audio` on web uses `HTMLAudioElement` (`new Audio(uri)`) and ignores custom `headers`, the web adapter fetches the WAV `Blob` with `Authorization: Bearer <token>`, caches up to 24 blobs in memory, and passes a blob object URL (`URL.createObjectURL`) to the player.
 - [`../hooks/useAudioDirections.ts`](../hooks/useAudioDirections.ts): React hook that configures `expo-audio` (`playsInSilentMode: true`, `interruptionMode: 'duckOthers'`), runs the maneuver tracker on `userLocation` updates while a route is active, prefetches the next two maneuver phrases, and exposes `isMuted`, `toggleMute`, `speakStartCue`, and `speakArrivalCue`.
 
+## Audio Modes
+
+Signed-in users cycle through three modes with the speaker button shown while navigating (`full` → `danger` → `off`):
+
+| Mode | Icon | Behavior |
+| --- | --- | --- |
+| `full` | Volume | Turn-by-turn directions, start and arrival cues. |
+| `danger` | Volume1 | Only danger-zone alerts; no turn instructions, start or arrival cues. |
+| `off` | Muted | Silent. |
+
+[`dangerTracker.ts`](dangerTracker.ts) implements the danger mode. `MapScreen` passes the loaded and realtime-updated danger-zone H3 cells (`h3Index`, `topCategories`) and the decoded route polyline into `useAudioDirections`. On each GPS fix the tracker (resolution taken from the zone cells):
+
+- announces **once** when a danger cell lies on the route within `120 m` ahead (sampled every 10 m along the polyline, ignored if the user is more than 60 m off the route): "Caution. Dangerous area in 60 meters. Reported for high crime rate.";
+- announces when the user's own cell enters a zone ("You are entering a dangerous area") and, after two consecutive fixes outside it, when they leave ("You have left the dangerous area").
+
+Category names are spoken using the same wording as the report form. Switching modes stops any playing phrase. Danger phrases are synthesized on demand (not prefetched) through the same authenticated `/api/v1/tts` endpoint.
+
 ## Distance Thresholds
 
 | Constant | Value | Behavior |

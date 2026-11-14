@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import {
   clearSpeechCache,
@@ -6,6 +6,15 @@ import {
   resolveSpeechSource,
   type ResolvedSpeechSource,
 } from '../audio-directions/api/ttsPlayback';
+import {
+  advanceDangerTracker,
+  buildDangerIndex,
+  createDangerTracker,
+  type DangerTracker,
+  type DangerZoneInput,
+  type DangerIndex,
+  type LngLat,
+} from '../audio-directions/dangerTracker';
 import {
   arrivalPhrase,
   startPhrase,
@@ -20,17 +29,30 @@ import {
 import { ApiError } from '../login/api/http';
 import type { UserLocation } from '../map/MapCanvas.types';
 
+/** `full`: turn-by-turn directions. `danger`: only danger-zone alerts. `off`: silent. */
+export type AudioMode = 'full' | 'danger' | 'off';
+
+const NEXT_MODE: Record<AudioMode, AudioMode> = {
+  full: 'danger',
+  danger: 'off',
+  off: 'full',
+};
+
+type CueKind = 'route' | 'danger';
+
 export type UseAudioDirectionsParams = {
   instructions: RouteInstruction[];
   userLocation: UserLocation;
   isNavigating: boolean;
   signedIn: boolean;
+  dangerZones: DangerZoneInput[];
+  routeCoordinates: LngLat[];
 };
 
 export type UseAudioDirectionsResult = {
   available: boolean;
-  muted: boolean;
-  toggleMuted: () => void;
+  mode: AudioMode;
+  cycleMode: () => void;
   speakStartCue: (overrideInstructions?: RouteInstruction[]) => void;
   speakArrivalCue: () => void;
 };
@@ -40,14 +62,16 @@ export function useAudioDirections({
   userLocation,
   isNavigating,
   signedIn,
+  dangerZones,
+  routeCoordinates,
 }: UseAudioDirectionsParams): UseAudioDirectionsResult {
   const player = useAudioPlayer(null);
-  const [muted, setMuted] = useState(false);
+  const [mode, setMode] = useState<AudioMode>('full');
 
-  const mutedRef = useRef(muted);
+  const modeRef = useRef(mode);
   useEffect(() => {
-    mutedRef.current = muted;
-  }, [muted]);
+    modeRef.current = mode;
+  }, [mode]);
 
   const signedInRef = useRef(signedIn);
   useEffect(() => {
@@ -64,12 +88,28 @@ export function useAudioDirections({
     instructionsRef.current = instructions;
   }, [instructions]);
 
+  const dangerIndex = useMemo<DangerIndex | null>(() => buildDangerIndex(dangerZones), [dangerZones]);
+  const dangerIndexRef = useRef(dangerIndex);
+  useEffect(() => {
+    dangerIndexRef.current = dangerIndex;
+  }, [dangerIndex]);
+
+  const routeCoordinatesRef = useRef(routeCoordinates);
+  useEffect(() => {
+    routeCoordinatesRef.current = routeCoordinates;
+  }, [routeCoordinates]);
+
   const trackerRef = useRef<ManeuverTracker>(createTracker(instructions));
+  const dangerTrackerRef = useRef<DangerTracker>(createDangerTracker());
   const activeAbortRef = useRef<AbortController | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const activeSourceDisposeRef = useRef<(() => void) | null>(null);
   const prefetchedSetRef = useRef<Set<string>>(new Set());
   const warnedForTripRef = useRef(false);
+
+  const cueAllowed = useCallback((kind: CueKind) => {
+    return modeRef.current === (kind === 'route' ? 'full' : 'danger');
+  }, []);
 
   const stopPlayback = useCallback(() => {
     activeAbortRef.current?.abort();
@@ -97,7 +137,7 @@ export function useAudioDirections({
 
   const triggerPrefetch = useCallback(
     (phrases: string[]) => {
-      if (!signedInRef.current || authFailedRef.current) return;
+      if (!signedInRef.current || authFailedRef.current || !cueAllowed('route')) return;
       const unseen = phrases.filter(text => text && !prefetchedSetRef.current.has(text)).slice(0, 2);
       if (unseen.length === 0) return;
 
@@ -114,13 +154,13 @@ export function useAudioDirections({
         });
       });
     },
-    [handleFailure]
+    [cueAllowed, handleFailure]
   );
 
   const playPhrase = useCallback(
-    (phrase: string) => {
+    (phrase: string, kind: CueKind) => {
       const trimmed = phrase.trim();
-      if (!trimmed || !signedInRef.current || mutedRef.current || authFailedRef.current) {
+      if (!trimmed || !signedInRef.current || !cueAllowed(kind) || authFailedRef.current) {
         return;
       }
 
@@ -133,7 +173,7 @@ export function useAudioDirections({
         let resolved: ResolvedSpeechSource | null = null;
         try {
           resolved = await resolveSpeechSource(trimmed, controller.signal);
-          if (!resolved || controller.signal.aborted || mutedRef.current || !signedInRef.current) {
+          if (!resolved || controller.signal.aborted || !cueAllowed(kind) || !signedInRef.current) {
             resolved?.dispose?.();
             return;
           }
@@ -153,7 +193,7 @@ export function useAudioDirections({
         }
       })();
     },
-    [handleFailure, player]
+    [cueAllowed, handleFailure, player]
   );
 
   // Configure audio session when navigation starts for signed-in users.
@@ -165,9 +205,10 @@ export function useAudioDirections({
     }).catch(() => {});
   }, [isNavigating, signedIn]);
 
-  // Reset tracker and state when instructions change or navigation stops.
+  // Reset trackers and state when instructions change or navigation stops.
   useEffect(() => {
     trackerRef.current = createTracker(instructions);
+    dangerTrackerRef.current = createDangerTracker();
     prefetchedSetRef.current.clear();
 
     if (!isNavigating) {
@@ -182,7 +223,7 @@ export function useAudioDirections({
     triggerPrefetch(collectPrefetchPhrases(trackerRef.current));
   }, [instructions, isNavigating, stopPlayback, triggerPrefetch]);
 
-  // Advance maneuver tracker as GPS updates arrive during active navigation.
+  // Advance maneuver and danger-zone trackers as GPS updates arrive during active navigation.
   useEffect(() => {
     if (!isNavigating || !signedIn || authFailedRef.current || !userLocation) return;
 
@@ -192,11 +233,19 @@ export function useAudioDirections({
     const { announcements, prefetchPhrases } = advanceTracker(trackerRef.current, { lat, lng });
     triggerPrefetch(prefetchPhrases);
 
-    if (announcements.length > 0 && !mutedRef.current) {
-      const latestAnnouncement = announcements[announcements.length - 1];
-      playPhrase(latestAnnouncement);
+    const dangerAnnouncements = advanceDangerTracker(
+      dangerTrackerRef.current,
+      dangerIndexRef.current,
+      { lat, lng },
+      routeCoordinatesRef.current
+    );
+
+    if (cueAllowed('route') && announcements.length > 0) {
+      playPhrase(announcements[announcements.length - 1], 'route');
+    } else if (cueAllowed('danger') && dangerAnnouncements.length > 0) {
+      playPhrase(dangerAnnouncements[dangerAnnouncements.length - 1], 'danger');
     }
-  }, [isNavigating, playPhrase, signedIn, triggerPrefetch, userLocation]);
+  }, [cueAllowed, isNavigating, playPhrase, signedIn, triggerPrefetch, userLocation]);
 
   // Clean up on unmount.
   useEffect(() => {
@@ -206,37 +255,32 @@ export function useAudioDirections({
     };
   }, [stopPlayback]);
 
-  const toggleMuted = useCallback(() => {
-    setMuted(prev => {
-      const next = !prev;
-      mutedRef.current = next;
-      if (next) {
-        stopPlayback();
-      }
-      return next;
-    });
+  const cycleMode = useCallback(() => {
+    const next = NEXT_MODE[modeRef.current];
+    modeRef.current = next;
+    setMode(next);
+    stopPlayback();
   }, [stopPlayback]);
 
   const speakStartCue = useCallback(
     (overrideInstructions?: RouteInstruction[]) => {
       authFailedRef.current = false;
-      if (!signedInRef.current || mutedRef.current) return;
+      if (!signedInRef.current) return;
       const list = overrideInstructions ?? instructionsRef.current;
-      const phrase = startPhrase(list[0] ?? null);
-      playPhrase(phrase);
+      playPhrase(startPhrase(list[0] ?? null), 'route');
     },
     [playPhrase]
   );
 
   const speakArrivalCue = useCallback(() => {
-    if (!signedInRef.current || mutedRef.current || authFailedRef.current) return;
-    playPhrase(arrivalPhrase());
+    if (!signedInRef.current || authFailedRef.current) return;
+    playPhrase(arrivalPhrase(), 'route');
   }, [playPhrase]);
 
   return {
     available: signedIn,
-    muted,
-    toggleMuted,
+    mode,
+    cycleMode,
     speakStartCue,
     speakArrivalCue,
   };

@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, Style
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -227,17 +227,6 @@ export default function MapScreen() {
   const lastClickedCoords = useRef<[number, number] | null>(null);
 
   const { userLocation, locating, error: locationError, locate } = useUserLocalization(map);
-  const {
-    muted: audioMuted,
-    toggleMuted: toggleAudioMuted,
-    speakStartCue,
-    speakArrivalCue,
-  } = useAudioDirections({
-    instructions: routeInstructions,
-    userLocation,
-    isNavigating,
-    signedIn: Boolean(session),
-  });
   const locateRef = useRef(locate);
   useEffect(() => {
     locateRef.current = locate;
@@ -414,6 +403,33 @@ export default function MapScreen() {
     features: []
   });
 
+  const audioDangerZones = useMemo(
+    () => ((dangerousZonesData?.features ?? []) as any[])
+      .map(feature => ({
+        h3Index: feature?.properties?.h3Index as string,
+        topCategories: (feature?.properties?.topCategories ?? []) as string[],
+      }))
+      .filter(zone => typeof zone.h3Index === 'string'),
+    [dangerousZonesData]
+  );
+  const audioRouteCoordinates = useMemo<[number, number][]>(
+    () => (routeGeoJSON?.geometry?.coordinates ?? []) as [number, number][],
+    [routeGeoJSON]
+  );
+  const {
+    mode: audioMode,
+    cycleMode: cycleAudioMode,
+    speakStartCue,
+    speakArrivalCue,
+  } = useAudioDirections({
+    instructions: routeInstructions,
+    userLocation,
+    isNavigating,
+    signedIn: Boolean(session),
+    dangerZones: audioDangerZones,
+    routeCoordinates: audioRouteCoordinates,
+  });
+
   const routePointsData = useMemo(() => {
     const features: any[] = [];
     if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
@@ -452,7 +468,7 @@ export default function MapScreen() {
       console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
       return;
     }
-    const wsUrl = `${wsBaseUrl.replace(/\/+$/, '')}/ws/dangerous-zones`;
+    const wsUrl = `${wsBaseUrl.replace(/\/+$/, '').replace(/\/ws\/dangerous-zones$/, '')}/ws/dangerous-zones`;
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       console.log('Connected to real-time service');
@@ -501,8 +517,9 @@ export default function MapScreen() {
       }
     };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket Error: ', error);
+    ws.onerror = () => {
+      // The realtime feed is optional; avoid console.error, which shows a red error toast in development.
+      console.warn(`Realtime danger-zone updates are unavailable (could not reach ${wsUrl}).`);
     };
 
     return () => {
@@ -922,10 +939,16 @@ export default function MapScreen() {
             {isNavigating && session && (
                 <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={audioMuted ? 'Unmute audio directions' : 'Mute audio directions'}
+                    accessibilityLabel={
+                      audioMode === 'full' ? 'Audio directions: all. Switch to danger zone alerts only'
+                        : audioMode === 'danger' ? 'Audio directions: danger zone alerts only. Switch to off'
+                        : 'Audio directions: off. Switch to all directions'
+                    }
                     style={styles.recenterNavBtn}
-                    onPress={toggleAudioMuted}>
-                    {audioMuted ? <VolumeX size={22} color="#0065EB" /> : <Volume2 size={22} color="#0065EB" />}
+                    onPress={cycleAudioMode}>
+                    {audioMode === 'full' ? <Volume2 size={22} color="#0065EB" />
+                      : audioMode === 'danger' ? <Volume1 size={22} color="#0065EB" />
+                      : <VolumeX size={22} color="#0065EB" />}
                 </Pressable>
             )}
             {isNavigating && (
