@@ -6,6 +6,8 @@ Trip-planning properties bind under app.trip-plan; map place-search properties b
 | `CITY_PROVIDER` | Selects the `CitySearchProvider` implementation | `geonames` |
 | `GEONAMES_USERNAME` | GeoNames account username | Required |
 | `CITY_AUTOCOMPLETE_MAX_RESULTS` | Maximum city suggestions requested | `10` |
+| `NEARBY_AIRPORT_RADIUS_KM` | Straight-line search radius for nearby large airports in the selected city's country, 1 to 500 km | `100` |
+| `NEARBY_AIRPORT_MAX_RESULTS` | Maximum nearby airports returned after city matches, 1 to 50 | `5` |
 | `GEONAMES_BASE_URL` | GeoNames HTTPS base URL | `https://secure.geonames.org` |
 | `GEONAMES_TIMEOUT` | GeoNames connect/read timeout | `PT3S` |
 | `PLACE_SEARCH_PROVIDER` | Selects the map place-search provider | `photon` |

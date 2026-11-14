@@ -3,7 +3,7 @@
 Each `@RestControllerAdvice` is scoped to its own trip-planning controller. Validation and custom domain exceptions become client-friendly `ProblemDetail` responses; unexpected failures are logged and returned as generic `500` responses.
 
 - `CityAutocompleteExceptionHandler` handles invalid city prefixes and GeoNames availability failures.
-- `CityAirportExceptionHandler` handles invalid or ambiguous city-airport lookups.
+- `CityAirportExceptionHandler` handles invalid or ambiguous city-airport lookups and returns a generic `502` when GeoNames city coordinates are unavailable.
 - `FlightSearchExceptionHandler` handles invalid flight searches and provider failures.
 - `AccommodationSearchExceptionHandler` handles invalid accommodation searches (`400`) and GeoNames or SerpApi failures (`502`). It never includes external provider error text in responses.
 - `AttractionSearchExceptionHandler` handles missing or invalid city/country/page input (`400`) for the place categories, GeoNames or SerpApi failures (`502`), and unexpected failures (`500`). It never returns provider error text.
