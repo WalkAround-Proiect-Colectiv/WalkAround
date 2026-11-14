@@ -1,8 +1,11 @@
 package services.applicationapi.tripplan.service.cityairport;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -11,25 +14,34 @@ import services.applicationapi.airport.model.Airport;
 import services.applicationapi.airport.repository.AirportRepository;
 import services.applicationapi.municipality.model.Municipality;
 import services.applicationapi.municipality.repository.MunicipalityRepository;
-import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
+import services.applicationapi.tripplan.configurations.CityAirportProperties;
+import services.applicationapi.tripplan.dto.AirportMatchType;
 import services.applicationapi.tripplan.dto.AirportResponse;
 import services.applicationapi.tripplan.service.exceptions.AmbiguousCitySelectionException;
 import services.applicationapi.tripplan.service.exceptions.InvalidCitySelectionException;
+import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
 
 @Service
 public class CityAirportServiceImpl implements CityAirportService {
 
     private static final Logger log = LoggerFactory.getLogger(CityAirportServiceImpl.class);
+    private static final double EARTH_RADIUS_KM = 6371.0;
 
     private final AirportRepository airportRepository;
     private final MunicipalityRepository municipalityRepository;
+    private final CityLocationProvider cityLocationProvider;
+    private final CityAirportProperties properties;
 
     public CityAirportServiceImpl(
             AirportRepository airportRepository,
-            MunicipalityRepository municipalityRepository
+            MunicipalityRepository municipalityRepository,
+            CityLocationProvider cityLocationProvider,
+            CityAirportProperties properties
     ) {
         this.airportRepository = airportRepository;
         this.municipalityRepository = municipalityRepository;
+        this.cityLocationProvider = cityLocationProvider;
+        this.properties = properties;
     }
 
     @Override
@@ -86,31 +98,73 @@ public class CityAirportServiceImpl implements CityAirportService {
                 .map(Municipality::getId)
                 .toList();
 
-        if (municipalityIds.isEmpty()) {
-            log.debug("No airport municipalities match city '{}' in country {}",
-                    normalizedCity, normalizedCountryCode);
-            return List.of();
+        List<Airport> cityAirports = municipalityIds.isEmpty()
+                ? List.of()
+                : airportRepository.findByMunicipality_IdInOrderByNameAscIdAsc(municipalityIds);
+
+        CityLocationProvider.CityLocation location = cityLocationProvider.find(
+                normalizedCity, normalizedCountryCode);
+        List<AirportResponse> results = new ArrayList<>();
+        Set<Long> cityAirportIds = cityAirports.stream()
+                .map(Airport::getId)
+                .collect(Collectors.toSet());
+
+        for (Airport airport : cityAirports) {
+            results.add(toResponse(airport, AirportMatchType.CITY,
+                    distanceKm(location, airport)));
         }
 
-        List<AirportResponse> airports = airportRepository
-                .findByMunicipality_IdInOrderByNameAscIdAsc(municipalityIds)
+        double latitudeDelta = Math.toDegrees(properties.nearbyAirportRadiusKm() / EARTH_RADIUS_KM);
+        double cosine = Math.cos(Math.toRadians(location.latitude()));
+        double longitudeDelta = cosine > 0.001 ? Math.min(180, latitudeDelta / cosine) : 180;
+
+        List<AirportResponse> nearbyAirports = airportRepository
+                .findByCountry_CodeAndLatitudeBetweenAndLongitudeBetweenAndIataCodeIsNotNull(
+                        normalizedCountryCode,
+                        Math.max(-90, location.latitude() - latitudeDelta),
+                        Math.min(90, location.latitude() + latitudeDelta),
+                        Math.max(-180, location.longitude() - longitudeDelta),
+                        Math.min(180, location.longitude() + longitudeDelta))
                 .stream()
-                .map(this::toResponse)
+                .filter(airport -> !cityAirportIds.contains(airport.getId()))
+                .map(airport -> new NearbyAirport(airport, distanceKm(location, airport)))
+                .filter(candidate -> candidate.distanceKm() <= properties.nearbyAirportRadiusKm())
+                .sorted(Comparator.comparingDouble(NearbyAirport::distanceKm)
+                        .thenComparing(candidate -> candidate.airport().getId()))
+                .limit(properties.nearbyAirportMaxResults())
+                .map(candidate -> toResponse(candidate.airport(), AirportMatchType.NEARBY,
+                        candidate.distanceKm()))
                 .toList();
 
-        log.debug("Found {} airports for city '{}' in country {}",
-                airports.size(), normalizedCity, normalizedCountryCode);
-
-        return airports;
+        results.addAll(nearbyAirports);
+        log.debug("Found {} city airports and {} nearby airports for '{}' in {}",
+                cityAirports.size(), nearbyAirports.size(), normalizedCity, normalizedCountryCode);
+        return results;
     }
 
-    private AirportResponse toResponse(Airport airport) {
+    private double distanceKm(CityLocationProvider.CityLocation city, Airport airport) {
+        double latitudeDelta = Math.toRadians(airport.getLatitude() - city.latitude());
+        double longitudeDelta = Math.toRadians(airport.getLongitude() - city.longitude());
+        double arc = Math.pow(Math.sin(latitudeDelta / 2), 2)
+                + Math.cos(Math.toRadians(city.latitude()))
+                * Math.cos(Math.toRadians(airport.getLatitude()))
+                * Math.pow(Math.sin(longitudeDelta / 2), 2);
+        return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(arc)));
+    }
+
+    private AirportResponse toResponse(Airport airport, AirportMatchType matchType, double distanceKm) {
         return new AirportResponse(
                 airport.getId(),
                 airport.getName(),
                 airport.getIataCode(),
+                airport.getCountry().getCode(),
                 airport.getLatitude(),
-                airport.getLongitude()
+                airport.getLongitude(),
+                matchType,
+                Math.round(distanceKm * 10.0) / 10.0
         );
+    }
+
+    private record NearbyAirport(Airport airport, double distanceKm) {
     }
 }

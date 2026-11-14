@@ -23,7 +23,7 @@ This feature currently supports city suggestions, a local city-to-airports looku
 ## Important boundaries
 
 - Flight search checks the origin airport and destination country in the local database. It **does not** use the local city-airports lookup for the destination. GeoNames validates the destination city and SerpApi resolves its Google Flights city ID.
-- The local airport data is imported by `scripts/airports_data/import_airports.py`. That importer selects EU member countries and their large airports. The city-airports endpoint can therefore omit smaller airports and cities without imported airports.
+- The local airport data is imported by `scripts/airports_data/import_airports.py`. That importer selects EU member countries and their large airports. The city-airports endpoint adds nearby large airports based on validated GeoNames city coordinates, but cannot show smaller or non-imported airports.
 - City autocomplete's GeoNames query uses `continentCode=EU`, meaning geographical Europe. This is broader than the EU member-country data used by flight search.
 - Search results are itinerary offers, not purchased tickets. `viewUrls` point to Google Flights search pages, or its homepage when SerpApi does not provide a usable link. They may not open the exact displayed flight.
 - Accommodation search validates the selected city with GeoNames, searches Google Hotels, and fetches details for a bounded number of properties. Only known totals including taxes and fees can fit the budget; source-specific booking links may be available in `bookingOptions`.

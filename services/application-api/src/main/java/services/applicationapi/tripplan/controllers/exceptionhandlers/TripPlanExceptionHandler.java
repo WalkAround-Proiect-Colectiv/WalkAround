@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import services.applicationapi.tripplan.controllers.TripPlanController;
 import services.applicationapi.tripplan.service.exceptions.AmbiguousCitySelectionException;
+import services.applicationapi.tripplan.service.exceptions.CitySearchUnavailableException;
 import services.applicationapi.tripplan.service.exceptions.FlightSearchUnavailableException;
 import services.applicationapi.tripplan.service.exceptions.InvalidCitySelectionException;
 import services.applicationapi.tripplan.service.exceptions.InvalidFlightSearchException;
@@ -51,7 +52,7 @@ public class TripPlanExceptionHandler {
         return problem(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
-    @ExceptionHandler(FlightSearchUnavailableException.class)
+    @ExceptionHandler({FlightSearchUnavailableException.class, CitySearchUnavailableException.class})
     ResponseEntity<ProblemDetail> handleCityValidationFailure() {
         return problem(HttpStatus.BAD_GATEWAY, "City validation is temporarily unavailable");
     }
