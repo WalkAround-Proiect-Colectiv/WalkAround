@@ -25,7 +25,11 @@ Configure the service in the root `.env` file (based on `.env.example`):
 PIPER_VOICE=en_US-lessac-medium
 PIPER_HOST_PORT=5000
 PIPER_CONTAINER_PORT=5000
+PIPER_MEMORY_LIMIT=1g
+PIPER_CPU_LIMIT=2.0
 ```
+
+The memory and CPU values are upper bounds for the Piper container. Change them in the root `.env` if a different voice needs more resources.
 
 ### Changing the Voice
 

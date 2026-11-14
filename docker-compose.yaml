@@ -67,6 +67,8 @@ services:
       args:
         PIPER_VOICE: ${PIPER_VOICE}
     container_name: walkaround-piper
+    mem_limit: ${PIPER_MEMORY_LIMIT:-1g}
+    cpus: ${PIPER_CPU_LIMIT:-2.0}
     ports:
       - "127.0.0.1:${PIPER_HOST_PORT}:${PIPER_CONTAINER_PORT}"
     restart: unless-stopped

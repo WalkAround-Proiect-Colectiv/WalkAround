@@ -77,6 +77,7 @@ The central Compose project sets per-container memory and CPU ceilings. Defaults
 | Application API database | 1 GiB | 1 |
 | Routing API database | 1 GiB | 1 |
 | Valhalla | 5 GiB | 4 |
+| Piper TTS | 1 GiB | 2 |
 | Kafka | 1.5 GiB | 2 |
 | Map database | 3 GiB | 3 |
 | Map import/update job | 3 GiB | 2 |
