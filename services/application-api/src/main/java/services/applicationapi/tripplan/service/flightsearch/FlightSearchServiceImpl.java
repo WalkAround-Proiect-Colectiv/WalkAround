@@ -8,9 +8,11 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -96,18 +98,18 @@ public class FlightSearchServiceImpl implements FlightSearchService {
 
         List<FlightItineraryResponse> results = new ArrayList<>();
         List<RoundTripCandidate> roundTripCandidates = new ArrayList<>();
+        Map<LocalDate, List<FlightOffer>> oneWayReturnsByDate = new HashMap<>();
 
         for (LocalDate date = request.departureFrom().toLocalDate();
                 !date.isAfter(request.departureUntil().toLocalDate());
                 date = date.plusDays(1)) {
-            LocalDate returnDate = date.plusDays(request.stayingNights());
-
             if (request.ticketOption() == TicketOption.ROUND_TRIP) {
+                LocalDate returnDate = date.plusDays(request.stayingNights());
                 roundTripCandidates.addAll(findRoundTripCandidates(
                         request, origin, destinations, date, returnDate));
             } else {
                 searchSeparateTickets(request, origin, destinations,
-                        date, returnDate, results);
+                        date, oneWayReturnsByDate, results);
             }
         }
 
@@ -214,7 +216,7 @@ public class FlightSearchServiceImpl implements FlightSearchService {
             String origin,
             List<String> destinations,
             LocalDate date,
-            LocalDate returnDate,
+            Map<LocalDate, List<FlightOffer>> returnsByDate,
             List<FlightItineraryResponse> results
     ) {
         List<FlightOffer> outboundOffers = provider.searchOneWay(
@@ -229,10 +231,22 @@ public class FlightSearchServiceImpl implements FlightSearchService {
             return;
         }
 
-        List<FlightOffer> returningOffers = provider.searchOneWay(
-                destinations, List.of(origin), returnDate, request.budget(), null, null);
-
         for (FlightOffer outbound : outboundOffers) {
+            LocalDate arrivalDate;
+
+            try {
+                String arrivalTime = outbound.segments().getLast().arrivalTime();
+                arrivalDate = LocalDateTime.parse(arrivalTime, FLIGHT_TIME).toLocalDate();
+            } catch (DateTimeParseException | NullPointerException exception) {
+                log.debug("SerpApi returned an unparseable final outbound arrival time");
+                continue;
+            }
+
+            LocalDate returnDate = arrivalDate.plusDays(request.stayingNights());
+            List<FlightOffer> returningOffers = returnsByDate.computeIfAbsent(returnDate,
+                    day -> provider.searchOneWay(
+                            destinations, List.of(origin), day, request.budget(), null, null));
+
             for (FlightOffer returning : returningOffers) {
                 BigDecimal total = outbound.price().add(returning.price());
 
