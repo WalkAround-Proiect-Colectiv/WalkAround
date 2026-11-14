@@ -19,6 +19,7 @@ This Spring Boot service owns account registration, login/session issuance, JWT-
 - `/api/events/...`: upcoming events near the user, marked events, and reminders. See the [events README](src/main/java/services/applicationapi/events/README.md).
 - `GET /api/places/search?q=...&lat=...&lon=...&zoom=...`: public place/POI search; the configured provider returns suggestions biased toward the current map view and restricted to the downloaded Romania coverage. The Photon adapter sends a hard bounding-box filter (`19.5,43.4,30,48.5`) and `countrycode=ro`, then validates each returned coordinate and country code before exposing it. This lets a local feature such as a street named “Paris” appear while excluding the Paris in France. The frontend applies the same coverage check as a final guard. The bounding box represents the map's configured coverage extent; the country filter excludes results from other countries within the rectangle.
 - `GET /api/v1/recommendations/activities`: return nearby activities suited to the current weather (public, no authentication required). 
+- `GET /api/v1/tts?text=...`: synthesize spoken turn-by-turn route instructions as `audio/wav` via the local Piper TTS container (requires authentication). See the [TTS README](src/main/java/services/applicationapi/tts/README.md).
 
 Web session endpoints also check the request Origin. CORS is restricted to configured allowed origins. The API is stateless for access-token authentication.
 
@@ -31,6 +32,7 @@ The checked-in `src/main/resources/application.yaml` contains the service defaul
 - Login: `signing-secret`, `issuer`, `audience`, access/refresh token TTLs, allowed origins, cookie security, and cookie name.
 - Registration: Google client IDs, JWK set URI, issuers, and allowed origins.
 - Place search: `PLACE_SEARCH_PROVIDER`, `PLACE_SEARCH_BASE_URL`, `PLACE_SEARCH_TIMEOUT`, and `PLACE_SEARCH_MAX_RESULTS`. The current provider is Photon; search requests go through this API so the provider can be replaced centrally. Photon filtering uses the Romania coverage rectangle and ISO country code `ro`; update these filters if the downloaded map coverage changes.
+- Text-to-speech (audio directions): `TTS_PROVIDER` (`piper`), `TTS_BASE_URL` (`http://localhost:5000`), `TTS_TIMEOUT` (`PT5S`), `TTS_MAX_TEXT_LENGTH` (`200`), and `TTS_CACHE_MAX_ENTRIES` (`500`).
 - Recommendations (all optional, defaults shown; see `.env.example`):
   - `RECOMMENDATION_DEFAULT_RADIUS_METERS` (`2000`), `RECOMMENDATION_MAX_RADIUS_METERS` (`5000`)
   - `RECOMMENDATION_DEFAULT_LIMIT` (`15`), `RECOMMENDATION_MAX_LIMIT` (`50`)

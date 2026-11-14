@@ -39,7 +39,7 @@ test('Compose paths are independent of the caller working directory', () => {
   const directory = join(tmpdir(), 'directory with spaces');
   const args = composeArguments(['ps'], directory);
   assert.ok(args.includes(join(directory, '.env')));
-  assert.ok(args.includes(join(directory, 'compose.yaml')));
+  assert.ok(args.some(argument => argument.endsWith('docker-compose.yaml')));
   assert.equal(args.at(-1), 'ps');
   assert.ok(!args.some(argument => argument.includes('--volumes')));
 });

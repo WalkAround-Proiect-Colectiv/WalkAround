@@ -68,7 +68,7 @@ Use Java 25. Ensure your PostgreSQL databases (application-api-db and routing-ap
 
 Don't forget to configure your local .db.env and .env files based on the .example files provided.
 
-Set `VALHALLA_URL` to the Valhalla route endpoint, for example `http://localhost:8022/route` when the root Compose file maps the container's port 8002 to host port 8022. The routing service sends its pedestrian request directly to this URL. A URL ending at the host root sends `POST /` and cannot calculate a route. Restart the routing Spring service after changing its `.env`.
+Set `VALHALLA_URL` to the Valhalla route endpoint, for example `http://localhost:8022/route` when the root Compose file maps the container's port 8002 to host port 8022. The routing service sends its pedestrian request directly to this URL. A URL ending at the host root sends `POST /` and cannot calculate a route. `VALHALLA_LANGUAGE` (default `en-US`) sets the language of Valhalla's maneuver and verbal instructions so they match the configured TTS voice. Restart the routing Spring service after changing its `.env`.
 
 The route service sends a JSON-serialized request to Valhalla. This avoids malformed coordinate values from locale-dependent number formatting. Route-provider HTTP failures are logged by status; the application API proxy returns a generic upstream error instead of claiming every failure is a connection problem. See the [route service package](src/main/java/services/routingservice/routecalculation/service/README.md).
 

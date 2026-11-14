@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, Style
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
+import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -21,6 +21,8 @@ import { environment } from '../config/environment';
 import { authenticatedRequest } from '../login/api/session';
 import { jsonPost } from '../login/api/http';
 import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
+import type { RouteInstruction } from '../audio-directions/phrases';
+import { useAudioDirections } from '../hooks/useAudioDirections';
 
 type LatLng = { lat: number; lng: number };
 type RouteStop = { id: string; point: LatLng };
@@ -217,7 +219,7 @@ export default function MapScreen() {
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
-  const [routeInstructions, setRouteInstructions] = useState<any[]>([]);
+  const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
   const [isNavigating, setIsNavigating] = useState(false);
   const [showSavedRoutes, setShowSavedRoutes] = useState(false);
   const [activeSavedRouteId, setActiveSavedRouteId] = useState<number | null>(null);
@@ -401,6 +403,33 @@ export default function MapScreen() {
     features: []
   });
 
+  const audioDangerZones = useMemo(
+    () => ((dangerousZonesData?.features ?? []) as any[])
+      .map(feature => ({
+        h3Index: feature?.properties?.h3Index as string,
+        topCategories: (feature?.properties?.topCategories ?? []) as string[],
+      }))
+      .filter(zone => typeof zone.h3Index === 'string'),
+    [dangerousZonesData]
+  );
+  const audioRouteCoordinates = useMemo<[number, number][]>(
+    () => (routeGeoJSON?.geometry?.coordinates ?? []) as [number, number][],
+    [routeGeoJSON]
+  );
+  const {
+    mode: audioMode,
+    cycleMode: cycleAudioMode,
+    speakStartCue,
+    speakArrivalCue,
+  } = useAudioDirections({
+    instructions: routeInstructions,
+    userLocation,
+    isNavigating,
+    signedIn: Boolean(session),
+    dangerZones: audioDangerZones,
+    routeCoordinates: audioRouteCoordinates,
+  });
+
   const routePointsData = useMemo(() => {
     const features: any[] = [];
     if (routeStart) features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [routeStart.lng, routeStart.lat] }, properties: { type: 'start' } });
@@ -439,7 +468,7 @@ export default function MapScreen() {
       console.warn("EXPO_PUBLIC_WS_URL is not defined in .env");
       return;
     }
-    const wsUrl = `${wsBaseUrl.replace(/\/+$/, '')}/ws/dangerous-zones`;
+    const wsUrl = `${wsBaseUrl.replace(/\/+$/, '').replace(/\/ws\/dangerous-zones$/, '')}/ws/dangerous-zones`;
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => {
       console.log('Connected to real-time service');
@@ -488,8 +517,9 @@ export default function MapScreen() {
       }
     };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket Error: ', error);
+    ws.onerror = () => {
+      // The realtime feed is optional; avoid console.error, which shows a red error toast in development.
+      console.warn(`Realtime danger-zone updates are unavailable (could not reach ${wsUrl}).`);
     };
 
     return () => {
@@ -555,17 +585,19 @@ export default function MapScreen() {
 
         if (data?.trip?.legs?.length) {
           let allCoords: number[][] = [];
-          let allInstructions: any[] = [];
+          let allInstructions: RouteInstruction[] = [];
 
           data.trip.legs.forEach((leg: any) => {
             const legCoords = decodePolyline(leg.shape, 6);
             allCoords = allCoords.concat(legCoords);
             if (leg.maneuvers) {
-              const legInstructions = leg.maneuvers.map((m: any) => ({
+              const legInstructions: RouteInstruction[] = leg.maneuvers.map((m: any) => ({
                 instruction: m.instruction,
                 distanceMeters: m.length * 1000,
-                coordinate: legCoords[m.begin_shape_index],
+                coordinate: legCoords[m.begin_shape_index] as [number, number],
                 type: m.type,
+                verbalAlert: m.verbal_transition_alert_instruction,
+                verbalPre: m.verbal_pre_transition_instruction,
               }));
               allInstructions = allInstructions.concat(legInstructions);
             }
@@ -602,6 +634,7 @@ export default function MapScreen() {
       if (distanceToDestination <= 10)
       {
         /* eslint-disable react-hooks/set-state-in-effect */
+        speakArrivalCue();
         setIsNavigating(false);
         map.current?.resetNorth();
         setShowArrivalAlert(true);
@@ -617,7 +650,7 @@ export default function MapScreen() {
       }
       map.current?.startNavigation([userLng, userLat], currentBearing);
     }
-  }, [userLocation, isNavigating, routeEnd, routeGeoJSON]);
+  }, [userLocation, isNavigating, routeEnd, routeGeoJSON, speakArrivalCue]);
 
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
@@ -872,6 +905,7 @@ export default function MapScreen() {
                       const initialBearing = calculateBearing(startPoint.lat, startPoint.lng, destLat, destLng);
 
                       setIsNavigating(true);
+                      speakStartCue(routeInstructions);
                       map.current?.startNavigation([startPoint.lng, startPoint.lat], initialBearing);
                     }
                   }}>
@@ -888,15 +922,35 @@ export default function MapScreen() {
           </View>
       )}
 
-      {showArrivalAlert && (
-          <View style={styles.arrivalAlertContainer}>
-            <Text style={styles.arrivalAlertText}>You have arrived at your destination!</Text>
-          </View>
+      {isNavigating && !session && (
+          <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sign in to hear audio directions"
+              style={[styles.audioSignInHint, { top: Math.max(insets.top, 12) + 68 }]}
+              onPress={() => router.push('/login')}>
+            <VolumeX size={15} color="#0065EB" />
+            <Text style={styles.audioSignInHintText}>Sign in to hear audio directions</Text>
+          </Pressable>
       )}
 
         <View style={[styles.leftControlsOverlay, { bottom: compactSearchLayout && mobileSearchExpanded
                 ? mobileSearchHeight + 12
                 : Math.max(insets.bottom, 12) + 64 }]}>
+            {isNavigating && session && (
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      audioMode === 'full' ? 'Audio directions: all. Switch to danger zone alerts only'
+                        : audioMode === 'danger' ? 'Audio directions: danger zone alerts only. Switch to off'
+                        : 'Audio directions: off. Switch to all directions'
+                    }
+                    style={styles.recenterNavBtn}
+                    onPress={cycleAudioMode}>
+                    {audioMode === 'full' ? <Volume2 size={22} color="#0065EB" />
+                      : audioMode === 'danger' ? <Volume1 size={22} color="#0065EB" />
+                      : <VolumeX size={22} color="#0065EB" />}
+                </Pressable>
+            )}
             {isNavigating && (
                 <Pressable
                     accessibilityRole="button"
@@ -1291,6 +1345,8 @@ const styles = StyleSheet.create({
   leftControlsOverlay: { position: 'absolute', left: 20, alignItems: 'center', zIndex: 100, gap: 12 },
   recenterNavBtn: { backgroundColor: '#ffffff', width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', elevation: 6},
   pauseRouteBtn: { backgroundColor: '#9b59b6', width: 48, height: 48, borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', elevation: 6},
+  audioSignInHint: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#ffffff', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18, borderWidth: 1, borderColor: '#dce2e9', elevation: 4, shadowColor: '#14243f', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.14, shadowRadius: 6, zIndex: 100 },
+  audioSignInHintText: { color: '#0065EB', fontWeight: '600', fontSize: 13 },
   arrivalAlertContainer: { position: 'absolute', top: 120, alignSelf: 'center', backgroundColor: '#4C9F54', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24, elevation: 6, shadowColor: '#14243f', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 8, zIndex: 101 },
   arrivalAlertText: { color: '#ffffff', fontWeight: '700', fontSize: 16 },
   calculateRouteBtn: {flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#0065EB', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 12, marginTop: 12,},

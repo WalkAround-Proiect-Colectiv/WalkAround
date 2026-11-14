@@ -6,6 +6,7 @@ The frontend is an Expo SDK 58 / React Native application that targets iOS, Andr
 
 - `src/app/`: route entry points. `/` redirects to the public `/map` prototype; `/login`, `/register`, and `/home` retain the login, registration, and protected account screens.
 - `src/map/`: shared map screen, camera configuration, flat style customization, and separate MapLibre web/native renderer adapters.
+- `src/audio-directions/`: foreground turn-by-turn voice narration (`expo-audio`), distance-based maneuver tracker, phrase builders, and authenticated `/api/v1/tts` playback adapters.
 - `src/auth/`: Google sign-in button implementations, including a web-specific version.
 - `src/login/`: session state, API transports, and account/login screens.
 - `src/register/`: Google-backed registration API and registration screen.

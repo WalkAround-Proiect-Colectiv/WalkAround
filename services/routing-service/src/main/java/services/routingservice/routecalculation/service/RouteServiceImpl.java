@@ -41,6 +41,9 @@ public class RouteServiceImpl implements RouteService {
     @Value("${app.valhalla.url}")
     private String valhallaUrl;
 
+    @Value("${app.valhalla.language:en-US}")
+    private String valhallaLanguage;
+
     public RouteServiceImpl(DangerousZoneRepository repo) throws IOException {
         this.dangerZoneRepo = repo;
         this.restTemplate = new RestTemplate();
@@ -54,7 +57,10 @@ public class RouteServiceImpl implements RouteService {
         Map<String, Object> requestBody = new HashMap<>(Map.of(
                 "locations", getLocations(request),
                 "costing", "pedestrian",
-                "directions_options", Map.of("units", "kilometers")
+                "directions_options", Map.of(
+                        "units", "kilometers",
+                        "language", valhallaLanguage
+                )
         ));
 
         if (request.avoidDanger()) {

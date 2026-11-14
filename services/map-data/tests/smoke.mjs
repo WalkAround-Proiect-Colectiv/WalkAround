@@ -8,7 +8,8 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const project = `walkaround-map-smoke-${randomBytes(4).toString('hex')}`;
 const environment = { ...process.env, MAP_DB_ADMIN_PASSWORD: randomBytes(24).toString('hex'),
   MAP_IMPORT_PASSWORD: randomBytes(24).toString('hex'), MAP_TILES_PASSWORD: randomBytes(24).toString('hex'),
-  MAP_TILES_PORT: '0', MAP_BIND_ADDRESS: '127.0.0.1', OSM_INPUT: '/workspace/tests/fixture.osm' };
+  MAP_DB_HOST_PORT: '0', MAP_TILES_PORT: '0', MAP_BIND_ADDRESS: '127.0.0.1',
+  MAP_VOLUME_PREFIX: project, OSM_INPUT: '/workspace/tests/fixture.osm' };
 const composeArgs = ['compose', '--env-file', `${root}.env.example`, '-f', `${root}compose.yaml`, '-p', project, '--profile', 'maintenance'];
 function docker(args, capture = false) {
   const result = spawnSync('docker', args, { env: environment, encoding: 'utf8', stdio: capture ? 'pipe' : 'inherit' });
