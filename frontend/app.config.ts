@@ -16,6 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
       'expo-secure-store',
+      ['expo-audio', { microphonePermission: false, recordAudioAndroid: false, enableBackgroundPlayback: false }],
       ['expo-image-picker', { photosPermission: 'Allow WalkAround to select your profile photo.', cameraPermission: false, microphonePermission: false }],
       '@maplibre/maplibre-react-native',
       ['expo-location', { locationWhenInUsePermission: 'Allow WalkAround to center the map on your location.' }],

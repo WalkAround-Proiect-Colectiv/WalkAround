@@ -1,0 +1,37 @@
+{
+  "event_details": {
+    "title": "Candlelight: Omagiu pentru Hans Zimmer",
+    "date": {
+      "start_date": "Nov 21",
+      "when": "Sat, 21 Nov 2026, 19:00"
+    },
+    "address": [
+      "Strada Ion I. C. Brătianu 25, Gheorghe Dima National Music Academy",
+      "Cluj-Napoca 400079, Romania"
+    ],
+    "description": "Candlelight concerts bring the magic of a live multi-sensory musical experience to awe-inspiring locations in Cluj-Napoca. Enjoy the iconic film scores of Hans Zimmer performed by a string quartet under the gentle glow of candlelight.",
+    "link": "https://events.musicofourdesire.com/nl/event/lzsa-candlelight-omagiu-pentru-hans-zimmer-concert-cluj-napoca-romania",
+    "thumbnail": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ8-51NmRCePFvR7O5UpBOQ0qaVj8bB664fogtlSJblsUD9qraStcjEJsiOm42x0XWEpSseXnuIoO2PTW8",
+    "venue": {
+      "name": "Gheorghe Dima National Music Academy",
+      "rating": 4.7,
+      "reviews": 520,
+      "link": "https://www.amgd.ro/"
+    },
+    "event_location_map": {
+      "link": "https://www.google.com/maps/search/?api=1&query=Gheorghe+Dima+National+Music+Academy+Cluj-Napoca"
+    },
+    "ticket_info": [
+      {
+        "source": "musicofourdesire.com",
+        "link": "https://events.musicofourdesire.com/nl/event/lzsa-candlelight-omagiu-pentru-hans-zimmer-concert-cluj-napoca-romania",
+        "link_type": "tickets"
+      },
+      {
+        "source": "AMGD Cluj",
+        "link": "https://www.amgd.ro/",
+        "link_type": "more info"
+      }
+    ]
+  }
+}

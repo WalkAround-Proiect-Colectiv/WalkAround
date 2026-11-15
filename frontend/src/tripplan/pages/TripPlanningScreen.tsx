@@ -896,7 +896,17 @@ export default function TripPlanningScreen() {
               disabled={!candidate.iataCode} onPress={() => { setAirport(candidate); clearTickets(); }}
               style={[styles.airportOption, airport?.id === candidate.id && styles.airportSelected, !candidate.iataCode && styles.disabled]}>
               <View style={[styles.airportIcon, airport?.id === candidate.id && styles.airportIconSelected]}><Plane size={18} color={airport?.id === candidate.id ? '#fff' : BLUE} /></View>
-              <View style={styles.airportCopy}><Text style={styles.airportName}>{candidate.name}</Text><Text style={styles.helper}>{candidate.iataCode || 'No IATA code · unavailable for flight search'}</Text></View>
+              <View style={styles.airportCopy}>
+                <Text style={styles.airportName}>{candidate.name}</Text>
+                <Text style={styles.helper}>
+                  {candidate.iataCode || 'No IATA code · unavailable for flight search'}
+                  {' · '}{candidate.countryCode}
+                </Text>
+                <Text style={styles.helper}>
+                  {candidate.matchType === 'NEARBY' ? 'Nearby airport' : 'City airport'}
+                  {' · '}{candidate.distanceKm.toFixed(1)} km from city center
+                </Text>
+              </View>
               <View style={[styles.radio, airport?.id === candidate.id && styles.radioSelected]}>{airport?.id === candidate.id && <Check size={13} color="#fff" />}</View>
             </Pressable>)}
           </View>}
