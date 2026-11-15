@@ -6,6 +6,7 @@ import './mapCanvas.web.css';
 import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps, ScreenPoint } from './MapCanvas.types';
 import { selectMapHit } from './poi';
+import { filterPoiStyle, isPoiLayer } from './filters';
 
 const EMPTY_FEATURE_COLLECTION = {
   type: 'FeatureCollection' as const,
@@ -56,6 +57,7 @@ function createEventPinImageData(): ImageData | { width: number; height: number;
 export default function MapCanvas({
   ref,
   style,
+  poiFilter = 'all',
   userLocation = null,
   searchedLocation = null,
   zoomLevel = PLACES[0].zoom,
@@ -79,6 +81,15 @@ export default function MapCanvas({
   const locationMarker = useRef<Marker | null>(null);
   const locationElement = useRef<HTMLDivElement | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!mapLoaded || !map.current) return;
+    for (const layer of filterPoiStyle(style, poiFilter).layers) {
+      if (!isPoiLayer(layer) || !map.current.getLayer(layer.id)) continue;
+      map.current.setLayoutProperty(layer.id, 'visibility', layer.layout?.visibility ?? 'visible');
+      map.current.setFilter(layer.id, 'filter' in layer ? layer.filter ?? null : null);
+    }
+  }, [style, poiFilter, mapLoaded]);
 
   const ready = useEffectEvent(onReady);
   const failed = useEffectEvent(onError);

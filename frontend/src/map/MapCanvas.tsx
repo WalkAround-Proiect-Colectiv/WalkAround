@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useImperativeHandle, useRef } from 'react';
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { filterPoiStyle } from './filters';
 import {
   Camera,
   GeoJSONSource,
@@ -21,6 +22,7 @@ const MAP_IMAGES = {
 export default function MapCanvas({
   ref,
   style,
+  poiFilter = 'all',
   userLocation = null,
   searchedLocation = null,
   zoomLevel = PLACES[0].zoom,
@@ -39,6 +41,7 @@ export default function MapCanvas({
   onPress,
   onCoordinateSelect,
 }: MapCanvasProps) {
+  const filteredStyle = useMemo(() => filterPoiStyle(style, poiFilter), [style, poiFilter]);
   const camera = useRef<CameraRef>(null);
   const nativeMap = useRef<MapRef>(null);
   const currentZoom = useRef(PLACES[0].zoom);
@@ -131,7 +134,7 @@ export default function MapCanvas({
   return (
     <Map
       ref={nativeMap}
-      mapStyle={style}
+      mapStyle={filteredStyle}
       style={{ flex: 1 }}
       touchPitch={false}
       doubleTapZoom={false}

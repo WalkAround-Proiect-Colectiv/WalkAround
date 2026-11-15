@@ -17,6 +17,7 @@ export interface Venue {
 }
 
 export interface UpcomingEvent {
+  eventType?: 'CULTURAL' | 'SPORTS' | 'OTHER';
   key: string;
   localityKey: string;
   title: string;
