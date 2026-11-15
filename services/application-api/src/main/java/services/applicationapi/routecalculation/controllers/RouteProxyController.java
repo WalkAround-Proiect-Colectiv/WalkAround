@@ -1,5 +1,6 @@
 package services.applicationapi.routecalculation.controllers;
 
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,6 +8,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
@@ -22,10 +24,17 @@ public class RouteProxyController {
     @Value("${app.routing-service.url}")
     private String routingServiceUrl;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    private final RestTemplate restTemplate = buildRestTemplate();
+
+    private static RestTemplate buildRestTemplate() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(3_000);
+        factory.setReadTimeout(20_000);
+        return new RestTemplate(factory);
+    }
 
     @PostMapping("/pedestrian")
-    public ResponseEntity<?> getPedestrianRoute(@RequestBody RouteRequestDto request)
+    public ResponseEntity<?> getPedestrianRoute(@Valid @RequestBody RouteRequestDto request)
     {
         String url = routingServiceUrl + "/api/v1/routes/pedestrian";
         try
@@ -37,7 +46,18 @@ public class RouteProxyController {
         }
         catch (RestClientResponseException exception)
         {
-            log.warn("Routing service returned HTTP {}", exception.getStatusCode().value());
+            int status = exception.getStatusCode().value();
+            String body = exception.getResponseBodyAsString();
+
+            if (status == 422 || status == 400)
+            {
+                log.info("Routing service rejected the request with HTTP {}: {}", status, body);
+                return ResponseEntity.status(status)
+                        .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                        .body(body);
+            }
+
+            log.warn("Routing service returned HTTP {}: {}", status, body);
             return unavailable();
         }
         catch (RestClientException exception)

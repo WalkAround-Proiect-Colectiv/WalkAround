@@ -5,7 +5,7 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | Record | Meaning |
 | --- | --- |
 | `CitySuggestion` | GeoNames display name, country/code, coordinates, and `lookupName` for a later city lookup. `lookupName` preserves Unicode spelling with normalized whitespace. |
-| `AirportResponse` | Local database airport ID, name, optional IATA code, and coordinates. A null IATA code is allowed by the database. |
+| `AirportResponse` | Local database airport ID, name, optional IATA code, airport country code, coordinates, `CITY` or `NEARBY` match type, and straight-line distance from the GeoNames city center in kilometers. A null IATA code is allowed for city matches. |
 | `PlaceRecommendationResponse` | Attraction, restaurant, museum, or coffee-shop suggestion with name, optional category/address/description/rating/reviews/coordinates, a Google Maps URL, and optional HTTPS image and website URLs. |
 | `PlaceRecommendationPageResponse` | One place-category page with `items` and a nullable zero-based `nextPage` for an explicit follow-up request. |
 | `DestinationSafetyResponse` | Validated city/country, check time, nearby radius, country advisory with agency sources, nearby alerts and conflicts, and flags for incomplete fetched or displayed lists. |

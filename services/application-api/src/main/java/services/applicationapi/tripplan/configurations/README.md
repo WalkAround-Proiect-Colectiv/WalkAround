@@ -6,6 +6,8 @@ Trip-planning properties bind under app.trip-plan; map place-search properties b
 | `CITY_PROVIDER` | Selects the `CitySearchProvider` implementation | `geonames` |
 | `GEONAMES_USERNAME` | GeoNames account username | Required |
 | `CITY_AUTOCOMPLETE_MAX_RESULTS` | Maximum city suggestions requested | `10` |
+| `NEARBY_AIRPORT_RADIUS_KM` | Straight-line search radius for nearby large airports in the selected city's country, 1 to 500 km | `100` |
+| `NEARBY_AIRPORT_MAX_RESULTS` | Maximum nearby airports returned after city matches, 1 to 50 | `5` |
 | `GEONAMES_BASE_URL` | GeoNames HTTPS base URL | `https://secure.geonames.org` |
 | `GEONAMES_TIMEOUT` | GeoNames connect/read timeout | `PT3S` |
 | `PLACE_SEARCH_PROVIDER` | Selects the map place-search provider | `photon` |
@@ -18,6 +20,7 @@ Trip-planning properties bind under app.trip-plan; map place-search properties b
 | `SERP_API_BASE_URL` | SerpApi HTTPS base URL | `https://serpapi.com` |
 | `SERP_API_TIMEOUT` | SerpApi connect/read timeout | `PT15S` |
 | `FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS` | Maximum calendar dates covered by one departure interval | `7` |
+| `FLIGHT_SEARCH_MAX_ARRIVAL_OFFSET_DAYS` | Maximum days between outbound departure and final arrival for round-trip searches, 0 to 7; bounds initial SerpApi searches per departure date | `2` |
 | `ACCOMMODATION_PROVIDER` | Selects the `AccommodationSearchProvider` implementation | `serpapi` |
 | `ACCOMMODATION_SEARCH_MAX_RESULTS` | Maximum accommodation offers returned | `3` |
 | `ATTRACTION_PROVIDER` | Selects the shared `AttractionSearchProvider` implementation for all place categories | `serpapi` |

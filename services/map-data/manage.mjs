@@ -6,13 +6,27 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseEnv } from 'node:util';
 
 export const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+const workspaceDirectory = resolve(moduleDirectory, '../..');
 
-export async function initializeEnvironment(directory = moduleDirectory) {
+async function mapEnvironmentFile() {
+  let setting = process.env.MAP_DATA_ENV_FILE_LOCATION;
+  if (!setting) {
+    try {
+      const rootEnvironment = parseEnv(await readFile(join(workspaceDirectory, '.env'), 'utf8'));
+      setting = rootEnvironment.MAP_DATA_ENV_FILE_LOCATION;
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return resolve(workspaceDirectory, setting || 'services/map-data/.env');
+}
+
+export async function initializeEnvironment(directory = moduleDirectory, filename = join(directory, '.env')) {
   const template = await readFile(join(directory, '.env.example'), 'utf8');
   const content = template.replace(/^MAP_(DB_ADMIN|IMPORT|TILES)_PASSWORD=.*$/gm,
     (_line, role) => `MAP_${role}_PASSWORD=${randomBytes(32).toString('hex')}`);
   try {
-    await writeFile(join(directory, '.env'), content, { flag: 'wx', mode: 0o600 });
+    await writeFile(filename, content, { flag: 'wx', mode: 0o600 });
     return true;
   } catch (error) {
     if (error.code === 'EEXIST') return false;
@@ -20,9 +34,9 @@ export async function initializeEnvironment(directory = moduleDirectory) {
   }
 }
 
-export async function localConfiguration(directory = moduleDirectory) {
+export async function localConfiguration(directory = moduleDirectory, filename = join(directory, '.env')) {
   let content;
-  try { content = await readFile(join(directory, '.env'), 'utf8'); }
+  try { content = await readFile(filename, 'utf8'); }
   catch (error) {
     if (error.code === 'ENOENT') throw new Error('Local map configuration is missing. Run: node services/map-data/manage.mjs init');
     throw error;
@@ -37,9 +51,12 @@ export async function localConfiguration(directory = moduleDirectory) {
   return { ...config, MAP_TILES_PORT: port };
 }
 
-export function composeArguments(args, directory = moduleDirectory) {
-  return ['compose', '--project-directory', directory, '--env-file', join(directory, '.env'),
-    '-f', join(directory, 'compose.yaml'), '--profile', 'maintenance', ...args];
+export function composeArguments(args, directory = moduleDirectory, environmentFile = join(directory, '.env')) {
+  return ['compose', '--project-directory', workspaceDirectory,
+    '--env-file', join(workspaceDirectory, '.env'),
+    '--env-file', environmentFile,
+    '-f', join(workspaceDirectory, 'docker-compose.yaml'),
+    '--profile', 'maintenance', ...args];
 }
 
 function execute(program, args, { capture = false, environment = process.env } = {}) {
@@ -100,8 +117,11 @@ export async function verifyEndpoints(base) {
   await response(`${base}/health`);
   const style = await (await response(`${base}/style.json`)).json();
   if (style.version !== 8 || style.sources?.basemap?.tiles?.[0] !== '/tiles/basemap/{z}/{x}/{y}') throw new Error('Unexpected self-hosted map style.');
+  if (style.sources?.pois?.tiles?.[0] !== '/tiles/pois/{z}/{x}/{y}') throw new Error('The self-hosted POI source is missing.');
   const metadata = await (await response(`${base}/tiles/basemap`)).json();
   if (!Array.isArray(metadata.tiles) || !metadata.tiles.length) throw new Error('Martin did not publish basemap tile metadata.');
+  const poiMetadata = await (await response(`${base}/tiles/pois`)).json();
+  if (!Array.isArray(poiMetadata.tiles) || !poiMetadata.tiles.length) throw new Error('Martin did not publish POI tile metadata.');
   const glyphs = await (await response(`${base}/font/Noto%20Sans%20Regular/0-255`)).arrayBuffer();
   if (!glyphs.byteLength) throw new Error('The local map font response is empty.');
   for (const [name, longitude, latitude] of [['Bucharest', 26.1025, 44.4268], ['Cluj-Napoca', 23.5899, 46.7712], ['Brasov', 25.6012, 45.6579], ['Constanta', 28.6348, 44.1598]]) {
@@ -111,6 +131,8 @@ export async function verifyEndpoints(base) {
     const tile = await response(`${base}/tiles/basemap/${zoom}/${tileX}/${tileY}`);
     if (!/protobuf|mapbox-vector-tile/.test(tile.headers.get('content-type') || '')) throw new Error(`Unexpected tile format for ${name}.`);
     if (!(await tile.arrayBuffer()).byteLength) throw new Error(`No map features returned for ${name}. Check the imported region.`);
+    const poiTile = await response(`${base}/tiles/pois/${zoom}/${tileX}/${tileY}`);
+    if (poiTile.status !== 204 && !/protobuf|mapbox-vector-tile/.test(poiTile.headers.get('content-type') || '')) throw new Error(`Unexpected POI tile format for ${name}.`);
   }
 }
 
@@ -118,37 +140,43 @@ export async function main(args = process.argv.slice(2)) {
   const command = args[0] || 'help';
   if (args.length > 1) throw new Error('Only one command is accepted; run help for usage.');
   if (command === 'help' || command === '--help') {
-    console.log('Usage: node services/map-data/manage.mjs init|doctor|smoke|setup|start|stop|update|status|verify|connect|help');
+    console.log('Usage: node services/map-data/manage.mjs init|doctor|smoke|setup|start|stop|update|status|verify|connect|reconcile-pois|help');
     console.log('setup downloads/imports Romania once; reruns preserve a completed import. stop preserves all data.');
     console.log('connect changes only frontend/.env.local after map verification. Restart Expo afterward.');
     return;
   }
   if (command === 'init') {
-    console.log(await initializeEnvironment() ? 'Created ignored local map configuration with unique credentials.' : 'Existing local map configuration preserved.');
+    const environmentFile = await mapEnvironmentFile();
+    console.log(await initializeEnvironment(moduleDirectory, environmentFile) ? 'Created local map configuration with unique credentials.' : 'Existing local map configuration preserved.');
     return;
   }
   if (command === 'doctor') { checkDocker(); console.log('Docker Linux engine and Compose are available.'); return; }
-  if (!['smoke', 'setup', 'start', 'stop', 'update', 'status', 'verify', 'connect'].includes(command)) throw new Error(`Unknown command: ${command}`);
+  if (!['smoke', 'setup', 'start', 'stop', 'update', 'status', 'verify', 'connect', 'reconcile-pois'].includes(command)) throw new Error(`Unknown command: ${command}`);
   checkDocker();
   if (command === 'smoke') {
     execute(process.execPath, [join(moduleDirectory, 'tests/smoke.mjs')]);
     return;
   }
-  if (command === 'setup') await initializeEnvironment();
-  const config = await localConfiguration();
+  const environmentFile = await mapEnvironmentFile();
+  if (command === 'setup') await initializeEnvironment(moduleDirectory, environmentFile);
+  const config = await localConfiguration(moduleDirectory, environmentFile);
   const environment = { ...process.env, ...config };
-  const compose = (steps, capture = false) => execute('docker', composeArguments(steps), { capture, environment });
+  const compose = (steps, capture = false) => execute('docker', composeArguments(steps, moduleDirectory, environmentFile), { capture, environment });
   const job = (name, capture = false) => compose(['run', '--rm', '--no-deps', '-T', 'map-job', name], capture);
   const base = gatewayUrl(config);
   const verify = async () => {
     job('verify');
     await verifyEndpoints(base);
-    console.log('Database checks, local style/font endpoints, and four Romania city tiles passed.');
+    console.log('Database checks, style/fonts, and basemap/POI endpoints for four Romania cities passed.');
   };
   compose(['config', '--quiet']);
-  if (command === 'stop') { compose(['stop']); console.log('Map containers stopped. Volumes and credentials are preserved.'); return; }
+  if (command === 'stop') {
+    compose(['stop', 'map-gateway', 'martin', 'map-db']);
+    console.log('Map containers stopped. Volumes and credentials are preserved.');
+    return;
+  }
   if (command === 'status') {
-    compose(['ps']);
+    compose(['ps', 'map-db', 'martin', 'map-gateway']);
     const running = compose(['ps', '--status', 'running', '--services'], true);
     if (running.split(/\r?\n/).includes('map-db')) {
       compose(['build', 'map-job']);
@@ -164,7 +192,9 @@ export async function main(args = process.argv.slice(2)) {
     const state = JSON.parse(job('inspect-state', true));
     if (command === 'start' && state.import !== 'ready') throw new Error('A completed regional import is required. Run setup first.');
     if (command === 'setup') for (const step of setupPlan(state)) job(step);
-    compose(['up', '--build', '-d', '--wait', 'map-gateway']);
+    compose(['run', '--rm', '--no-deps', '-T', 'map-schema']);
+    compose(['run', '--rm', '--no-deps', '-T', 'map-migrate']);
+    compose(['up', '--build', '--no-deps', '--force-recreate', '-d', '--wait', 'martin', 'map-gateway']);
     await verify();
     console.log(`Self-hosted style: ${base}/style.json`);
     console.log('Run the connect command to point the frontend at this local map, then restart Expo.');
@@ -176,6 +206,12 @@ export async function main(args = process.argv.slice(2)) {
     await verify();
     job('status');
     console.log('Reload the map to discard tiles cached by the open client session.');
+    return;
+  }
+  if (command === 'reconcile-pois') {
+    compose(['build', 'map-job']);
+    job('reconcile-pois');
+    console.log('Stored eligible POIs reconciled. Review proposed matches explicitly, then reload the map. No providers were fetched.');
     return;
   }
   await verify();

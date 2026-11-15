@@ -75,9 +75,20 @@ case "$operation" in
   test-style)
     lua5.4 /workspace/tests/flex.test.lua
     ;;
+  test-poi-model)
+    psql -X -v ON_ERROR_STOP=1 -f /workspace/tests/poi-model.sql
+    psql -X -v ON_ERROR_STOP=1 -f /workspace/tests/poi-reconciliation.sql
+    ;;
+  seed-poi-fixture)
+    test "${OSM_INPUT:-}" = /workspace/tests/fixture.osm || { echo 'POI fixtures require the disposable fixture stack.' >&2; exit 1; }
+    psql -X -v ON_ERROR_STOP=1 -f /workspace/tests/poi-fixture.sql
+    ;;
+  reconcile-pois)
+    psql -X -v ON_ERROR_STOP=1 -f /workspace/importer/reconcile-pois.sql
+    ;;
   append-fixture)
     test "${OSM_INPUT:-}" = /workspace/tests/fixture.osm || { echo 'Fixture updates require the fixture stack.' >&2; exit 1; }
     osm2pgsql --append --slim --middle-schema=osm_middle /workspace/tests/change.osc
     ;;
-  *) echo 'Usage: map-job download|import|replication-init|update|status|inspect-state|verify|test-style|append-fixture' >&2; exit 2 ;;
+  *) echo 'Usage: map-job download|import|replication-init|update|status|inspect-state|verify|test-style|test-poi-model|seed-poi-fixture|reconcile-pois|append-fixture' >&2; exit 2 ;;
 esac

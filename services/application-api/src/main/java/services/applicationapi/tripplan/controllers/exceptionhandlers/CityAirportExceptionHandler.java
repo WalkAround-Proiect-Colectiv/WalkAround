@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import services.applicationapi.tripplan.controllers.CityAirportController;
 import services.applicationapi.tripplan.service.exceptions.AmbiguousCitySelectionException;
+import services.applicationapi.tripplan.service.exceptions.CitySearchUnavailableException;
 import services.applicationapi.tripplan.service.exceptions.InvalidCitySelectionException;
 
 @RestControllerAdvice(assignableTypes = CityAirportController.class)
@@ -30,6 +31,11 @@ public class CityAirportExceptionHandler {
     @ExceptionHandler(AmbiguousCitySelectionException.class)
     ResponseEntity<ProblemDetail> handleAmbiguousSelection(AmbiguousCitySelectionException exception) {
         return problem(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler(CitySearchUnavailableException.class)
+    ResponseEntity<ProblemDetail> handleCitySearchUnavailable() {
+        return problem(HttpStatus.BAD_GATEWAY, "City airport lookup is temporarily unavailable");
     }
 
     @ExceptionHandler(Exception.class)
