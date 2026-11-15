@@ -14,8 +14,11 @@ export interface Airport {
   id: number;
   name: string;
   iataCode: string | null;
+  countryCode: string;
   latitude: number;
   longitude: number;
+  matchType: 'CITY' | 'NEARBY';
+  distanceKm: number;
 }
 
 export interface PlaceRecommendation {
