@@ -1,5 +1,5 @@
 package services.routingservice.routecalculation.controllers;
-
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import services.routingservice.routecalculation.dto.RouteRequestDto;
@@ -16,20 +16,10 @@ public class RouteController {
     }
 
     @PostMapping("/pedestrian")
-    public ResponseEntity<String> getPedestrianRoute(@RequestBody RouteRequestDto request)
-    {
-        try {
-            String valhallaResponse = routeService.calculatePedestrianRoute(
-                    request.startLat(), request.startLng(),
-                    request.endLat(), request.endLng()
-            );
-            return ResponseEntity.ok()
-                    .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                    .body(valhallaResponse);
-        }
-        catch (Exception e)
-        {
-            return ResponseEntity.internalServerError().body("{\"error\": \"Could not calculate route\"}");
-        }
+    public ResponseEntity<String> getPedestrianRoute(@RequestBody RouteRequestDto request) {
+        String valhallaResponse = routeService.calculatePedestrianRoute(request);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(valhallaResponse);
     }
 }

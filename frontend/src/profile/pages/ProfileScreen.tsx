@@ -3,7 +3,7 @@ import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Tex
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Check, LogOut, Pencil, UserRound, X } from 'lucide-react-native';
+import { ArrowLeft, Check, ChevronRight, LogOut, Pencil, SlidersHorizontal, UserRound, X } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { authColors as colors } from '../../auth/components/AuthLayout';
 import { useSession } from '../../login/components/SessionProvider';
@@ -150,6 +150,10 @@ function ProfileContent() {
             <Pressable accessibilityRole="button" disabled={disabled} onPress={() => { setForm(profileFields(profile)); setEditing(false); setError(null); }} style={[styles.secondaryButton, disabled && styles.disabled]}><Text style={styles.link}>Cancel</Text></Pressable>
             <Pressable accessibilityRole="button" disabled={disabled || !dirty} onPress={() => void save()} style={[styles.primaryButton, (disabled || !dirty) && styles.disabled]}><Text style={styles.primaryText}>{busy ? 'Saving…' : 'Save changes'}</Text></Pressable>
           </View> : <Pressable accessibilityRole="button" disabled={disabled} onPress={() => { setEditing(true); setNotice(null); setError(null); }} style={[styles.primaryButton, disabled && styles.disabled]}><Pencil size={18} color="#fff" /><Text style={styles.primaryText}>Edit profile</Text></Pressable>}
+          {!editing && <Pressable accessibilityRole="button" accessibilityLabel="Preferences" disabled={disabled}
+            onPress={() => router.push('/preferences')} style={[styles.preferences, disabled && styles.disabled]}>
+            <SlidersHorizontal size={20} color={colors.primary} /><Text style={[styles.link, { flex: 1 }]}>Preferences</Text><ChevronRight size={20} color={colors.primary} />
+          </Pressable>}
           <View style={styles.divider} />
           <Pressable accessibilityRole="button" accessibilityLabel="Sign out" disabled={disabled} onPress={() => requestLeave('logout')} style={[styles.logout, disabled && styles.disabled]}><LogOut size={20} color={colors.danger} /><Text style={styles.logoutText}>{busy && !editing ? 'Signing out…' : 'Sign out'}</Text></Pressable>
         </>}
@@ -167,6 +171,7 @@ function ProfileContent() {
 }
 
 const styles = StyleSheet.create({
+  preferences: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 14 },
   screen: { flex: 1, backgroundColor: colors.background, alignItems: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
   panel: { flex: 1, width: '100%', maxWidth: 560, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },

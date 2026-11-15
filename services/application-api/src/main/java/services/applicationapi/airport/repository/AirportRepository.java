@@ -9,5 +9,13 @@ public interface AirportRepository extends Repository<Airport, Long> {
 
     List<Airport> findByMunicipality_IdInOrderByNameAscIdAsc(Collection<Long> municipalityIds);
 
+    List<Airport> findByCountry_CodeAndLatitudeBetweenAndLongitudeBetweenAndIataCodeIsNotNull(
+            String countryCode,
+            double minLatitude,
+            double maxLatitude,
+            double minLongitude,
+            double maxLongitude
+    );
+
     boolean existsByIataCodeIgnoreCase(String iataCode);
 }

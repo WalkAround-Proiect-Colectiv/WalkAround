@@ -11,7 +11,8 @@ public record FlightSearchProperties(
         @DefaultValue("3") int flightSearchMaxResults,
         @DefaultValue("https://serpapi.com") URI serpApiBaseUrl,
         @DefaultValue("PT15S") Duration serpApiTimeout,
-        @DefaultValue("7") int flightSearchMaxDateRangeDays
+        @DefaultValue("7") int flightSearchMaxDateRangeDays,
+        @DefaultValue("2") int flightSearchMaxArrivalOffsetDays
 ) {
 
     public FlightSearchProperties {
@@ -29,6 +30,10 @@ public record FlightSearchProperties(
 
         if (flightSearchMaxDateRangeDays < 1 || flightSearchMaxDateRangeDays > 31) {
             throw new IllegalArgumentException("Flight search max date range must be between 1 and 31 days");
+        }
+
+        if (flightSearchMaxArrivalOffsetDays < 0 || flightSearchMaxArrivalOffsetDays > 7) {
+            throw new IllegalArgumentException("Flight search max arrival offset must be between 0 and 7 days");
         }
     }
 }

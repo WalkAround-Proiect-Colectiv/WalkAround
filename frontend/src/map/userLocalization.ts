@@ -29,8 +29,8 @@ export function useUserLocalization(map: RefObject<MapHandle | null>) {
 
   useFocusEffect(useCallback(() => () => stopTracking(), [stopTracking]));
 
-  const animateTo = useCallback((coordinates: [number, number], accuracy: number) => {
-    const target: UserLocation = { coordinates, accuracy };
+  const animateTo = useCallback((coordinates: [number, number], accuracy: number, heading?: number | null) => {
+    const target: UserLocation = { coordinates, accuracy, heading };
     if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
     const start = displayRef.current;
     if (!start) {
@@ -49,6 +49,7 @@ export function useUserLocalization(map: RefObject<MapHandle | null>) {
           start.coordinates[1] + (coordinates[1] - start.coordinates[1]) * eased,
         ],
         accuracy: start.accuracy + (accuracy - start.accuracy) * eased,
+        heading: heading !== undefined ? heading : start.heading
       };
       displayRef.current = current;
       setUserLocation(current);
@@ -78,15 +79,16 @@ export function useUserLocalization(map: RefObject<MapHandle | null>) {
       const { longitude, latitude } = position.coords;
       if (!isInCoverage(longitude, latitude)) throw new Error('Your location is outside the Romania prototype area.');
       const accuracy = position.coords.accuracy ?? 100;
+      const initialHeading = position.coords.heading;
 
-      animateTo([longitude, latitude], accuracy);
+      animateTo([longitude, latitude], accuracy, initialHeading);
       map.current?.goTo({ center: [longitude, latitude], zoom: 15 });
       trackingRef.current = true;
       const subscription = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.BestForNavigation, distanceInterval: 5, timeInterval: 1000 },
         update => {
           if (!trackingRef.current) return;
-          const { longitude: nextLongitude, latitude: nextLatitude } = update.coords;
+          const { longitude: nextLongitude, latitude: nextLatitude, heading: nextHeading } = update.coords;
           if (!isInCoverage(nextLongitude, nextLatitude)) {
             if (animationFrame.current !== null) cancelAnimationFrame(animationFrame.current);
             animationFrame.current = null;
@@ -98,7 +100,7 @@ export function useUserLocalization(map: RefObject<MapHandle | null>) {
           if (Date.now() - update.timestamp > 15000) return;
           const nextAccuracy = update.coords.accuracy ?? 100;
           if (nextAccuracy > 100) return;
-          animateTo([nextLongitude, nextLatitude], nextAccuracy);
+          animateTo([nextLongitude, nextLatitude], nextAccuracy, nextHeading);
           setError(null);
         },
       );

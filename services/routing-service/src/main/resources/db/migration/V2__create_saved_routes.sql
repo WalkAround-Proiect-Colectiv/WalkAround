@@ -1,0 +1,11 @@
+CREATE TABLE saved_routes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    start_lat DOUBLE PRECISION NOT NULL,
+    start_lng DOUBLE PRECISION NOT NULL,
+    end_lat DOUBLE PRECISION NOT NULL,
+    end_lng DOUBLE PRECISION NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_saved_routes_user_id ON saved_routes(user_id);

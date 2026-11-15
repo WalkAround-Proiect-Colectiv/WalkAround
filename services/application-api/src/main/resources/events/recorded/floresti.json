@@ -1,0 +1,111 @@
+{
+ "recorded_at": "2026-11-05",
+ "source": "SerpApi google_events",
+ "events_results": [
+  {
+   "title": "Nature & fundraising event",
+   "date": {
+    "start_date": "Nov 8",
+    "when": "Nov 8, 2:00 PM"
+   },
+   "address": [
+    "The Fearless School",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "The Fearless School"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/YCPGulnAF8vnyzrX5LEg0D6DtTWESRogeb-fMSRDOys.jpg"
+  },
+  {
+   "title": "Bakers' Meet-Up at Prado",
+   "date": {
+    "start_date": "Nov 14",
+    "when": "Nov 14, 4:00 PM"
+   },
+   "address": [
+    "Prado",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Prado"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/Tf_OK6ZLYntkpQOdWrRw3RG0kwHz2ZzvWSHl6dNnLFc.jpg"
+  },
+  {
+   "title": "FC Universitatea Cluj vs. AFK Csikszereda Miercurea Ciuc",
+   "date": {
+    "start_date": "Mar 13",
+    "when": "Mar 13, 8:00 PM"
+   },
+   "address": [
+    "Cluj Arena",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Cluj Arena"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/kBO9ewSL6t2QvaDLxsYS1aG1vhjLtJFRTP9xjUtTfIk.jpg"
+  },
+  {
+   "title": "FC Universitatea Cluj vs. Turk Telekom Men's Basketball",
+   "date": {
+    "start_date": "Nov 10",
+    "when": "Nov 10, 8:00 PM"
+   },
+   "address": [
+    "Sala Sporturilor Horia Demian",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Sala Sporturilor Horia Demian"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/PYzAVAk3HUGOFg9ZsxaeZ5JmhNRiWwhyPDF5iky5XMg.jpg"
+  },
+  {
+   "title": "Make Friends in Cluj (International Social Hangout) #137",
+   "date": {
+    "start_date": "Nov 7",
+    "when": "Nov 7, 8:30 PM"
+   },
+   "address": [
+    "VIBE OffSeason",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "VIBE OffSeason"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/3jrN0eV1i8C5Z0mWDS3YIjQ9CAPZYF74qwM2WDHeiKg.jpg"
+  },
+  {
+   "title": "15th Transilvania Salsa Fest",
+   "date": {
+    "start_date": "Nov 19",
+    "when": "Nov 19, 7:00 PM"
+   },
+   "address": [
+    "Grand Hotel Napoca",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Grand Hotel Napoca"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/dZ7JpmlrLWLp2peEKQseG4EbwsgPSFjnn5dCIWt3GgA.jpg"
+  },
+  {
+   "title": "FC Universitatea Cluj vs. KD Ilirija Men's Basketball",
+   "date": {
+    "start_date": "Nov 14",
+    "when": "Nov 14, 8:00 PM"
+   },
+   "address": [
+    "Sala Sporturilor Horia Demian",
+    "Cluj-Napoca, Romania"
+   ],
+   "venue": {
+    "name": "Sala Sporturilor Horia Demian"
+   },
+   "thumbnail": "https://serpapi.com/searches/6aecb5e56ee47add84ac6447/images/RvZt1LQOljSdUXacPUO2yCns7DfpLueqekl_dbxQhd8.jpg"
+  }
+ ]
+}
