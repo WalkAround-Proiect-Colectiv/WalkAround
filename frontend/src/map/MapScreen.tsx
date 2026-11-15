@@ -6,6 +6,9 @@ import { useSession } from '../login/components/SessionProvider';
 import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
+import PoiFilters from './PoiFilters';
+import type { PoiFilter, EventTypeFilter } from './filters';
+import { SlidersHorizontal } from 'lucide-react-native';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
@@ -203,8 +206,13 @@ export default function MapScreen() {
   const [selectedPinScreenPoint, setSelectedPinScreenPoint] = useState<ScreenPoint | null>(null);
   const [mapLayout, setMapLayout] = useState<{ width: number; height: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [poiFilter, setPoiFilter] = useState<PoiFilter>('all');
+  const [eventType, setEventType] = useState<EventTypeFilter>('all');
 
   const mapEvents = useMapEvents({
+    poiFilter,
+    eventType,
     center: camera.center,
     signedIn: Boolean(session),
     mapReady,
@@ -763,6 +771,7 @@ export default function MapScreen() {
               key={attempt}
               ref={map}
               style={style}
+              poiFilter={poiFilter}
               userLocation={userLocation}
               searchedLocation={searchedLocation}
               zoomLevel={camera.zoom}
@@ -981,12 +990,19 @@ export default function MapScreen() {
             </Pressable>
         </View>
 
+      <PoiFilters visible={filtersOpen} poiFilter={poiFilter} eventType={eventType} signedIn={Boolean(session)}
+        onClose={() => setFiltersOpen(false)} onChange={(poi, type) => {
+          setPoiFilter(poi); setEventType(type); setSelectedPoi(null); mapEvents.clearSelection();
+        }} />
       <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
                    accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
           {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
         </Pressable>
         {menuOpen && <View style={styles.menuPanel}>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); setFiltersOpen(true); }} style={styles.menuItem}>
+            <SlidersHorizontal size={20} color="#0065EB" /><Text style={styles.menuItemText}>Map filters{poiFilter !== 'all' || eventType !== 'all' ? ' • Active' : ''}</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={() => setMenuOpen(false)} style={styles.menuItem}>
             <Compass size={20} color="#0065EB" /><Text style={styles.menuItemText}>Explore map</Text>
           </Pressable>
