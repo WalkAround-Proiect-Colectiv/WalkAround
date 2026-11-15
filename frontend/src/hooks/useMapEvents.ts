@@ -8,6 +8,7 @@ import {
   type EventPinsFeatureCollection,
 } from '../events/mapPins';
 import { isInCoverage } from '../map/config';
+import { filterEvents, type PoiFilter, type EventTypeFilter } from '../map/filters';
 
 /** Reload nearby events when the map centre moves at least 10 km from the last loaded position. */
 export const EVENT_RELOAD_DISTANCE_KM = 10;
@@ -17,6 +18,8 @@ export interface UseMapEventsOptions {
   center: [longitude: number, latitude: number];
   signedIn: boolean;
   mapReady: boolean;
+  poiFilter?: PoiFilter;
+  eventType?: EventTypeFilter;
 }
 
 interface SelectionState {
@@ -24,7 +27,7 @@ interface SelectionState {
   eventIndex: number;
 }
 
-export function useMapEvents({ center, signedIn, mapReady }: UseMapEventsOptions) {
+export function useMapEvents({ center, signedIn, mapReady, poiFilter = 'all', eventType = 'all' }: UseMapEventsOptions) {
   const [events, setEvents] = useState<UpcomingEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,8 +108,8 @@ export function useMapEvents({ center, signedIn, mapReady }: UseMapEventsOptions
   }, [signedIn, mapReady, centerLng, centerLat]);
 
   const pins: EventPin[] = useMemo(
-    () => (signedIn ? toEventPins(events) : []),
-    [signedIn, events],
+    () => (signedIn ? toEventPins(filterEvents(events, poiFilter, eventType)) : []),
+    [signedIn, events, poiFilter, eventType],
   );
 
   const geoJSON: EventPinsFeatureCollection = useMemo(

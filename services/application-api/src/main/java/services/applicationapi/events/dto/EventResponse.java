@@ -3,6 +3,7 @@ package services.applicationapi.events.dto;
 import java.time.Instant;
 import java.util.List;
 import services.applicationapi.events.model.CachedEvent;
+import services.applicationapi.events.model.EventType;
 
 /** An upcoming event as shown in the list. {@code interested} tells whether the current user marked it. */
 public record EventResponse(
@@ -19,7 +20,8 @@ public record EventResponse(
         String thumbnailUrl,
         List<TicketLinkDto> tickets,
         boolean interested,
-        Integer remindBeforeMinutes
+        Integer remindBeforeMinutes,
+        EventType eventType
 ) {
 
     public static EventResponse of(CachedEvent event, String localityKey, InterestResponse interest) {
@@ -40,7 +42,8 @@ public record EventResponse(
                 event.thumbnailUrl(),
                 ticketDtos,
                 interest != null,
-                interest == null ? null : interest.remindBeforeMinutes()
+                interest == null ? null : interest.remindBeforeMinutes(),
+                EventType.classify(event.title(), event.description())
         );
     }
 }
