@@ -1,5 +1,7 @@
 # Trip-planning exception handlers
 
+`TrainSearchExceptionHandler` maps malformed or invalid train searches to 400, unavailable GeoNames or Scrappa calls to a generic 502, and unexpected failures to a logged generic 500. Provider error bodies and credentials are never returned.
+
 `BusSearchExceptionHandler` maps malformed or invalid bus requests to 400, unavailable Scrappa or GeoNames requests to a generic 502, and unexpected failures to a logged generic 500. No upstream error body reaches the client.
 
 Each `@RestControllerAdvice` is scoped to its own trip-planning controller. Validation and custom domain exceptions become client-friendly `ProblemDetail` responses; unexpected failures are logged and returned as generic `500` responses.

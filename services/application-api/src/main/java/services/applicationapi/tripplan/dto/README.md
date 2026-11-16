@@ -1,5 +1,9 @@
 # Trip planning request and response records
 
+`TrainSearchRequest` carries two city/country pairs, total EUR budget, local departure interval, staying nights, and ticket option. `TrainItineraryResponse` contains the combined fare and outbound/return `TrainJourneyResponse`. Journeys contain `TrainLegResponse` and `TrainTransferResponse` lists. `TrainStopResponse` holds transfer position IDs and optional resolved station, city and country. Missing provider details remain null or empty.
+
+Train itineraries identify `source` (`OMIO` or `BILO`). Bilo offers include the original total fare and currency, estimated-fare and partial-catalog flags, and optional outbound/return HTTPS links. `totalPrice` stays in EUR for sorting and budget comparison; for RON Bilo fares it is an approximation based on the Frankfurter rate fetched for that search. Bilo pairs are returned only for `TWO_ONE_WAY` requests because its search API has no round-trip fare.
+
 `BusSearchRequest` carries the two city/country pairs, total EUR budget, local departure datetime interval, staying nights, and ticket option. Bean Validation checks shape and bounds before `BusSearchServiceImpl` validates real cities and dates. `BusItineraryResponse` contains the combined fare and outbound/return `BusJourneyResponse` values, each with a list of `BusLegResponse` values.
 
 Bus journey responses also carry optional provider logo, stop city/country, tickets-left and split-ticket fields. Legs include time zones and duration. `BusTransferResponse` identifies the preceding leg and optional wait duration so the frontend can place connections correctly. These are additive fields; missing Scrappa values stay null or empty.

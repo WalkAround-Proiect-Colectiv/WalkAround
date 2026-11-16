@@ -6,7 +6,7 @@ import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft, ArrowRight, BedDouble, BookmarkCheck, BookmarkPlus, CalendarDays, Check, Compass, ExternalLink, MapPin,
-  BusFront, Plane, Search, Sparkles, Ticket, Wallet,
+  BusFront, Plane, Search, Sparkles, Ticket, TrainFront, Wallet,
 } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import CalendarPicker from '../components/CalendarPicker';
@@ -16,16 +16,17 @@ import SafetyInformationCard from '../components/SafetyInformationCard';
 import CountryHotlinesCard from '../components/CountryHotlinesCard';
 import DestinationNewsCard from '../components/DestinationNewsCard';
 import DestinationWeatherCard from '../components/DestinationWeatherCard';
+import TrainTicketCard from '../components/TrainTicketCard';
 import BusTicketCard from '../components/BusTicketCard';
 import {
   getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getDestinationWeather,
   getHistoricalWeather, getPlaceRecommendations, saveTripPlan,
-  searchAccommodations, searchBuses, searchCities, searchFlights,
+  searchAccommodations, searchBuses, searchCities, searchFlights, searchTrains,
   type AccommodationOffer, type Airport, type BusItinerary, type CitySuggestion, type FlightItinerary, type FlightSegment,
   type CountryHotlines, type DestinationSafety, type DestinationWeather, type HistoricalWeather,
   type NewsArticle,
   type PlaceCategory, type PlaceRecommendationPage,
-  type SavedTripPlan, type TicketOption,
+  type SavedTripPlan, type TicketOption, type TrainItinerary,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
@@ -246,6 +247,11 @@ function ticketArrivalDate(ticket: FlightItinerary | undefined): string | null {
   return date && validDateTime(date, '12:00') ? date : null;
 }
 
+function trainArrivalDate(ticket: TrainItinerary | undefined): string | null {
+  const date = ticket?.outbound.arrivalTime.slice(0, 10);
+  return date && validDateTime(date, '12:00') ? date : null;
+}
+
 function busArrivalDate(ticket: BusItinerary | undefined): string | null {
   const date = ticket?.outbound.arrivalTime.slice(0, 10);
   return date && validDateTime(date, '12:00') ? date : null;
@@ -361,10 +367,12 @@ export default function TripPlanningScreen() {
   const [untilTime, setUntilTime] = useState('');
   const [nights, setNights] = useState('');
   const [ticketOption, setTicketOption] = useState<TicketOption>('ROUND_TRIP');
-  const [transport, setTransport] = useState<'PLANE' | 'BUS'>('PLANE');
+  const [transport, setTransport] = useState<'PLANE' | 'BUS' | 'TRAIN'>('PLANE');
   const [tickets, setTickets] = useState<FlightItinerary[] | null>(null);
+  const [trainTickets, setTrainTickets] = useState<TrainItinerary[] | null>(null);
   const [busTickets, setBusTickets] = useState<BusItinerary[] | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
+  const [selectedTrainTicket, setSelectedTrainTicket] = useState<number | null>(null);
   const [selectedBusTicket, setSelectedBusTicket] = useState<number | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -642,8 +650,10 @@ export default function TripPlanningScreen() {
     if (presetChanged) clearSavedPlan();
     flightRequestId.current += 1;
     setTickets(null);
+    setTrainTickets(null);
     setBusTickets(null);
     setSelectedTicket(null);
+    setSelectedTrainTicket(null);
     setSelectedBusTicket(null);
     setFormError(null);
     if (checkInSource === 'ticket') {
@@ -676,6 +686,23 @@ export default function TripPlanningScreen() {
     }
   }
 
+  function chooseTrainTicket(index: number) {
+    if (selectedTrainTicket === index) {
+      setSelectedTrainTicket(null);
+      if (checkInSource === 'ticket') setCheckInSource('calendar');
+      return;
+    }
+
+    setSelectedTrainTicket(index);
+    const date = trainArrivalDate(trainTickets?.[index]);
+    if (date) {
+      if (date !== checkInDate) clearHistory();
+      setCheckInDate(date);
+      setCheckInSource('ticket');
+      clearAccommodations();
+    }
+  }
+
   function chooseBusTicket(index: number) {
     if (selectedBusTicket === index) {
       setSelectedBusTicket(null);
@@ -701,7 +728,7 @@ export default function TripPlanningScreen() {
       return;
     }
     if (!validDateTime(checkInDate, '12:00')) {
-      setAccommodationError('Choose a check-in date from the calendar or a flight.');
+      setAccommodationError('Choose a check-in date from the calendar or a travel option.');
       return;
     }
     const stay = Number(nights);
@@ -882,6 +909,19 @@ export default function TripPlanningScreen() {
           ticketOption,
         });
         if (flightRequestId.current === id) setTickets(results);
+      } else if (transport === 'TRAIN') {
+        const results = await searchTrains({
+          originCity: departureCity.lookupName || departureCity.name,
+          originCountryCode: departureCity.countryCode,
+          destinationCity: destinationCity.lookupName || destinationCity.name,
+          countryCode: destinationCity.countryCode,
+          budget: amount,
+          departureFrom: from,
+          departureUntil: until,
+          stayingNights: stay,
+          ticketOption,
+        });
+        if (flightRequestId.current === id) setTrainTickets(results);
       } else {
         const results = await searchBuses({
           originCity: departureCity.lookupName || departureCity.name,
@@ -924,7 +964,9 @@ export default function TripPlanningScreen() {
           <Text accessibilityRole="header" style={styles.heroTitle}>Where to next?</Text>
           <Text style={styles.heroSubtitle}>A few choices, and your trip starts taking shape.</Text>
           <View style={styles.heroRoute}><View style={styles.routeDot} /><View style={styles.routeLine} />
-            {transport === 'PLANE' ? <Plane size={22} color="#fff" /> : <BusFront size={22} color="#fff" />}
+            {transport === 'PLANE' ? <Plane size={22} color="#fff" />
+              : transport === 'BUS' ? <BusFront size={22} color="#fff" />
+                : <TrainFront size={22} color="#fff" />}
           </View>
         </View>
 
@@ -959,7 +1001,9 @@ export default function TripPlanningScreen() {
           </View>}
 
           <View style={styles.routeDivider}><View style={styles.dividerLine} />
-            {transport === 'PLANE' ? <Plane size={17} color={PURPLE} /> : <BusFront size={17} color={PURPLE} />}
+            {transport === 'PLANE' ? <Plane size={17} color={PURPLE} />
+              : transport === 'BUS' ? <BusFront size={17} color={PURPLE} />
+                : <TrainFront size={17} color={PURPLE} />}
             <View style={styles.dividerLine} />
           </View>
           <CityPicker label="Going to" hint="Choose your destination city"
@@ -995,12 +1039,19 @@ export default function TripPlanningScreen() {
               <BusFront size={19} color={transport === 'BUS' ? BLUE : INK} />
               <Text style={[styles.optionTitle, transport === 'BUS' && styles.optionTitleSelected]}>Bus</Text>
             </Pressable>
+            <Pressable accessibilityRole="radio" accessibilityState={{ selected: transport === 'TRAIN' }}
+              onPress={() => { setTransport('TRAIN'); clearTickets(); }} style={[styles.option, transport === 'TRAIN' && styles.optionSelected]}>
+              <TrainFront size={19} color={transport === 'TRAIN' ? BLUE : INK} />
+              <Text style={[styles.optionTitle, transport === 'TRAIN' && styles.optionTitleSelected]}>Train</Text>
+            </Pressable>
           </View>
-          <NumberField label={`${transport === 'PLANE' ? 'Flight' : 'Bus'} budget`} value={budget} suffix="EUR" placeholder="e.g. 300"
+          <NumberField label={`${transport === 'PLANE' ? 'Flight' : transport === 'BUS' ? 'Bus' : 'Train'} budget`}
+            value={budget} suffix="EUR" placeholder="e.g. 300"
             onChange={(value) => { setBudget(value); clearTickets(); }} />
+          {transport === 'TRAIN' && <Text style={styles.helper}>Train fares are searched for one adult.</Text>}
           {transport === 'BUS' && <Text style={styles.helper}>Bus fares are searched for one adult.</Text>}
           <Text style={styles.fieldLabel}>Departure period</Text>
-          <Text style={styles.helper}>We’ll look for {transport === 'PLANE' ? 'flights' : 'buses'} leaving within this window. A shorter window searches faster.</Text>
+          <Text style={styles.helper}>We’ll look for {transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'} leaving within this window. A shorter window searches faster.</Text>
           <DateTimeFields label="From" date={fromDate} time={fromTime}
             onDate={(value) => { setFromDate(value); clearTickets(); }} onTime={(value) => { setFromTime(value); clearTickets(); }} />
           <DateTimeFields label="Until" date={untilDate} time={untilTime} minimumDate={fromDate}
@@ -1024,20 +1075,23 @@ export default function TripPlanningScreen() {
           <Pressable accessibilityRole="button" disabled={searchBusy} onPress={submit}
             style={[styles.primaryButton, searchBusy && styles.disabled]}>
             {searchBusy ? <ActivityIndicator color="#fff" /> : <Search size={20} color="#fff" />}
-            <Text style={styles.primaryButtonText}>{searchBusy ? `Finding ${transport === 'PLANE' ? 'flights' : 'buses'}…` : `Find ${transport === 'PLANE' ? 'flights' : 'buses'}`}</Text>
+            <Text style={styles.primaryButtonText}>{searchBusy ? `Finding ${transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}…` : `Find ${transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}`}</Text>
             {!searchBusy && <ArrowRight size={19} color="#fff" />}
           </Pressable>
         </View>
 
-        {(searchBusy || tickets || busTickets) && <View style={styles.results}>
-          <Text style={styles.stepLabel}>{transport === 'PLANE' ? 'FLIGHT' : 'BUS'} OPTIONS</Text>
-          <Text style={styles.resultsTitle}>{transport === 'PLANE' ? 'Flights' : 'Buses'} for your trip</Text>
+        {(searchBusy || tickets || trainTickets || busTickets) && <View style={styles.results}>
+          <Text style={styles.stepLabel}>{transport === 'PLANE' ? 'FLIGHT' : transport === 'BUS' ? 'BUS' : 'TRAIN'} OPTIONS</Text>
+          <Text style={styles.resultsTitle}>{transport === 'PLANE' ? 'Flights' : transport === 'BUS' ? 'Buses' : 'Trains'} for your trip</Text>
           <Text style={styles.helper}>{transport === 'PLANE' ? airport?.iataCode : departureCity?.name} to {destinationCity?.name} · {nights} night{nights === '1' ? '' : 's'}</Text>
-          {searchBusy && <View style={styles.searchingPanel}><ActivityIndicator color={BLUE} /><Text style={styles.searchingText}>Searching available {transport === 'PLANE' ? 'flights' : 'buses'}…</Text><Text style={styles.helper}>This can take a little while.</Text></View>}
+          {searchBusy && <View style={styles.searchingPanel}><ActivityIndicator color={BLUE} /><Text style={styles.searchingText}>Searching available {transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}…</Text><Text style={styles.helper}>This can take a little while.</Text></View>}
           {tickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No flights found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
+          {trainTickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No trains found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
           {busTickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No buses found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
           {tickets?.map((ticket, index) => <TicketCard key={`${ticket.totalPrice}-${index}`} ticket={ticket} index={index}
             selected={selectedTicket === index} onSelect={() => chooseTicket(index)} />)}
+          {trainTickets?.map((ticket, index) => <TrainTicketCard key={`${ticket.totalPrice}-${index}`} itinerary={ticket} index={index}
+            selected={selectedTrainTicket === index} onSelect={() => chooseTrainTicket(index)} />)}
           {busTickets?.map((ticket, index) => <BusTicketCard key={`${ticket.totalPrice}-${index}`} itinerary={ticket} index={index}
             selected={selectedBusTicket === index} onSelect={() => chooseBusTicket(index)} />)}
         </View>}
