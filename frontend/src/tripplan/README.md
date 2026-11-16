@@ -1,5 +1,7 @@
 # Trip planning screen
 
+The travel selector offers Plane and Bus. Bus searches send the selected departure and destination GeoNames cities and country codes, departure interval, EUR budget, staying nights, and ticket option to `POST /api/trip-plans/bus-searches`. Bus results use separate selectable cards; selecting one fills accommodation check-in from its outbound arrival date. The airport picker and saved-plan form are shown only for Plane, because the saved-plan contract still represents a flight preset. Switching transport clears stale ticket results.
+
 `src/app/trip-plan.tsx` exposes `TripPlanningScreen` as the `/trip-plan` route. The map menu links to it. The screen is protected by the existing `useSession` hook and redirects signed-out visitors to `/login`.
 
 The page keeps all search inputs in local state. Both city fields use `GET /api/trip-plans/cities?city=...` only when the user presses **Search**. Selecting a GeoNames suggestion preserves its `lookupName` and `countryCode`; selecting a departure city then calls `GET /api/trip-plans/cities/{city}/airports?countryCode=...`. The airport list shows city matches first and nearby airports afterward, each with straight-line distance from the city center. Airports without IATA codes are displayed but cannot be selected for flight search. A city or form change hides previous flight results, and request counters ignore stale responses that arrive after a newer selection. The page waits for an active flight search to finish before allowing another, which avoids overlapping paid provider searches.

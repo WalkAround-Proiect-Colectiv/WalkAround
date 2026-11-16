@@ -211,6 +211,62 @@ export interface FlightSearchInput {
   ticketOption: TicketOption;
 }
 
+export interface BusSearchInput {
+  originCity: string;
+  originCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  budget: number;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  ticketOption: TicketOption;
+}
+
+export interface BusLeg {
+  mode: string | null;
+  company: string | null;
+  lineNumber: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  departureZone: string | null;
+  arrivalZone: string | null;
+  durationMinutes: number | null;
+}
+
+export interface BusTransfer {
+  type: string | null;
+  afterLeg: number | null;
+  durationMinutes: number | null;
+}
+
+export interface BusJourney {
+  departureStation: string | null;
+  arrivalStation: string | null;
+  departureCity: string | null;
+  arrivalCity: string | null;
+  departureCountryCode: string | null;
+  arrivalCountryCode: string | null;
+  departureTime: string;
+  arrivalTime: string;
+  carrier: string | null;
+  carrierLogoUrl: string | null;
+  durationMinutes: number | null;
+  stops: number | null;
+  ticketsLeft: number | null;
+  splitTicket: boolean | null;
+  legs: BusLeg[];
+  transfers: BusTransfer[];
+}
+
+export interface BusItinerary {
+  ticketOption: TicketOption;
+  currency: string;
+  totalPrice: number;
+  outbound: BusJourney;
+  returning: BusJourney;
+}
+
 export interface AccommodationSearchInput {
   destinationCity: string;
   countryCode: string;
@@ -364,6 +420,14 @@ export function getCityNews(city: CitySuggestion): Promise<NewsArticle[]> {
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
   return send('/api/trip-plans/flight-searches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function searchBuses(input: BusSearchInput): Promise<BusItinerary[]> {
+  return send('/api/trip-plans/bus-searches', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

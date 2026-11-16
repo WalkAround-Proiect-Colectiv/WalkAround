@@ -1,5 +1,9 @@
 # Trip planning request and response records
 
+`BusSearchRequest` carries the two city/country pairs, total EUR budget, local departure datetime interval, staying nights, and ticket option. Bean Validation checks shape and bounds before `BusSearchServiceImpl` validates real cities and dates. `BusItineraryResponse` contains the combined fare and outbound/return `BusJourneyResponse` values, each with a list of `BusLegResponse` values.
+
+Bus journey responses also carry optional provider logo, stop city/country, tickets-left and split-ticket fields. Legs include time zones and duration. `BusTransferResponse` identifies the preceding leg and optional wait duration so the frontend can place connections correctly. These are additive fields; missing Scrappa values stay null or empty.
+
 These records form the JSON contract for the trip-planning controllers. Keep their field names and meanings stable when changing a provider or service implementation.
 
 | Record | Meaning |
