@@ -1,5 +1,7 @@
 # Trip-planning exceptions
 
+`InvalidTrainSearchException` represents rejected train input (400). `TrainSearchUnavailableException` represents missing provider configuration or upstream failure (502); its client response is generic.
+
 These custom runtime exceptions carry application-level failure categories from services to their controller-specific exception handlers. Client-visible messages describe invalid input; provider failures use generic messages that do not reveal provider responses, credentials, or request URLs.
 
 - Invalid input or selection: `InvalidCityQueryException`, `InvalidCitySelectionException`, `InvalidFlightSearchException`, `InvalidAccommodationSearchException`, `InvalidAttractionSearchException`, `InvalidSafetyInformationException`, `InvalidCountryHotlineRequestException`, `InvalidNewsFeedRequestException`, `InvalidWeatherForecastRequestException`, and `InvalidTripPlanException`.

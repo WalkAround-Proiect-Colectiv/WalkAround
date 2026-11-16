@@ -1,6 +1,8 @@
 # Trip planning backend
 
-This feature currently supports city suggestions, a local city-to-airports lookup, flight itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, a 14-day weather forecast, and saved search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
+Train search is available through `POST /api/trip-plans/train-searches`. The [`service/trainsearch`](service/trainsearch/README.md) package validates GeoNames cities, calls Scrappa Omio through a provider interface, and assembles round trips or two one-way fares. The frontend has Plane and Train choices; saved plans still represent flight presets only.
+
+This feature currently supports city suggestions, a local city-to-airports lookup, flight and train itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, a 14-day weather forecast, and saved flight search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
 
 ## Where to start
 

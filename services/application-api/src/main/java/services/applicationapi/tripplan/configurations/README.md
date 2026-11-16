@@ -1,5 +1,7 @@
 # Trip planning configuration
 
+`TrainSearchConfiguration` registers the qualified Scrappa REST client and `TrainSearchProperties`. `SCRAPPA_API_KEY` is local secret configuration; the base URL, timeout, result limit, departure date range, arrival offset and page cap are mapped from `application.yaml` and corresponding `.env` keys. No provider key is exposed to the frontend.
+
 Trip-planning properties bind under app.trip-plan; map place-search properties bind under app.place-search in src/main/resources/application.yaml. The configuration classes register the properties and create qualified RestClient beans: geoNamesRestClient, serpApiRestClient, travelRiskRestClient, currentsRestClient, openMeteoRestClient, and photonRestClient. Each client sets connection and read timeouts. Accommodation, safety, news, and weather search reuse GeoNames city validation.
 | Environment key | Property / role | Default in `application.yaml` |
 | --- | --- | --- |

@@ -1,5 +1,7 @@
 # Trip planning HTTP endpoints
 
+`TrainSearchController` exposes `POST /api/trip-plans/train-searches`, accepts validated train preset inputs, delegates to `TrainSearchService`, and returns price-sorted complete train itineraries. Both cities include their EU country codes; no airport is required.
+
 Controllers delegate to service interfaces. The `exceptionhandlers` package contains controller-specific `@RestControllerAdvice` classes that return `ProblemDetail` responses; upstream error details and credentials are not sent to clients.
 
 | Method and path | Input | Successful response |

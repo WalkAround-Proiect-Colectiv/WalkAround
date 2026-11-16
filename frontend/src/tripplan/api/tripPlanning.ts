@@ -211,6 +211,71 @@ export interface FlightSearchInput {
   ticketOption: TicketOption;
 }
 
+export interface TrainSearchInput {
+  originCity: string;
+  originCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  budget: number;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  ticketOption: TicketOption;
+}
+
+export interface TrainStop {
+  positionId: number;
+  name: string | null;
+  city: string | null;
+  countryCode: string | null;
+}
+
+export interface TrainTransfer {
+  type: string | null;
+  afterLeg: number | null;
+  durationMinutes: number | null;
+  fromStop: TrainStop | null;
+  toStop: TrainStop | null;
+}
+
+export interface TrainLeg {
+  mode: string | null;
+  company: string | null;
+  lineNumber: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  departureZone: string | null;
+  arrivalZone: string | null;
+  durationMinutes: number | null;
+}
+
+export interface TrainJourney {
+  departureStation: string | null;
+  arrivalStation: string | null;
+  departureCity: string | null;
+  arrivalCity: string | null;
+  departureCountryCode: string | null;
+  arrivalCountryCode: string | null;
+  departureTime: string;
+  arrivalTime: string;
+  carrier: string | null;
+  carrierLogoUrl: string | null;
+  durationMinutes: number | null;
+  stops: number | null;
+  ticketsLeft: number | null;
+  splitTicket: boolean | null;
+  legs: TrainLeg[];
+  transfers: TrainTransfer[];
+}
+
+export interface TrainItinerary {
+  ticketOption: TicketOption;
+  currency: string;
+  totalPrice: number;
+  outbound: TrainJourney;
+  returning: TrainJourney;
+}
+
 export interface AccommodationSearchInput {
   destinationCity: string;
   countryCode: string;
@@ -364,6 +429,14 @@ export function getCityNews(city: CitySuggestion): Promise<NewsArticle[]> {
 
 export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary[]> {
   return send('/api/trip-plans/flight-searches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function searchTrains(input: TrainSearchInput): Promise<TrainItinerary[]> {
+  return send('/api/trip-plans/train-searches', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

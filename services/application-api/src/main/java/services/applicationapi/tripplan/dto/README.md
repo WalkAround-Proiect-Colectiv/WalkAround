@@ -1,5 +1,7 @@
 # Trip planning request and response records
 
+`TrainSearchRequest` carries two city/country pairs, total EUR budget, local departure interval, staying nights, and ticket option. `TrainItineraryResponse` contains the combined fare and outbound/return `TrainJourneyResponse`. Journeys contain `TrainLegResponse` and `TrainTransferResponse` lists. `TrainStopResponse` holds transfer position IDs and optional resolved station, city and country. Missing provider details remain null or empty.
+
 These records form the JSON contract for the trip-planning controllers. Keep their field names and meanings stable when changing a provider or service implementation.
 
 | Record | Meaning |
