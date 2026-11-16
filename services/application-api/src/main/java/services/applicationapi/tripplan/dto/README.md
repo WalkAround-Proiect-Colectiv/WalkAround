@@ -2,6 +2,12 @@
 
 `TrainSearchRequest` carries two city/country pairs, total EUR budget, local departure interval, staying nights, and ticket option. `TrainItineraryResponse` contains the combined fare and outbound/return `TrainJourneyResponse`. Journeys contain `TrainLegResponse` and `TrainTransferResponse` lists. `TrainStopResponse` holds transfer position IDs and optional resolved station, city and country. Missing provider details remain null or empty.
 
+`BusSearchRequest` carries the two city/country pairs, total EUR budget, local departure datetime interval, staying nights, and ticket option. Bean Validation checks shape and bounds before `BusSearchServiceImpl` validates real cities and dates. `BusItineraryResponse` contains the combined fare and outbound/return `BusJourneyResponse` values, each with a list of `BusLegResponse` values.
+
+Bus journey responses also carry optional provider logo, stop city/country, tickets-left and split-ticket fields. Legs include time zones and duration. `BusTransferResponse` identifies the preceding leg and optional wait duration so the frontend can place connections correctly. These are additive fields; missing Scrappa values stay null or empty.
+
+Each transfer has optional `fromStop` and `toStop` values of type `BusStopResponse`. Position IDs come from the search result; names, cities and country codes are resolved through Omio Places after result selection. Unresolved positions retain their ID and leave descriptive fields null.
+
 These records form the JSON contract for the trip-planning controllers. Keep their field names and meanings stable when changing a provider or service implementation.
 
 | Record | Meaning |

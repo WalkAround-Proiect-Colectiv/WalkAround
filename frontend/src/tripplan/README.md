@@ -1,5 +1,9 @@
 # Trip planning screen
 
+The travel selector offers Plane and Bus. Bus searches send the selected departure and destination GeoNames cities and country codes, departure interval, EUR budget, staying nights, and ticket option to `POST /api/trip-plans/bus-searches`. Bus results use separate selectable cards; selecting one fills accommodation check-in from its outbound arrival date. The airport picker and saved-plan form are shown only for Plane, because the saved-plan contract still represents a flight preset. Switching transport clears stale ticket results.
+
+Bus cards open Omio searches prefilled with the selected journey's cities and dates. Round trips use one search with a return date; two one-way tickets use separate outbound and return searches. These links are not specific ticket or booking links, and users must select the offer again on Omio.
+
 The travel selector offers Plane and Train. Train searches send the selected departure and destination GeoNames cities and country codes, total EUR budget, local departure interval, nights and ticket option to `POST /api/trip-plans/train-searches`. The airport picker and saved-plan form appear for Plane only because saved plans still store flight presets. Selecting a train itinerary suggests accommodation check-in from its outbound arrival date. Transport changes clear stale ticket results.
 
 `src/app/trip-plan.tsx` exposes `TripPlanningScreen` as the `/trip-plan` route. The map menu links to it. The screen is protected by the existing `useSession` hook and redirects signed-out visitors to `/login`.
