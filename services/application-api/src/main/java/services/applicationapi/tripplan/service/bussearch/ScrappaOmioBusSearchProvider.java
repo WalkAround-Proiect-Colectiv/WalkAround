@@ -161,24 +161,34 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
     @Override
     public BusStopResponse findStop(long positionId) {
         JsonNode data = data(get("/api/omio/places", Map.of("id", positionId)));
-        JsonNode places = data.path("results");
-        if (places.isArray()) {
-            for (JsonNode place : places) {
-                if (place.path("position_id").canConvertToLong()
-                        && place.path("position_id").longValue() == positionId) {
-                    return stop(place);
-                }
-            }
+        JsonNode place = matchingPlace(data, positionId);
+        if (place == null) {
+            log.warn("Scrappa did not resolve transfer position {}", positionId);
+            return null;
         }
 
-        for (JsonNode candidate : List.of(data.path("place"), data.path("result"), data)) {
-            if (candidate.path("position_id").canConvertToLong()
-                    && candidate.path("position_id").longValue() == positionId) {
-                return stop(candidate);
+        BusStopResponse stop = stop(place);
+        if (stop.name() == null && stop.city() == null) {
+            log.warn("Scrappa resolved transfer position {} without a name or city", positionId);
+        }
+        return stop;
+    }
+
+    private JsonNode matchingPlace(JsonNode node, long positionId) {
+        for (String field : List.of("results", "place", "result", "children")) {
+            JsonNode nested = node.path(field);
+            if (nested.isArray()) {
+                for (JsonNode child : nested) {
+                    JsonNode match = matchingPlace(child, positionId);
+                    if (match != null) return match;
+                }
+            } else if (nested.isObject()) {
+                JsonNode match = matchingPlace(nested, positionId);
+                if (match != null) return match;
             }
         }
-        log.warn("Scrappa did not resolve transfer position {}", positionId);
-        return null;
+        return node.path("position_id").canConvertToLong()
+                && node.path("position_id").longValue() == positionId ? node : null;
     }
 
     private JsonNode get(String path, Map<String, ?> query) {
@@ -280,7 +290,8 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
 
     private BusStopResponse stop(JsonNode place) {
         return new BusStopResponse(place.path("position_id").longValue(),
-                text(place, "name"), text(place, "city_name") != null
+                text(place, "name") != null ? text(place, "name") : text(place, "default_name"),
+                text(place, "city_name") != null
                         ? text(place, "city_name") : text(place, "city"),
                 text(place, "country_code"));
     }
