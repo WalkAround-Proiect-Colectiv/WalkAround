@@ -14,7 +14,8 @@ import java.time.LocalDateTime;
 public record SaveTripPlanRequest(
         @NotBlank @Size(max = 120) String title,
         @Size(max = 2000) String description,
-        @NotBlank @Pattern(regexp = "(?i)[a-z]{3}") String originAirport,
+        @NotNull TransportMode transportMode,
+        @Pattern(regexp = "(?i)[a-z]{3}") String originAirport,
         @NotBlank @Size(max = 100) String departureCity,
         @NotBlank @Pattern(regexp = "(?i)[a-z]{2}") String departureCountryCode,
         @NotBlank @Size(max = 100) String destinationCity,
@@ -23,7 +24,7 @@ public record SaveTripPlanRequest(
         @NotNull LocalDateTime departureUntil,
         @NotNull @Min(1) @Max(365) Integer stayingNights,
         @NotNull TicketOption ticketOption,
-        @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal flightBudget,
+        @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal transportBudget,
         @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal accommodationBudget
 ) {
 }

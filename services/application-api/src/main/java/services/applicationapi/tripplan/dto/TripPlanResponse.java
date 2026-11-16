@@ -9,6 +9,7 @@ public record TripPlanResponse(
         UUID id,
         String title,
         String description,
+        TransportMode transportMode,
         String originAirport,
         String departureCity,
         String departureCountryCode,
@@ -18,7 +19,7 @@ public record TripPlanResponse(
         LocalDateTime departureUntil,
         int stayingNights,
         TicketOption ticketOption,
-        BigDecimal flightBudget,
+        BigDecimal transportBudget,
         BigDecimal accommodationBudget,
         Instant createdAt
 ) {

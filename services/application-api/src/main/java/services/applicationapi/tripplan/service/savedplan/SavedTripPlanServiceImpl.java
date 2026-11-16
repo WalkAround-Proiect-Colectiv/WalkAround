@@ -7,9 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import services.applicationapi.country.repository.CountryRepository;
+import services.applicationapi.tripplan.configurations.BusSearchProperties;
 import services.applicationapi.tripplan.configurations.FlightSearchProperties;
+import services.applicationapi.tripplan.configurations.TrainSearchProperties;
 import services.applicationapi.tripplan.dto.SaveTripPlanRequest;
 import services.applicationapi.tripplan.dto.TicketOption;
+import services.applicationapi.tripplan.dto.TransportMode;
 import services.applicationapi.tripplan.dto.TripPlanResponse;
 import services.applicationapi.tripplan.model.TripPlan;
 import services.applicationapi.tripplan.repository.TripPlanRepository;
@@ -34,6 +37,8 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
     private final CountryRepository countries;
     private final DestinationCityValidator cityValidator;
     private final FlightSearchProperties flightProperties;
+    private final BusSearchProperties busProperties;
+    private final TrainSearchProperties trainProperties;
 
     public SavedTripPlanServiceImpl(
             TripPlanRepository tripPlans,
@@ -41,7 +46,9 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
             CityAirportService cityAirports,
             CountryRepository countries,
             DestinationCityValidator cityValidator,
-            FlightSearchProperties flightProperties
+            FlightSearchProperties flightProperties,
+            BusSearchProperties busProperties,
+            TrainSearchProperties trainProperties
     ) {
         this.tripPlans = tripPlans;
         this.users = users;
@@ -49,6 +56,8 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         this.countries = countries;
         this.cityValidator = cityValidator;
         this.flightProperties = flightProperties;
+        this.busProperties = busProperties;
+        this.trainProperties = trainProperties;
     }
 
     @Override
@@ -69,7 +78,8 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         }
 
         String description = normalizeDescription(request.description());
-        String originAirport = request.originAirport().toUpperCase(Locale.ROOT);
+        String originAirport = request.originAirport() == null
+                ? null : request.originAirport().toUpperCase(Locale.ROOT);
 
         String departureCountryCode = request.departureCountryCode().toUpperCase(Locale.ROOT);
         if (countries.findByCode(departureCountryCode).isEmpty()) {
@@ -77,12 +87,20 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         }
 
         String departureCity = validateCity(request.departureCity(), departureCountryCode, "Departure");
-        boolean airportBelongsToCity = cityAirports.findAirports(departureCity, departureCountryCode)
-                .stream()
-                .anyMatch(airport -> originAirport.equalsIgnoreCase(airport.iataCode()));
-        if (!airportBelongsToCity) {
-            log.debug("Rejected origin airport {} outside selected departure city", originAirport);
-            throw new InvalidTripPlanException("Origin airport was not found in the selected departure city");
+        if (request.transportMode() == TransportMode.PLANE) {
+            if (originAirport == null) {
+                throw new InvalidTripPlanException("Origin airport is required for a plane trip");
+            }
+            String selectedAirport = originAirport;
+            boolean airportBelongsToCity = cityAirports.findAirports(departureCity, departureCountryCode)
+                    .stream()
+                    .anyMatch(airport -> selectedAirport.equalsIgnoreCase(airport.iataCode()));
+            if (!airportBelongsToCity) {
+                log.debug("Rejected origin airport {} outside selected departure city", originAirport);
+                throw new InvalidTripPlanException("Origin airport was not found in the selected departure city");
+            }
+        } else if (originAirport != null) {
+            throw new InvalidTripPlanException("Origin airport is only valid for a plane trip");
         }
 
         String countryCode = request.countryCode().toUpperCase(Locale.ROOT);
@@ -95,6 +113,7 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 user,
                 title,
                 description,
+                request.transportMode().name(),
                 originAirport,
                 departureCity,
                 departureCountryCode,
@@ -104,12 +123,12 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 request.departureUntil(),
                 request.stayingNights(),
                 request.ticketOption().name(),
-                request.flightBudget(),
+                request.transportBudget(),
                 request.accommodationBudget()
         );
 
         TripPlan saved = tripPlans.save(plan);
-        log.info("Saved trip plan {} for user {}", saved.getId(), userId);
+        log.info("Saved {} trip plan {} for user {}", request.transportMode(), saved.getId(), userId);
         return toResponse(saved);
     }
 
@@ -156,7 +175,12 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 request.departureUntil().toLocalDate()
         ) + 1;
 
-        if (days > flightProperties.flightSearchMaxDateRangeDays()) {
+        int maxDays = switch (request.transportMode()) {
+            case PLANE -> flightProperties.flightSearchMaxDateRangeDays();
+            case BUS -> busProperties.busSearchMaxDateRangeDays();
+            case TRAIN -> trainProperties.trainSearchMaxDateRangeDays();
+        };
+        if (days > maxDays) {
             throw new InvalidTripPlanException("Departure interval covers too many dates");
         }
     }
@@ -180,6 +204,7 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 plan.getId(),
                 plan.getTitle(),
                 plan.getDescription(),
+                TransportMode.valueOf(plan.getTransportMode()),
                 plan.getOriginAirport(),
                 plan.getDepartureCity(),
                 plan.getDepartureCountryCode(),
@@ -189,7 +214,7 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 plan.getDepartureUntil(),
                 plan.getStayingNights(),
                 TicketOption.valueOf(plan.getTicketOption()),
-                plan.getFlightBudget(),
+                plan.getTransportBudget(),
                 plan.getAccommodationBudget(),
                 plan.getCreatedAt()
         );

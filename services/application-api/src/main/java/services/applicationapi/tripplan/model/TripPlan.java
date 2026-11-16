@@ -35,7 +35,10 @@ public class TripPlan {
     @Column(length = 2000)
     private String description;
 
-    @Column(nullable = false, length = 3)
+    @Column(nullable = false, length = 5)
+    private String transportMode;
+
+    @Column(length = 3)
     private String originAirport;
 
     @Column(nullable = false, length = 100)
@@ -63,7 +66,7 @@ public class TripPlan {
     private String ticketOption;
 
     @Column(nullable = false, precision = 11, scale = 2)
-    private BigDecimal flightBudget;
+    private BigDecimal transportBudget;
 
     @Column(nullable = false, precision = 11, scale = 2)
     private BigDecimal accommodationBudget;
@@ -75,6 +78,7 @@ public class TripPlan {
             User user,
             String title,
             String description,
+            String transportMode,
             String originAirport,
             String departureCity,
             String departureCountryCode,
@@ -84,13 +88,14 @@ public class TripPlan {
             LocalDateTime departureUntil,
             int stayingNights,
             String ticketOption,
-            BigDecimal flightBudget,
+            BigDecimal transportBudget,
             BigDecimal accommodationBudget
     ) {
         this.id = UUID.randomUUID();
         this.user = user;
         this.title = title;
         this.description = description;
+        this.transportMode = transportMode;
         this.originAirport = originAirport;
         this.departureCity = departureCity;
         this.departureCountryCode = departureCountryCode;
@@ -100,7 +105,7 @@ public class TripPlan {
         this.departureUntil = departureUntil;
         this.stayingNights = stayingNights;
         this.ticketOption = ticketOption;
-        this.flightBudget = flightBudget;
+        this.transportBudget = transportBudget;
         this.accommodationBudget = accommodationBudget;
         this.createdAt = Instant.now();
     }

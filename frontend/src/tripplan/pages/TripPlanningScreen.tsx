@@ -775,12 +775,14 @@ export default function TripPlanningScreen() {
       setSaveError('The description contains invalid characters.');
       return;
     }
-    if (!departureCity || !airport?.iataCode || !destinationCity) {
-      setSaveError('Choose departure and destination cities, plus a departure airport.');
+    if (!departureCity || !destinationCity || (transport === 'PLANE' && !airport?.iataCode)) {
+      setSaveError(transport === 'PLANE'
+        ? 'Choose departure and destination cities, plus a departure airport.'
+        : 'Choose departure and destination cities.');
       return;
     }
     if (!validDateTime(fromDate, fromTime) || !validDateTime(untilDate, untilTime)) {
-      setSaveError('Choose a valid flight departure period above.');
+      setSaveError('Choose a valid departure period above.');
       return;
     }
     const from = `${fromDate}T${fromTime}:00`;
@@ -794,11 +796,11 @@ export default function TripPlanningScreen() {
       setSaveError('Enter a stay of 1 to 365 nights.');
       return;
     }
-    const flightAmount = Number(budget);
+    const transportAmount = Number(budget);
     const stayAmount = Number(accommodationBudget);
-    if (!/^\d+(\.\d{1,2})?$/.test(budget) || flightAmount <= 0 || flightAmount > 999_999_999.99 ||
+    if (!/^\d+(\.\d{1,2})?$/.test(budget) || transportAmount <= 0 || transportAmount > 999_999_999.99 ||
         !/^\d+(\.\d{1,2})?$/.test(accommodationBudget) || stayAmount <= 0 || stayAmount > 999_999_999.99) {
-      setSaveError('Enter valid flight and accommodation budgets in EUR.');
+      setSaveError('Enter valid transport and accommodation budgets in EUR.');
       return;
     }
 
@@ -809,7 +811,8 @@ export default function TripPlanningScreen() {
       const result = await saveTripPlan({
         title,
         description: description || null,
-        originAirport: airport.iataCode,
+        transportMode: transport,
+        originAirport: transport === 'PLANE' ? airport!.iataCode : null,
         departureCity: departureCity.lookupName || departureCity.name,
         departureCountryCode: departureCity.countryCode,
         destinationCity: destinationCity.lookupName || destinationCity.name,
@@ -818,7 +821,7 @@ export default function TripPlanningScreen() {
         departureUntil: until,
         stayingNights: stay,
         ticketOption,
-        flightBudget: flightAmount,
+        transportBudget: transportAmount,
         accommodationBudget: stayAmount,
       });
       setHasSavedBefore(true);
@@ -1153,7 +1156,7 @@ export default function TripPlanningScreen() {
             key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} />)}
         </View>}
 
-        {transport === 'PLANE' && <View style={styles.card}>
+        <View style={styles.card}>
           <View style={styles.stepRow}><Text style={styles.stepNumber}>04</Text><Text style={styles.stepLabel}>KEEP YOUR PLAN</Text></View>
           <View style={styles.sectionHeading}>
             <View style={styles.iconBubble}><BookmarkPlus size={20} color={BLUE} /></View>
@@ -1162,7 +1165,7 @@ export default function TripPlanningScreen() {
               <Text style={styles.helper}>Keep your search choices for another day</Text>
             </View>
           </View>
-          <Text style={styles.helper}>Your cities, departure airport, dates, nights, ticket style, and budgets will be saved. Flight and stay offers can change, so search again when you return.</Text>
+          <Text style={styles.helper}>Your transport choice, cities{transport === 'PLANE' ? ', departure airport' : ''}, dates, nights, ticket style, and budgets will be saved. Tickets and stay offers can change, so search again when you return.</Text>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Plan title</Text>
             <TextInput accessibilityLabel="Plan title" autoCapitalize="sentences" maxLength={120}
@@ -1191,7 +1194,7 @@ export default function TripPlanningScreen() {
             {saveBusy ? <ActivityIndicator color="#fff" /> : savedPlan ? <BookmarkCheck size={20} color="#fff" /> : <BookmarkPlus size={20} color="#fff" />}
             <Text style={styles.primaryButtonText}>{saveBusy ? 'Saving trip…' : savedPlan ? 'Trip saved' : hasSavedBefore ? 'Save as new plan' : 'Save trip plan'}</Text>
           </Pressable>
-        </View>}
+        </View>
 
         <View style={styles.card}>
           <View style={styles.stepRow}><Text style={styles.stepNumber}>05</Text><Text style={styles.stepLabel}>EXPLORE YOUR DESTINATION</Text></View>
