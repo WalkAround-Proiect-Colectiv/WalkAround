@@ -383,7 +383,8 @@ export interface AccommodationOffer {
 export interface SaveTripPlanInput {
   title: string;
   description: string | null;
-  originAirport: string;
+  transportMode: 'PLANE' | 'BUS' | 'TRAIN';
+  originAirport: string | null;
   departureCity: string;
   departureCountryCode: string;
   destinationCity: string;
@@ -392,7 +393,7 @@ export interface SaveTripPlanInput {
   departureUntil: string;
   stayingNights: number;
   ticketOption: TicketOption;
-  flightBudget: number;
+  transportBudget: number;
   accommodationBudget: number;
 }
 
