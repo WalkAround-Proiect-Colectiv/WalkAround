@@ -24,12 +24,14 @@ public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
     private static final Logger log = LoggerFactory.getLogger(BiloTrainSearchServiceImpl.class);
 
     private final BiloTrainProvider provider;
+    private final ExchangeRateProvider exchangeRates;
     private final BiloTrainProperties biloProperties;
     private final TrainSearchProperties trainProperties;
 
-    public BiloTrainSearchServiceImpl(BiloTrainProvider provider, BiloTrainProperties biloProperties,
-                                      TrainSearchProperties trainProperties) {
+    public BiloTrainSearchServiceImpl(BiloTrainProvider provider, ExchangeRateProvider exchangeRates,
+                                      BiloTrainProperties biloProperties, TrainSearchProperties trainProperties) {
         this.provider = provider;
+        this.exchangeRates = exchangeRates;
         this.biloProperties = biloProperties;
         this.trainProperties = trainProperties;
     }
@@ -45,6 +47,7 @@ public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
     public List<TrainItineraryResponse> search(TrainSearchRequest request, String origin,
                                                String destination) {
         if (!supports(request.ticketOption())) return List.of();
+        BigDecimal ronToEur = exchangeRates.rate("RON", "EUR");
         List<TrainItineraryResponse> results = new ArrayList<>();
         Map<LocalDate, List<Offer>> returnDays = new HashMap<>();
         LocalDate lastSupportedDate = LocalDate.now().plusDays(364);
@@ -62,7 +65,7 @@ public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
                 List<Offer> returning = returnDays.computeIfAbsent(returnDate,
                         day -> provider.search(destination, origin, day));
                 for (Offer returnOffer : returning) {
-                    BigDecimal totalEur = eur(outbound).add(eur(returnOffer));
+                    BigDecimal totalEur = eur(outbound, ronToEur).add(eur(returnOffer, ronToEur));
                     if (!returnOffer.departure().toLocalDate().equals(returnDate)
                             || totalEur.compareTo(request.budget()) > 0) continue;
 
@@ -90,9 +93,9 @@ public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
                 .toList();
     }
 
-    private BigDecimal eur(Offer offer) {
+    private BigDecimal eur(Offer offer, BigDecimal ronToEur) {
         return "RON".equals(offer.currency())
-                ? offer.price().divide(biloProperties.biloRonPerEur(), 8, RoundingMode.HALF_UP)
+                ? offer.price().multiply(ronToEur)
                 : offer.price();
     }
 }

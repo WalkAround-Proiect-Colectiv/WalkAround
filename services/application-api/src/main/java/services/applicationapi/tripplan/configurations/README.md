@@ -2,9 +2,9 @@
 
 `BusSearchConfiguration` and `TrainSearchConfiguration` register separate qualified Scrappa REST clients and bind their respective search properties. Both use the same `SCRAPPA_API_KEY`, `SCRAPPA_BASE_URL`, and `SCRAPPA_TIMEOUT` settings. Each mode has its own provider selector, result limit, departure date range, arrival offset, and page cap. Keep the shared Scrappa keys only once in `application.yaml` and `.env.example`; no provider key is exposed to the frontend.
 
-`BiloTrainConfiguration` registers a separate qualified REST client for domestic Romanian train search. `BILO_API_KEY` is a server-only bearer credential. Without it, the train service searches only Omio. `BILO_RON_PER_EUR` is a manually maintained RON-per-EUR rate used to compare Bilo fares with the EUR budget; the returned offer retains its original fare currency and amount.
+`BiloTrainConfiguration` registers a separate qualified REST client for Romanian train search. `BILO_API_KEY` is a server-only bearer credential. Without it, the train service searches only Omio. `ExchangeRateConfiguration` registers the Frankfurter REST client used to fetch the latest RON-to-EUR reference rate once per eligible Bilo search. The returned offer retains its original fare currency and amount.
 
-Trip-planning properties bind under `app.trip-plan`; map place-search properties bind under `app.place-search` in `src/main/resources/application.yaml`. The configuration classes register the properties and create qualified `RestClient` beans: `geoNamesRestClient`, `serpApiRestClient`, `scrappaRestClient`, `scrappaTrainRestClient`, `travelRiskRestClient`, `currentsRestClient`, `openMeteoRestClient`, and `photonRestClient`. Each client sets connection and read timeouts. Accommodation, safety, news, weather, bus, and train search reuse GeoNames city validation.
+Trip-planning properties bind under `app.trip-plan`; map place-search properties bind under `app.place-search` in `src/main/resources/application.yaml`. The configuration classes register the properties and create qualified `RestClient` beans: `geoNamesRestClient`, `serpApiRestClient`, `scrappaRestClient`, `scrappaTrainRestClient`, `biloTrainRestClient`, `frankfurterRestClient`, `travelRiskRestClient`, `currentsRestClient`, `openMeteoRestClient`, and `photonRestClient`. Each client sets connection and read timeouts. Accommodation, safety, news, weather, bus, and train search reuse GeoNames city validation.
 | Environment key | Property / role | Default in `application.yaml` |
 | --- | --- | --- |
 | `CITY_PROVIDER` | Selects the `CitySearchProvider` implementation | `geonames` |
@@ -36,8 +36,9 @@ Trip-planning properties bind under `app.trip-plan`; map place-search properties
 | `BILO_API_KEY` | Private bearer key for Romanian train searches | Empty; Bilo disabled |
 | `BILO_BASE_URL` | Bilo HTTPS API base URL | `https://mcp.bilo.ro/api/v1` |
 | `BILO_TIMEOUT` | Bilo connect/read timeout | `PT15S` |
-| `BILO_RON_PER_EUR` | RON per EUR for budget filtering; update when the rate changes | `5.3494` |
 | `BILO_SEARCH_PAGE_SIZE` | Maximum Bilo journeys requested per date, 1 to 50 | `50` |
+| `FRANKFURTER_BASE_URL` | Frankfurter HTTPS API base URL for exchange rates | `https://api.frankfurter.dev` |
+| `FRANKFURTER_TIMEOUT` | Frankfurter connect/read timeout | `PT5S` |
 | `ACCOMMODATION_PROVIDER` | Selects the `AccommodationSearchProvider` implementation | `serpapi` |
 | `ACCOMMODATION_SEARCH_MAX_RESULTS` | Maximum accommodation offers returned | `3` |
 | `ATTRACTION_PROVIDER` | Selects the shared `AttractionSearchProvider` implementation for all place categories | `serpapi` |

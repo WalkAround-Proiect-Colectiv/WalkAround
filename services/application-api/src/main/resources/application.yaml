@@ -129,8 +129,9 @@ app:
     bilo-api-key: ${BILO_API_KEY:}
     bilo-base-url: ${BILO_BASE_URL:https://mcp.bilo.ro/api/v1}
     bilo-timeout: ${BILO_TIMEOUT:PT15S}
-    bilo-ron-per-eur: ${BILO_RON_PER_EUR:5.3494}
     bilo-search-page-size: ${BILO_SEARCH_PAGE_SIZE:50}
+    frankfurter-base-url: ${FRANKFURTER_BASE_URL:https://api.frankfurter.dev}
+    frankfurter-timeout: ${FRANKFURTER_TIMEOUT:PT5S}
     bus-provider: ${BUS_PROVIDER:scrappa}
     bus-search-max-results: ${BUS_SEARCH_MAX_RESULTS:3}
     bus-search-max-date-range-days: ${BUS_SEARCH_MAX_DATE_RANGE_DAYS:7}

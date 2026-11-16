@@ -157,7 +157,7 @@ export default function TrainTicketCard({ itinerary, index, selected, onSelect }
       <Journey title="OUTBOUND" journey={itinerary.outbound} />
       <Journey title="RETURN" journey={itinerary.returning} />
       <Text style={styles.note}>{isBilo
-        ? `Bilo uses published schedules and fares, not live seat inventory.${convertedFromRon ? ' EUR is converted using the configured rate.' : ''} Check the final price and availability with the operator.`
+        ? `Bilo uses published schedules and fares, not live seat inventory.${convertedFromRon ? ' EUR is estimated using a recent Frankfurter exchange rate.' : ''} Check the final price and availability with the operator.`
         : 'Omio opens a search with these cities and dates. Select the offer again there; prices and availability can change.'}</Text>
       {isBilo && itinerary.estimatedFare && <Text style={styles.note}>Bilo marks this fare as estimated.</Text>}
       {isBilo && itinerary.partialCatalog && <Text style={styles.note}>Bilo reports incomplete operator coverage for this search.</Text>}
