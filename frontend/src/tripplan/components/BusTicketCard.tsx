@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BusFront, ExternalLink } from 'lucide-react-native';
-import type { BusItinerary, BusJourney } from '../api/tripPlanning';
+import type { BusItinerary, BusJourney, BusStop } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
 const PURPLE = '#23012C';
@@ -12,6 +12,12 @@ function time(value: string | null): string {
 
 function duration(minutes: number | null): string | null {
   return minutes == null ? null : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+
+function stopLabel(stop: BusStop | null): string | null {
+  if (!stop) return null;
+  if (!stop.name && !stop.city) return null;
+  return [stop.name, stop.city, stop.countryCode].filter(Boolean).join(', ');
 }
 
 function Logo({ journey }: { journey: BusJourney }) {
@@ -51,11 +57,18 @@ function Journey({ title, journey }: { title: string; journey: BusJourney }) {
         {[duration(leg.durationMinutes), leg.departureZone && leg.arrivalZone && leg.departureZone !== leg.arrivalZone
           ? `${leg.departureZone} to ${leg.arrivalZone}` : leg.departureZone || leg.arrivalZone].filter(Boolean).join(' | ')}
       </Text>}
-      {journey.transfers.filter((transfer) => transfer.afterLeg === index).map((transfer, transferIndex) => <Text
-        key={`${title}-transfer-${index}-${transferIndex}`} style={styles.transfer}>
-        {transfer.type || 'Transfer'}
-        {transfer.durationMinutes != null ? ` | ${duration(transfer.durationMinutes)}` : ''}
-      </Text>)}
+      {journey.transfers.filter((transfer) => transfer.afterLeg === index).map((transfer, transferIndex) => {
+        const from = stopLabel(transfer.fromStop);
+        const to = stopLabel(transfer.toStop);
+        const sameStop = transfer.fromStop?.positionId === transfer.toStop?.positionId;
+        return <View key={`${title}-transfer-${index}-${transferIndex}`}>
+          <Text style={styles.transfer}>
+            {transfer.type || 'Transfer'}
+            {transfer.durationMinutes != null ? ` | ${duration(transfer.durationMinutes)}` : ''}
+          </Text>
+          {(from || to) && <Text style={styles.detail}>{sameStop ? from || to : `${from || 'Unknown stop'} to ${to || 'Unknown stop'}`}</Text>}
+        </View>;
+      })}
     </View>)}
   </View>;
 }

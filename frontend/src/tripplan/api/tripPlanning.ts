@@ -238,6 +238,15 @@ export interface BusTransfer {
   type: string | null;
   afterLeg: number | null;
   durationMinutes: number | null;
+  fromStop: BusStop | null;
+  toStop: BusStop | null;
+}
+
+export interface BusStop {
+  positionId: number;
+  name: string | null;
+  city: string | null;
+  countryCode: string | null;
 }
 
 export interface BusJourney {

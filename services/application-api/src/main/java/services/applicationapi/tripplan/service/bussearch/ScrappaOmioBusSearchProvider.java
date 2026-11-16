@@ -20,6 +20,7 @@ import org.springframework.web.client.RestClientException;
 import services.applicationapi.tripplan.configurations.BusSearchProperties;
 import services.applicationapi.tripplan.dto.BusJourneyResponse;
 import services.applicationapi.tripplan.dto.BusLegResponse;
+import services.applicationapi.tripplan.dto.BusStopResponse;
 import services.applicationapi.tripplan.dto.BusTransferResponse;
 import services.applicationapi.tripplan.service.exceptions.BusSearchUnavailableException;
 import services.applicationapi.tripplan.service.exceptions.InvalidBusSearchException;
@@ -157,6 +158,29 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
         return results;
     }
 
+    @Override
+    public BusStopResponse findStop(long positionId) {
+        JsonNode data = data(get("/api/omio/places", Map.of("id", positionId)));
+        JsonNode places = data.path("results");
+        if (places.isArray()) {
+            for (JsonNode place : places) {
+                if (place.path("position_id").canConvertToLong()
+                        && place.path("position_id").longValue() == positionId) {
+                    return stop(place);
+                }
+            }
+        }
+
+        for (JsonNode candidate : List.of(data.path("place"), data.path("result"), data)) {
+            if (candidate.path("position_id").canConvertToLong()
+                    && candidate.path("position_id").longValue() == positionId) {
+                return stop(candidate);
+            }
+        }
+        log.warn("Scrappa did not resolve transfer position {}", positionId);
+        return null;
+    }
+
     private JsonNode get(String path, Map<String, ?> query) {
         try {
             return client.get()
@@ -223,7 +247,8 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
         if (rawChanges.isArray()) {
             for (JsonNode change : rawChanges) {
                 transfers.add(new BusTransferResponse(text(change, "type"),
-                        integer(change, "after_leg"), integer(change, "duration_minutes")));
+                        integer(change, "after_leg"), integer(change, "duration_minutes"),
+                        stopId(change, "from_position_id"), stopId(change, "to_position_id")));
             }
         }
 
@@ -245,6 +270,19 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
     private Integer integer(JsonNode node, String field) {
         JsonNode value = node.path(field);
         return value.isInt() ? value.intValue() : null;
+    }
+
+    private BusStopResponse stopId(JsonNode node, String field) {
+        JsonNode id = node.path(field);
+        return id.canConvertToLong() && id.longValue() > 0
+                ? new BusStopResponse(id.longValue(), null, null, null) : null;
+    }
+
+    private BusStopResponse stop(JsonNode place) {
+        return new BusStopResponse(place.path("position_id").longValue(),
+                text(place, "name"), text(place, "city_name") != null
+                        ? text(place, "city_name") : text(place, "city"),
+                text(place, "country_code"));
     }
 
     private String safeLogoUrl(String value) {

@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import services.applicationapi.tripplan.dto.BusJourneyResponse;
+import services.applicationapi.tripplan.dto.BusStopResponse;
 
 public interface BusSearchProvider {
 
@@ -12,6 +13,8 @@ public interface BusSearchProvider {
     SearchPage search(long originId, long destinationId, LocalDate date, LocalDate returnDate, int page);
 
     List<ReturnOffer> returns(String searchId, String tripId);
+
+    BusStopResponse findStop(long positionId);
 
     record SearchPage(String searchId, List<BusOffer> offers, boolean hasMore) {
     }

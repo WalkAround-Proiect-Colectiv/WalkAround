@@ -10,13 +10,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import services.applicationapi.country.repository.CountryRepository;
 import services.applicationapi.tripplan.configurations.BusSearchProperties;
 import services.applicationapi.tripplan.dto.BusItineraryResponse;
+import services.applicationapi.tripplan.dto.BusJourneyResponse;
 import services.applicationapi.tripplan.dto.BusSearchRequest;
+import services.applicationapi.tripplan.dto.BusStopResponse;
+import services.applicationapi.tripplan.dto.BusTransferResponse;
 import services.applicationapi.tripplan.dto.TicketOption;
 import services.applicationapi.tripplan.service.bussearch.BusSearchProvider.BusOffer;
 import services.applicationapi.tripplan.service.bussearch.BusSearchProvider.ReturnOffer;
@@ -65,9 +69,14 @@ public class BusSearchServiceImpl implements BusSearchService {
             searchSeparateTickets(request, originId, destinationId, budgetMinor, results);
         }
 
-        return results.stream()
+        List<BusItineraryResponse> selected = results.stream()
                 .sorted(Comparator.comparing(BusItineraryResponse::totalPrice))
                 .limit(properties.busSearchMaxResults())
+                .toList();
+
+        Map<Long, Optional<BusStopResponse>> resolvedStops = new HashMap<>();
+        return selected.stream()
+                .map(result -> enrich(result, resolvedStops))
                 .toList();
     }
 
@@ -217,6 +226,43 @@ public class BusSearchServiceImpl implements BusSearchService {
 
     private BigDecimal amount(long cents) {
         return BigDecimal.valueOf(cents, 2);
+    }
+
+    private BusItineraryResponse enrich(BusItineraryResponse result,
+                                        Map<Long, Optional<BusStopResponse>> resolvedStops) {
+        return new BusItineraryResponse(result.ticketOption(), result.currency(),
+                result.totalPrice(), enrich(result.outbound(), resolvedStops),
+                enrich(result.returning(), resolvedStops));
+    }
+
+    private BusJourneyResponse enrich(BusJourneyResponse journey,
+                                      Map<Long, Optional<BusStopResponse>> resolvedStops) {
+        List<BusTransferResponse> transfers = journey.transfers().stream()
+                .map(transfer -> new BusTransferResponse(transfer.type(), transfer.afterLeg(),
+                        transfer.durationMinutes(), resolve(transfer.fromStop(), resolvedStops),
+                        resolve(transfer.toStop(), resolvedStops)))
+                .toList();
+
+        return new BusJourneyResponse(journey.departureStation(), journey.arrivalStation(),
+                journey.departureCity(), journey.arrivalCity(),
+                journey.departureCountryCode(), journey.arrivalCountryCode(),
+                journey.departureTime(), journey.arrivalTime(), journey.carrier(),
+                journey.carrierLogoUrl(), journey.durationMinutes(), journey.stops(),
+                journey.ticketsLeft(), journey.splitTicket(), journey.legs(), transfers);
+    }
+
+    private BusStopResponse resolve(BusStopResponse stop,
+                                    Map<Long, Optional<BusStopResponse>> resolvedStops) {
+        if (stop == null || stop.positionId() == null) return stop;
+        return resolvedStops.computeIfAbsent(stop.positionId(), id -> {
+            try {
+                return Optional.ofNullable(provider.findStop(id));
+            } catch (BusSearchUnavailableException exception) {
+                log.warn("Could not resolve bus transfer position {}: {}",
+                        id, exception.getClass().getSimpleName());
+                return Optional.empty();
+            }
+        }).orElse(stop);
     }
 
     private record RoundTripCandidate(String searchId, BusOffer offer, LocalDate returnDate) {
