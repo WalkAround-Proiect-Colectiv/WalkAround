@@ -1,10 +1,8 @@
 # Trip planning configuration
 
-`TrainSearchConfiguration` registers the qualified Scrappa REST client and `TrainSearchProperties`. `SCRAPPA_API_KEY` is local secret configuration; the base URL, timeout, result limit, departure date range, arrival offset and page cap are mapped from `application.yaml` and corresponding `.env` keys. No provider key is exposed to the frontend.
+`BusSearchConfiguration` and `TrainSearchConfiguration` register separate qualified Scrappa REST clients and bind their respective search properties. Both use the same `SCRAPPA_API_KEY`, `SCRAPPA_BASE_URL`, and `SCRAPPA_TIMEOUT` settings. Each mode has its own provider selector, result limit, departure date range, arrival offset, and page cap. Keep the shared Scrappa keys only once in `application.yaml` and `.env.example`; no provider key is exposed to the frontend.
 
-`BusSearchConfiguration` registers the qualified Scrappa REST client and `BusSearchProperties`. `SCRAPPA_API_KEY` belongs in the local `.env`; URL, timeout, provider name, result count, date window, arrival offset, and page cap are configurable through `application.yaml` and matching `.env.example` keys. The key is never sent to the frontend.
-
-Trip-planning properties bind under app.trip-plan; map place-search properties bind under app.place-search in src/main/resources/application.yaml. The configuration classes register the properties and create qualified RestClient beans: geoNamesRestClient, serpApiRestClient, travelRiskRestClient, currentsRestClient, openMeteoRestClient, and photonRestClient. Each client sets connection and read timeouts. Accommodation, safety, news, and weather search reuse GeoNames city validation.
+Trip-planning properties bind under `app.trip-plan`; map place-search properties bind under `app.place-search` in `src/main/resources/application.yaml`. The configuration classes register the properties and create qualified `RestClient` beans: `geoNamesRestClient`, `serpApiRestClient`, `scrappaRestClient`, `scrappaTrainRestClient`, `travelRiskRestClient`, `currentsRestClient`, `openMeteoRestClient`, and `photonRestClient`. Each client sets connection and read timeouts. Accommodation, safety, news, weather, bus, and train search reuse GeoNames city validation.
 | Environment key | Property / role | Default in `application.yaml` |
 | --- | --- | --- |
 | `CITY_PROVIDER` | Selects the `CitySearchProvider` implementation | `geonames` |
@@ -25,6 +23,14 @@ Trip-planning properties bind under app.trip-plan; map place-search properties b
 | `SERP_API_TIMEOUT` | SerpApi connect/read timeout | `PT15S` |
 | `FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS` | Maximum calendar dates covered by one departure interval | `7` |
 | `FLIGHT_SEARCH_MAX_ARRIVAL_OFFSET_DAYS` | Maximum days between outbound departure and final arrival for round-trip searches, 0 to 7; bounds initial SerpApi searches per departure date | `2` |
+| `SCRAPPA_API_KEY` | Private key shared by the Omio bus and train providers | Required when either provider is used |
+| `SCRAPPA_BASE_URL` | Scrappa HTTPS base URL | `https://scrappa.co` |
+| `SCRAPPA_TIMEOUT` | Scrappa connect/read timeout | `PT30S` |
+| `BUS_PROVIDER` / `TRAIN_PROVIDER` | Selects the provider implementation for each mode | `scrappa` |
+| `BUS_SEARCH_MAX_RESULTS` / `TRAIN_SEARCH_MAX_RESULTS` | Maximum returned itineraries and round-trip detail lookups per mode | `3` |
+| `BUS_SEARCH_MAX_DATE_RANGE_DAYS` / `TRAIN_SEARCH_MAX_DATE_RANGE_DAYS` | Maximum departure dates searched per request | `7` |
+| `BUS_SEARCH_MAX_ARRIVAL_OFFSET_DAYS` / `TRAIN_SEARCH_MAX_ARRIVAL_OFFSET_DAYS` | Maximum outbound arrival offset explored for return dates | `2` |
+| `BUS_SEARCH_MAX_PAGES_PER_DATE` / `TRAIN_SEARCH_MAX_PAGES_PER_DATE` | Maximum Omio result pages searched for each date pair | `1` |
 | `ACCOMMODATION_PROVIDER` | Selects the `AccommodationSearchProvider` implementation | `serpapi` |
 | `ACCOMMODATION_SEARCH_MAX_RESULTS` | Maximum accommodation offers returned | `3` |
 | `ATTRACTION_PROVIDER` | Selects the shared `AttractionSearchProvider` implementation for all place categories | `serpapi` |

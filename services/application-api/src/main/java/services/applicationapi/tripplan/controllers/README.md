@@ -18,7 +18,10 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 | `GET /api/trip-plans/countries/{countryCode}/hotlines` | Two-letter EU destination country code | `CountryHotlineResponse` with one item per hotline and typed numbers from the local database. The selected city supplies its country code on the frontend. |
 | `GET /api/trip-plans/cities/{city}/news?countryCode=FR` | Selected destination city and EU country code | Up to the configured page size of `NewsArticleResponse` objects with publisher links. URL-encode the city path segment. |
 | `GET /api/trip-plans/cities/{city}/weather?countryCode=FR` | Selected GeoNames city and two-letter country code | `DestinationWeatherResponse` with up to 14 destination-local forecast days. URL-encode the city path segment. |
+| `GET /api/trip-plans/cities/{city}/historical-weather?countryCode=FR&checkInDate=2027-04-02&stayingNights=3` | Selected destination and stay period | Historical daily weather for configured comparison years. |
 | `POST /api/trip-plans/flight-searches` | JSON `FlightSearchRequest` | Up to the configured number of `FlightItineraryResponse` objects. Search is read-only; it creates no trip or booking record. |
+| `POST /api/trip-plans/bus-searches` | JSON `BusSearchRequest` | Price-sorted `BusItineraryResponse` objects with outbound and return journeys. |
+| `POST /api/trip-plans/train-searches` | JSON `TrainSearchRequest` | Price-sorted `TrainItineraryResponse` objects with outbound and return journeys. |
 | `POST /api/trip-plans/accommodation-searches` | JSON `AccommodationSearchRequest` | Up to the configured number of `AccommodationOfferResponse` objects. Search creates no booking. |
 | `POST /api/trip-plans` | JSON `SaveTripPlanRequest` and authenticated JWT | `201 Created`, `Location: /api/trip-plans/{id}`, and `TripPlanResponse`. |
 | `GET /api/trip-plans/{id}` | Plan UUID and authenticated JWT | `TripPlanResponse` for the current owner, or `404`. |

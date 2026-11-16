@@ -1,11 +1,6 @@
 # Trip planning backend
 
-Train search is available through `POST /api/trip-plans/train-searches`. The [`service/trainsearch`](service/trainsearch/README.md) package validates GeoNames cities, calls Scrappa Omio through a provider interface, and assembles round trips or two one-way fares. The frontend has Plane and Train choices; saved plans still represent flight presets only.
-
-This feature currently supports city suggestions, a local city-to-airports lookup, flight and train itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, a 14-day weather forecast, and saved flight search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
-Bus transport is available through `POST /api/trip-plans/bus-searches`. The [`service/bussearch`](service/bussearch/README.md) package owns Scrappa Omio calls, budget filtering, and both ticket options. It reuses GeoNames city validation and does not use the local airport table. Saved plans currently store flight presets only.
-
-This feature currently supports city suggestions, a local city-to-airports lookup, flight itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, a 14-day weather forecast, and saved search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
+This feature supports city suggestions, local city-to-airports lookup, flight, bus, and train itinerary searches, accommodation searches, place recommendations, destination safety, country hotlines, news, weather, and saved flight search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md). Saved plans currently represent flight presets only.
 
 ## Where to start
 
@@ -14,6 +9,8 @@ This feature currently supports city suggestions, a local city-to-airports looku
 | City suggestions | [`service/cityautocomplete`](service/cityautocomplete/README.md) | Search GeoNames for populated places in geographical Europe. |
 | City airports | [`service/cityairport`](service/cityairport/README.md) | Resolve a city and country to airports in the local database. |
 | Flight search | [`service/flightsearch`](service/flightsearch/README.md) | Validate a destination, resolve its Google Flights city ID, and combine priced flight legs. |
+| Bus search | [`service/bussearch`](service/bussearch/README.md) | Validate both cities, resolve Omio city IDs, and combine bus fares within the budget. |
+| Train search | [`service/trainsearch`](service/trainsearch/README.md) | Validate both cities, resolve Omio city IDs, and combine train fares within the budget. |
 | Accommodation search | [`service/accommodationsearch`](service/accommodationsearch/README.md) | Validate a GeoNames city and filter Google Hotels offers by full-stay EUR budget. |
 | Place recommendations | [`service/attractionsearch`](service/attractionsearch/README.md) | Validate a European city and retrieve paged place suggestions by category. |
 | Destination safety | [`service/safety`](service/safety/README.md) | Validate a European city and combine country advisories with nearby alerts and conflicts. |
@@ -28,6 +25,7 @@ This feature currently supports city suggestions, a local city-to-airports looku
 ## Important boundaries
 
 - Flight search checks the origin airport and destination country in the local database. It **does not** use the local city-airports lookup for the destination. GeoNames validates the destination city and SerpApi resolves its Google Flights city ID.
+- Bus and train searches use the selected GeoNames departure and destination cities and EU country codes. Their Scrappa Omio providers resolve city IDs, search one adult's fares in EUR, and filter combined fares against the user's budget. They do not use the local airport table. One request can make multiple paid provider calls; see each transport package README for limits.
 - The local airport data is imported by `scripts/airports_data/import_airports.py`. That importer selects EU member countries and their large airports. The city-airports endpoint adds nearby large airports based on validated GeoNames city coordinates, but cannot show smaller or non-imported airports.
 - City autocomplete's GeoNames query uses `continentCode=EU`, meaning geographical Europe. This is broader than the EU member-country data used by flight search.
 - Search results are itinerary offers, not purchased tickets. `viewUrls` point to Google Flights search pages, or its homepage when SerpApi does not provide a usable link. They may not open the exact displayed flight.
@@ -40,4 +38,4 @@ This feature currently supports city suggestions, a local city-to-airports looku
 - Saved plans store the selected departure city and country code alongside the origin airport, plus the other search inputs, title, and optional description. This lets the user query airports in the same departure city later. They do not store provider offers or an accommodation check-in date. A user can create a plan and view it by ID; list, edit, and delete are not implemented.
 - The API key and GeoNames username come from application settings. Keep real values in the local `.env`; keep `.env.example` keys synchronized when adding settings.
 
-When changing a provider, preserve the service interfaces and the request/response contract. Review the provider call count as well as the returned flights: a single application request can make several external searches.
+When changing a provider, preserve the service interfaces and request/response contracts. Review provider call counts as well as returned itineraries: a single flight, bus, or train request can make several external searches.

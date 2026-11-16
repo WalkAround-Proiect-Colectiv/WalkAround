@@ -127,9 +127,6 @@ app:
     train-search-max-arrival-offset-days: ${TRAIN_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
     train-search-max-pages-per-date: ${TRAIN_SEARCH_MAX_PAGES_PER_DATE:1}
     bus-provider: ${BUS_PROVIDER:scrappa}
-    scrappa-api-key: ${SCRAPPA_API_KEY:}
-    scrappa-base-url: ${SCRAPPA_BASE_URL:https://scrappa.co}
-    scrappa-timeout: ${SCRAPPA_TIMEOUT:PT30S}
     bus-search-max-results: ${BUS_SEARCH_MAX_RESULTS:3}
     bus-search-max-date-range-days: ${BUS_SEARCH_MAX_DATE_RANGE_DAYS:7}
     bus-search-max-arrival-offset-days: ${BUS_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
