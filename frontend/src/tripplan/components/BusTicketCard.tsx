@@ -5,6 +5,29 @@ import type { BusItinerary, BusJourney, BusStop } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
 const PURPLE = '#23012C';
+const OMIO_SEARCH_URL = 'https://www.omio.com/links/626fa8a9-f982-43d0-ace9-9a13f6b14612';
+
+function omioSearchUrl(journey: BusJourney, returnDate?: string): string | null {
+  const origin = journey.departureCity || journey.departureStation;
+  const destination = journey.arrivalCity || journey.arrivalStation;
+  const departureDate = journey.departureTime.slice(0, 10);
+
+  if (!origin || !destination || !/^\d{4}-\d{2}-\d{2}$/.test(departureDate)) return null;
+
+  const params = [
+    `departurePosTerm=${encodeURIComponent(origin)}`,
+    `arrivalPosTerm=${encodeURIComponent(destination)}`,
+    `departureDate=${departureDate}`,
+    'travelMode=BUS',
+    'currency=EUR',
+  ];
+
+  if (returnDate && /^\d{4}-\d{2}-\d{2}$/.test(returnDate)) {
+    params.push(`returnDate=${returnDate}`);
+  }
+
+  return `${OMIO_SEARCH_URL}?${params.join('&')}`;
+}
 
 function time(value: string | null): string {
   return value ? value.slice(0, 16).replace('T', ' at ') : 'Time unavailable';
@@ -82,10 +105,13 @@ export default function BusTicketCard({ itinerary, index, selected, onSelect }: 
   const [linkError, setLinkError] = useState(false);
   const price = new Intl.NumberFormat('en-US', { style: 'currency', currency: itinerary.currency || 'EUR' })
     .format(itinerary.totalPrice);
+  const outboundUrl = omioSearchUrl(itinerary.outbound,
+    itinerary.ticketOption === 'ROUND_TRIP' ? itinerary.returning.departureTime.slice(0, 10) : undefined);
+  const returnUrl = itinerary.ticketOption === 'TWO_ONE_WAY' ? omioSearchUrl(itinerary.returning) : null;
 
-  async function openOmio() {
+  async function openOmio(url: string) {
     try {
-      await Linking.openURL('https://www.omio.com/');
+      await Linking.openURL(url);
       setLinkError(false);
     } catch {
       setLinkError(true);
@@ -110,10 +136,14 @@ export default function BusTicketCard({ itinerary, index, selected, onSelect }: 
     {selected && <View style={styles.details}>
       <Journey title="OUTBOUND" journey={itinerary.outbound} />
       <Journey title="RETURN" journey={itinerary.returning} />
-      <Text style={styles.note}>Prices and availability can change. Omio opens a new search, not this exact offer.</Text>
-      <Pressable accessibilityRole="link" onPress={() => { void openOmio(); }} style={styles.link}>
-        <ExternalLink size={16} color="#fff" /><Text style={styles.linkText}>Search on Omio</Text>
-      </Pressable>
+      <Text style={styles.note}>Omio opens a search with these cities and dates. Select the offer again there; prices and availability can change.</Text>
+      {outboundUrl && <Pressable accessibilityRole="link" onPress={() => { void openOmio(outboundUrl); }} style={styles.link}>
+        <ExternalLink size={16} color="#fff" />
+        <Text style={styles.linkText}>{itinerary.ticketOption === 'ROUND_TRIP' ? 'Search round trip on Omio' : 'Search outbound on Omio'}</Text>
+      </Pressable>}
+      {returnUrl && <Pressable accessibilityRole="link" onPress={() => { void openOmio(returnUrl); }} style={styles.link}>
+        <ExternalLink size={16} color="#fff" /><Text style={styles.linkText}>Search return on Omio</Text>
+      </Pressable>}
       {linkError && <Text accessibilityRole="alert" style={styles.error}>Could not open Omio. Please try again.</Text>}
     </View>}
   </View>;
