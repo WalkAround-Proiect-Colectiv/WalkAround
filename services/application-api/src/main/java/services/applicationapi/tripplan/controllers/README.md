@@ -1,5 +1,7 @@
 # Trip planning HTTP endpoints
 
+`BusSearchController` exposes `POST /api/trip-plans/bus-searches` and delegates to `BusSearchService`. The request contains origin and destination GeoNames city names and country codes, EUR budget, local departure interval, staying nights, and `ROUND_TRIP` or `TWO_ONE_WAY`. It returns a price-sorted list of complete bus itineraries.
+
 Controllers delegate to service interfaces. The `exceptionhandlers` package contains controller-specific `@RestControllerAdvice` classes that return `ProblemDetail` responses; upstream error details and credentials are not sent to clients.
 
 | Method and path | Input | Successful response |

@@ -118,6 +118,14 @@ app:
     serp-api-timeout: ${SERP_API_TIMEOUT:PT15S}
     flight-search-max-date-range-days: ${FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS:7}
     flight-search-max-arrival-offset-days: ${FLIGHT_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
+    bus-provider: ${BUS_PROVIDER:scrappa}
+    scrappa-api-key: ${SCRAPPA_API_KEY:}
+    scrappa-base-url: ${SCRAPPA_BASE_URL:https://scrappa.co}
+    scrappa-timeout: ${SCRAPPA_TIMEOUT:PT30S}
+    bus-search-max-results: ${BUS_SEARCH_MAX_RESULTS:3}
+    bus-search-max-date-range-days: ${BUS_SEARCH_MAX_DATE_RANGE_DAYS:7}
+    bus-search-max-arrival-offset-days: ${BUS_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
+    bus-search-max-pages-per-date: ${BUS_SEARCH_MAX_PAGES_PER_DATE:1}
     accommodation-provider: ${ACCOMMODATION_PROVIDER:serpapi}
     accommodation-search-max-results: ${ACCOMMODATION_SEARCH_MAX_RESULTS:3}
     attraction-provider: ${ATTRACTION_PROVIDER:serpapi}

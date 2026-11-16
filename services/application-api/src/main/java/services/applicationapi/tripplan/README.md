@@ -1,5 +1,7 @@
 # Trip planning backend
 
+Bus transport is available through `POST /api/trip-plans/bus-searches`. The [`service/bussearch`](service/bussearch/README.md) package owns Scrappa Omio calls, budget filtering, and both ticket options. It reuses GeoNames city validation and does not use the local airport table. Saved plans currently store flight presets only.
+
 This feature currently supports city suggestions, a local city-to-airports lookup, flight itinerary searches, accommodation searches, place recommendations, destination safety information, local country hotlines, destination news, a 14-day weather forecast, and saved search presets. The HTTP endpoints live in [`controllers`](controllers/README.md); request and response records live in [`dto`](dto/README.md).
 
 ## Where to start
