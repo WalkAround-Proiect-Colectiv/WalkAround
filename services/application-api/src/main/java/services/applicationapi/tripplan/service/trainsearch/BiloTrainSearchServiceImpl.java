@@ -19,7 +19,7 @@ import services.applicationapi.tripplan.dto.TrainSearchRequest;
 import services.applicationapi.tripplan.service.trainsearch.BiloTrainProvider.Offer;
 
 @Service
-public class BiloTrainSearchServiceImpl implements BiloTrainSearchService {
+public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(BiloTrainSearchServiceImpl.class);
 
@@ -35,14 +35,16 @@ public class BiloTrainSearchServiceImpl implements BiloTrainSearchService {
     }
 
     @Override
-    public boolean enabled() {
-        return biloProperties.biloApiKey() != null && !biloProperties.biloApiKey().isBlank();
+    public boolean supports(TicketOption ticketOption) {
+        return ticketOption == TicketOption.TWO_ONE_WAY
+                && biloProperties.biloApiKey() != null
+                && !biloProperties.biloApiKey().isBlank();
     }
 
     @Override
     public List<TrainItineraryResponse> search(TrainSearchRequest request, String origin,
                                                String destination) {
-        if (!enabled() || request.ticketOption() != TicketOption.TWO_ONE_WAY) return List.of();
+        if (!supports(request.ticketOption())) return List.of();
         List<TrainItineraryResponse> results = new ArrayList<>();
         Map<LocalDate, List<Offer>> returnDays = new HashMap<>();
         LocalDate lastSupportedDate = LocalDate.now().plusDays(364);

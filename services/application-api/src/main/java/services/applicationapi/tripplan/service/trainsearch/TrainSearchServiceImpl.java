@@ -41,16 +41,16 @@ public class TrainSearchServiceImpl implements TrainSearchService {
     private final CountryRepository countries;
     private final DestinationCityValidator cities;
     private final TrainSearchProvider provider;
-    private final BiloTrainSearchService biloSearch;
+    private final RomaniaTrainSearchService romaniaSearch;
     private final TrainSearchProperties properties;
 
     public TrainSearchServiceImpl(CountryRepository countries, DestinationCityValidator cities,
-                                  TrainSearchProvider provider, BiloTrainSearchService biloSearch,
+                                  TrainSearchProvider provider, RomaniaTrainSearchService romaniaSearch,
                                   TrainSearchProperties properties) {
         this.countries = countries;
         this.cities = cities;
         this.provider = provider;
-        this.biloSearch = biloSearch;
+        this.romaniaSearch = romaniaSearch;
         this.properties = properties;
     }
 
@@ -62,23 +62,23 @@ public class TrainSearchServiceImpl implements TrainSearchService {
         String origin = validateCity(request.originCity(), originCountry);
         String destination = validateCity(request.destinationCity(), destinationCountry);
 
-        boolean domestic = "RO".equals(originCountry) && "RO".equals(destinationCountry);
-        boolean twoOneWay = request.ticketOption() == TicketOption.TWO_ONE_WAY;
-        boolean biloEnabled = domestic && twoOneWay && biloSearch.enabled();
-        log.info("Train search routing: domestic={}, ticketOption={}, biloEnabled={}",
-                domestic, request.ticketOption(), biloEnabled);
-        if (domestic && twoOneWay && !biloEnabled) {
-            log.warn("Bilo train search skipped because BILO_API_KEY is not configured");
+        boolean romaniaRoute = "RO".equals(originCountry) && "RO".equals(destinationCountry);
+        boolean romaniaSupported = romaniaRoute && romaniaSearch.supports(request.ticketOption());
+        log.info("Train search routing: romaniaRoute={}, ticketOption={}, romaniaSupported={}",
+                romaniaRoute, request.ticketOption(), romaniaSupported);
+        if (romaniaRoute && !romaniaSupported) {
+            log.debug("Romania train search is unavailable for ticket option {}",
+                    request.ticketOption());
         }
         List<TrainItineraryResponse> combined = new ArrayList<>();
-        boolean biloFailed = false;
-        if (biloEnabled) {
+        boolean romaniaFailed = false;
+        if (romaniaSupported) {
             try {
-                combined.addAll(biloSearch.search(request, request.originCity().trim(),
+                combined.addAll(romaniaSearch.search(request, request.originCity().trim(),
                         request.destinationCity().trim()));
             } catch (TrainSearchUnavailableException exception) {
-                biloFailed = true;
-                log.warn("Bilo train search unavailable: {}", exception.getClass().getSimpleName());
+                romaniaFailed = true;
+                log.warn("Romania train search unavailable: {}", exception.getClass().getSimpleName());
             }
         }
 
@@ -87,7 +87,7 @@ public class TrainSearchServiceImpl implements TrainSearchService {
             combined.addAll(searchOmio(request, origin, originCountry, destination,
                     destinationCountry));
         } catch (InvalidTrainSearchException exception) {
-            if (!biloEnabled) throw exception;
+            if (!romaniaSupported) throw exception;
             omioFailed = true;
             log.info("Omio does not have the selected Romanian city pair");
         } catch (TrainSearchUnavailableException exception) {
@@ -95,7 +95,7 @@ public class TrainSearchServiceImpl implements TrainSearchService {
             log.warn("Omio train search unavailable: {}", exception.getClass().getSimpleName());
         }
 
-        if (omioFailed && (!biloEnabled || biloFailed)) {
+        if (omioFailed && (!romaniaSupported || romaniaFailed)) {
             throw new TrainSearchUnavailableException("Train search is temporarily unavailable");
         }
         return combined.stream()
