@@ -41,13 +41,16 @@ public class TrainSearchServiceImpl implements TrainSearchService {
     private final CountryRepository countries;
     private final DestinationCityValidator cities;
     private final TrainSearchProvider provider;
+    private final BiloTrainSearchService biloSearch;
     private final TrainSearchProperties properties;
 
     public TrainSearchServiceImpl(CountryRepository countries, DestinationCityValidator cities,
-                                  TrainSearchProvider provider, TrainSearchProperties properties) {
+                                  TrainSearchProvider provider, BiloTrainSearchService biloSearch,
+                                  TrainSearchProperties properties) {
         this.countries = countries;
         this.cities = cities;
         this.provider = provider;
+        this.biloSearch = biloSearch;
         this.properties = properties;
     }
 
@@ -59,6 +62,50 @@ public class TrainSearchServiceImpl implements TrainSearchService {
         String origin = validateCity(request.originCity(), originCountry);
         String destination = validateCity(request.destinationCity(), destinationCountry);
 
+        boolean domestic = "RO".equals(originCountry) && "RO".equals(destinationCountry);
+        boolean twoOneWay = request.ticketOption() == TicketOption.TWO_ONE_WAY;
+        boolean biloEnabled = domestic && twoOneWay && biloSearch.enabled();
+        log.info("Train search routing: domestic={}, ticketOption={}, biloEnabled={}",
+                domestic, request.ticketOption(), biloEnabled);
+        if (domestic && twoOneWay && !biloEnabled) {
+            log.warn("Bilo train search skipped because BILO_API_KEY is not configured");
+        }
+        List<TrainItineraryResponse> combined = new ArrayList<>();
+        boolean biloFailed = false;
+        if (biloEnabled) {
+            try {
+                combined.addAll(biloSearch.search(request, request.originCity().trim(),
+                        request.destinationCity().trim()));
+            } catch (TrainSearchUnavailableException exception) {
+                biloFailed = true;
+                log.warn("Bilo train search unavailable: {}", exception.getClass().getSimpleName());
+            }
+        }
+
+        boolean omioFailed = false;
+        try {
+            combined.addAll(searchOmio(request, origin, originCountry, destination,
+                    destinationCountry));
+        } catch (InvalidTrainSearchException exception) {
+            if (!biloEnabled) throw exception;
+            omioFailed = true;
+            log.info("Omio does not have the selected Romanian city pair");
+        } catch (TrainSearchUnavailableException exception) {
+            omioFailed = true;
+            log.warn("Omio train search unavailable: {}", exception.getClass().getSimpleName());
+        }
+
+        if (omioFailed && (!biloEnabled || biloFailed)) {
+            throw new TrainSearchUnavailableException("Train search is temporarily unavailable");
+        }
+        return combined.stream()
+                .sorted(Comparator.comparing(TrainItineraryResponse::totalPrice))
+                .toList();
+    }
+
+    private List<TrainItineraryResponse> searchOmio(TrainSearchRequest request, String origin,
+                                                    String originCountry, String destination,
+                                                    String destinationCountry) {
         long originId = provider.findCityId(origin, originCountry);
         long destinationId = provider.findCityId(destination, destinationCountry);
         long budgetMinor = request.budget().movePointRight(2).longValueExact();
@@ -75,7 +122,8 @@ public class TrainSearchServiceImpl implements TrainSearchService {
                 .limit(properties.trainSearchMaxResults())
                 .toList();
         Map<Long, Optional<TrainStopResponse>> stops = new HashMap<>();
-        log.debug("Found {} affordable train itineraries; returning {}", results.size(), selected.size());
+        log.debug("Found {} affordable Omio train itineraries; returning {}", results.size(),
+                selected.size());
         return selected.stream().map(result -> enrich(result, stops)).toList();
     }
 
@@ -156,7 +204,7 @@ public class TrainSearchServiceImpl implements TrainSearchService {
                         && returning.totalPriceMinor() <= budgetMinor) {
                     results.add(new TrainItineraryResponse(TicketOption.ROUND_TRIP, CURRENCY,
                             amount(returning.totalPriceMinor()), candidate.offer().journey(),
-                            returning.journey()));
+                            returning.journey(), "OMIO", null, null, null, null, null, null));
                 }
             }
         }
@@ -187,7 +235,8 @@ public class TrainSearchServiceImpl implements TrainSearchService {
                         if (returning.departure().toLocalDate().equals(returnDate)
                                 && totalMinor <= budgetMinor) {
                             results.add(new TrainItineraryResponse(TicketOption.TWO_ONE_WAY, CURRENCY,
-                                    amount(totalMinor), outbound.journey(), returning.journey()));
+                                    amount(totalMinor), outbound.journey(), returning.journey(),
+                                    "OMIO", null, null, null, null, null, null));
                         }
                     }
                 }
@@ -227,7 +276,10 @@ public class TrainSearchServiceImpl implements TrainSearchService {
     private TrainItineraryResponse enrich(TrainItineraryResponse result,
                                           Map<Long, Optional<TrainStopResponse>> stops) {
         return new TrainItineraryResponse(result.ticketOption(), result.currency(), result.totalPrice(),
-                enrich(result.outbound(), stops), enrich(result.returning(), stops));
+                enrich(result.outbound(), stops), enrich(result.returning(), stops), result.source(),
+                result.originalTotalPrice(), result.originalCurrency(), result.estimatedFare(),
+                result.partialCatalog(), result.outboundUrl(),
+                result.returnUrl());
     }
 
     private TrainJourneyResponse enrich(TrainJourneyResponse journey,

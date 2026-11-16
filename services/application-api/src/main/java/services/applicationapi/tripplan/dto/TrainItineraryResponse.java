@@ -7,6 +7,13 @@ public record TrainItineraryResponse(
         String currency,
         BigDecimal totalPrice,
         TrainJourneyResponse outbound,
-        TrainJourneyResponse returning
+        TrainJourneyResponse returning,
+        String source,
+        BigDecimal originalTotalPrice,
+        String originalCurrency,
+        Boolean estimatedFare,
+        Boolean partialCatalog,
+        String outboundUrl,
+        String returnUrl
 ) {
 }

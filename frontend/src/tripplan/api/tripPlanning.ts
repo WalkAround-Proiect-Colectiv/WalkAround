@@ -274,6 +274,13 @@ export interface TrainItinerary {
   totalPrice: number;
   outbound: TrainJourney;
   returning: TrainJourney;
+  source: 'OMIO' | 'BILO';
+  originalTotalPrice: number | null;
+  originalCurrency: string | null;
+  estimatedFare: boolean | null;
+  partialCatalog: boolean | null;
+  outboundUrl: string | null;
+  returnUrl: string | null;
 }
 
 export interface BusSearchInput {

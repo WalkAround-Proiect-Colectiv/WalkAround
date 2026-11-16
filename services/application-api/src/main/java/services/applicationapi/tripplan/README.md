@@ -10,7 +10,7 @@ This feature supports city suggestions, local city-to-airports lookup, flight, b
 | City airports | [`service/cityairport`](service/cityairport/README.md) | Resolve a city and country to airports in the local database. |
 | Flight search | [`service/flightsearch`](service/flightsearch/README.md) | Validate a destination, resolve its Google Flights city ID, and combine priced flight legs. |
 | Bus search | [`service/bussearch`](service/bussearch/README.md) | Validate both cities, resolve Omio city IDs, and combine bus fares within the budget. |
-| Train search | [`service/trainsearch`](service/trainsearch/README.md) | Validate both cities, resolve Omio city IDs, and combine train fares within the budget. |
+| Train search | [`service/trainsearch`](service/trainsearch/README.md) | Search Omio for all supported routes and Bilo for domestic Romanian two-one-way requests, then combine fares within the budget. |
 | Accommodation search | [`service/accommodationsearch`](service/accommodationsearch/README.md) | Validate a GeoNames city and filter Google Hotels offers by full-stay EUR budget. |
 | Place recommendations | [`service/attractionsearch`](service/attractionsearch/README.md) | Validate a European city and retrieve paged place suggestions by category. |
 | Destination safety | [`service/safety`](service/safety/README.md) | Validate a European city and combine country advisories with nearby alerts and conflicts. |
@@ -26,6 +26,7 @@ This feature supports city suggestions, local city-to-airports lookup, flight, b
 
 - Flight search checks the origin airport and destination country in the local database. It **does not** use the local city-airports lookup for the destination. GeoNames validates the destination city and SerpApi resolves its Google Flights city ID.
 - Bus and train searches use the selected GeoNames departure and destination cities and EU country codes. Their Scrappa Omio providers resolve city IDs, search one adult's fares in EUR, and filter combined fares against the user's budget. They do not use the local airport table. One request can make multiple paid provider calls; see each transport package README for limits.
+- Domestic Romanian `TWO_ONE_WAY` train searches also use Bilo when its server-side API key is set. Bilo returns published schedules and fares, not seat inventory. RON fares are converted with a configured reference rate for EUR budget comparison, and original amounts remain in the response.
 - The local airport data is imported by `scripts/airports_data/import_airports.py`. That importer selects EU member countries and their large airports. The city-airports endpoint adds nearby large airports based on validated GeoNames city coordinates, but cannot show smaller or non-imported airports.
 - City autocomplete's GeoNames query uses `continentCode=EU`, meaning geographical Europe. This is broader than the EU member-country data used by flight search.
 - Search results are itinerary offers, not purchased tickets. `viewUrls` point to Google Flights search pages, or its homepage when SerpApi does not provide a usable link. They may not open the exact displayed flight.

@@ -39,6 +39,18 @@ function omioSearchUrl(journey: TrainJourney, returnDate?: string): string | nul
   return `${OMIO_SEARCH_URL}?${params.join('&')}`;
 }
 
+function safePublishedUrl(value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password
+      && !Array.from(url.searchParams.keys()).some((key) => key.toLowerCase().includes('api_key'))
+      ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 function CarrierIcon({ journey }: { journey: TrainJourney }) {
   const [failed, setFailed] = useState(false);
   const url = journey.carrierLogoUrl;
@@ -105,9 +117,15 @@ export default function TrainTicketCard({ itinerary, index, selected, onSelect }
   const [linkError, setLinkError] = useState(false);
   const price = new Intl.NumberFormat('en-US', { style: 'currency', currency: itinerary.currency || 'EUR' })
     .format(itinerary.totalPrice);
-  const outboundUrl = omioSearchUrl(itinerary.outbound,
+  const isBilo = itinerary.source === 'BILO';
+  const convertedFromRon = isBilo && itinerary.originalCurrency === 'RON';
+  const originalPrice = convertedFromRon && itinerary.originalTotalPrice != null
+    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'RON' })
+      .format(itinerary.originalTotalPrice) : null;
+  const outboundUrl = isBilo ? safePublishedUrl(itinerary.outboundUrl) : omioSearchUrl(itinerary.outbound,
     itinerary.ticketOption === 'ROUND_TRIP' ? itinerary.returning.departureTime.slice(0, 10) : undefined);
-  const returnUrl = itinerary.ticketOption === 'TWO_ONE_WAY' ? omioSearchUrl(itinerary.returning) : null;
+  const returnUrl = isBilo ? safePublishedUrl(itinerary.returnUrl)
+    : itinerary.ticketOption === 'TWO_ONE_WAY' ? omioSearchUrl(itinerary.returning) : null;
 
   async function openOmio(url: string) {
     try {
@@ -124,27 +142,34 @@ export default function TrainTicketCard({ itinerary, index, selected, onSelect }
       onPress={onSelect} style={styles.header}>
       <CarrierIcon journey={itinerary.outbound} />
       <View style={styles.heading}>
-        <Text style={styles.label}>TRAIN OPTION {index + 1} | {itinerary.ticketOption === 'ROUND_TRIP' ? 'ROUND TRIP' : 'TWO ONE-WAY'}</Text>
+        <Text style={styles.label}>TRAIN OPTION {index + 1} | {isBilo ? 'BILO' : 'OMIO'} | {itinerary.ticketOption === 'ROUND_TRIP' ? 'ROUND TRIP' : 'TWO ONE-WAY'}</Text>
         <Text style={styles.route}>{itinerary.outbound.departureStation || 'Origin'} to {itinerary.outbound.arrivalStation || 'Destination'}</Text>
         <Text style={styles.detail}>{itinerary.outbound.carrier || 'Rail operator'} | Outbound {time(itinerary.outbound.departureTime)}</Text>
         <Text style={styles.detail}>Return {time(itinerary.returning.departureTime)} | {itinerary.returning.departureStation || 'Departure station'}</Text>
       </View>
-      <Text style={styles.price}>{price}</Text>
+      <View><Text style={styles.price}>{convertedFromRon ? `≈ ${price}` : price}</Text>
+        {originalPrice && <Text style={styles.detail}>{originalPrice}</Text>}
+      </View>
     </Pressable>
     <Pressable accessibilityRole="button" accessibilityState={{ expanded: selected }} onPress={onSelect}
       style={styles.toggle}><Text style={styles.toggleText}>{selected ? 'Hide details' : 'Tap for details'}</Text></Pressable>
     {selected && <View style={styles.details}>
       <Journey title="OUTBOUND" journey={itinerary.outbound} />
       <Journey title="RETURN" journey={itinerary.returning} />
-      <Text style={styles.note}>Omio opens a search with these cities and dates. Select the offer again there; prices and availability can change.</Text>
+      <Text style={styles.note}>{isBilo
+        ? `Bilo uses published schedules and fares, not live seat inventory.${convertedFromRon ? ' EUR is converted using the configured rate.' : ''} Check the final price and availability with the operator.`
+        : 'Omio opens a search with these cities and dates. Select the offer again there; prices and availability can change.'}</Text>
+      {isBilo && itinerary.estimatedFare && <Text style={styles.note}>Bilo marks this fare as estimated.</Text>}
+      {isBilo && itinerary.partialCatalog && <Text style={styles.note}>Bilo reports incomplete operator coverage for this search.</Text>}
       {outboundUrl && <Pressable accessibilityRole="link" onPress={() => { void openOmio(outboundUrl); }} style={styles.link}>
         <ExternalLink size={16} color="#fff" />
-        <Text style={styles.linkText}>{itinerary.ticketOption === 'ROUND_TRIP' ? 'Search round trip on Omio' : 'Search outbound on Omio'}</Text>
+        <Text style={styles.linkText}>{isBilo ? 'View outbound ticket options'
+          : itinerary.ticketOption === 'ROUND_TRIP' ? 'Search round trip on Omio' : 'Search outbound on Omio'}</Text>
       </Pressable>}
       {returnUrl && <Pressable accessibilityRole="link" onPress={() => { void openOmio(returnUrl); }} style={styles.link}>
-        <ExternalLink size={16} color="#fff" /><Text style={styles.linkText}>Search return on Omio</Text>
+        <ExternalLink size={16} color="#fff" /><Text style={styles.linkText}>{isBilo ? 'View return ticket options' : 'Search return on Omio'}</Text>
       </Pressable>}
-      {linkError && <Text accessibilityRole="alert" style={styles.error}>Could not open Omio. Please try again.</Text>}
+      {linkError && <Text accessibilityRole="alert" style={styles.error}>Could not open the ticket page. Please try again.</Text>}
     </View>}
   </View>;
 }
