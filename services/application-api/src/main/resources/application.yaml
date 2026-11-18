@@ -74,6 +74,16 @@ app:
     invite-ttl: ${GROUP_INVITE_TTL:P7D}
     max-active-invites: ${GROUP_MAX_ACTIVE_INVITES:10}
     plan-notification-topic: ${GROUP_PLAN_NOTIFICATION_TOPIC:trip-group-plan-notifications-topic}
+  group-chat:
+    topic: ${GROUP_CHAT_TOPIC:trip-group-chat-topic}
+    partitions: ${GROUP_CHAT_PARTITIONS:6}
+    page-size: ${GROUP_CHAT_PAGE_SIZE:100}
+    max-message-length: ${GROUP_CHAT_MAX_MESSAGE_LENGTH:2000}
+    socket-token-ttl: ${GROUP_CHAT_SOCKET_TOKEN_TTL:PT5M}
+    outbox-poll-ms: ${GROUP_CHAT_OUTBOX_POLL_MS:1000}
+    outbox-batch-size: ${GROUP_CHAT_OUTBOX_BATCH_SIZE:50}
+    publish-timeout: ${GROUP_CHAT_PUBLISH_TIMEOUT:PT5S}
+    retry-max-delay: ${GROUP_CHAT_RETRY_MAX_DELAY:PT1M}
   login:
     signing-secret: ${JWT_SIGNING_SECRET:}
     issuer: ${JWT_ISSUER:walkaround}

@@ -3,10 +3,11 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Share, StyleSheet, 
 import * as Linking from 'expo-linking';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Link2, Pencil, Plus, RefreshCw, UsersRound } from 'lucide-react-native';
+import { ArrowLeft, Link2, MessageCircle, Pencil, Plus, RefreshCw, UsersRound } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import GroupPicture from '../components/GroupPicture';
 import TripPlanningScreen from './TripPlanningScreen';
+import GroupChatScreen from './GroupChatScreen';
 import {
   createGroupInvite, getTripGroup, listGroupInvites, listGroupPlans, listTripGroups,
   makeGroupPlanCurrent, revokeGroupInvite,
@@ -31,6 +32,7 @@ export default function TripGroupsScreen() {
   const params = useLocalSearchParams<{ groupId?: string; tab?: string; planId?: string }>();
   const groupId = typeof params.groupId === 'string' ? params.groupId : null;
   const planning = params.tab === 'plan';
+  const chatting = params.tab === 'chat';
   const [groups, setGroups] = useState<CreatedTripGroup[]>([]);
   const [selected, setSelected] = useState<CreatedTripGroup | null>(null);
   const [invitations, setInvitations] = useState<TripGroupInviteSummary[]>([]);
@@ -196,6 +198,8 @@ export default function TripGroupsScreen() {
       setPlans((current) => [plan, ...current.filter((item) => item.id !== plan.id)]);
     }} />;
 
+  if (chatting && selected?.id === groupId && !busy) return <GroupChatScreen key={selected.id} group={selected} />;
+
   return <View style={styles.screen}>
     <ScrollView contentContainerStyle={[styles.content, {
       paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 24) + 24,
@@ -313,6 +317,11 @@ export default function TripGroupsScreen() {
         </View>}
       </>}
     </ScrollView>
+    {selected && !busy && <Pressable accessibilityRole="button" accessibilityLabel="Open group chat"
+      onPress={() => router.push({ pathname: '/trip-groups', params: { groupId: selected.id, tab: 'chat' } })}
+      style={[styles.chatButton, { bottom: Math.max(insets.bottom, 12) + 18 }]}>
+      <MessageCircle size={25} color="#fff" />
+    </Pressable>}
   </View>;
 }
 
@@ -350,4 +359,7 @@ const styles = StyleSheet.create({
   error: { color: '#C51B2D', fontSize: 13, lineHeight: 19 },
   notice: { color: '#184B94', fontSize: 13, lineHeight: 19 },
   disabled: { opacity: 0.5 },
+  chatButton: { position: 'absolute', right: 20, width: 56, height: 56, borderRadius: 20,
+    backgroundColor: BLUE, alignItems: 'center', justifyContent: 'center', elevation: 5,
+    shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
 });

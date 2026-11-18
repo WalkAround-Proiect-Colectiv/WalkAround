@@ -10,6 +10,10 @@ V14 adds `group_id`, optional `created_by_user_id`, `adults` defaulting to 1, an
 
 Flyway V12 creates `trip_plan_groups`, `trip_plan_group_members`, and `trip_plan_group_pictures`. `TripPlanGroup` stores the creator, name, optional description, and creation time. `TripPlanGroupMember` has a unique group/user pair, role, and join time; the creator is inserted as `ADMIN`. `TripPlanGroupPicture` stores normalized JPEG bytes separately to keep image data out of ordinary group reads.
 
-Flyway V13 creates `trip_plan_group_invites`. `TripPlanGroupInvite` stores a unique SHA-256 token hash, creator, expiry, optional use and revocation times, and the accepting user. The raw token is never stored. Group deletion cascades to its invites; the service makes invite use and membership insertion one transaction. Chat has no table yet.
+Flyway V13 creates `trip_plan_group_invites`. `TripPlanGroupInvite` stores a unique SHA-256 token hash, creator, expiry, optional use and revocation times, and the accepting user. The raw token is never stored. Group deletion cascades to its invites; the service makes invite use and membership insertion one transaction.
 
 Group editing mutates the existing `TripPlanGroup` name and description and can replace or delete its separate `TripPlanGroupPicture` row. The V12 tables already support these changes, so editing needs no migration.
+
+# Chat data
+
+`GroupChatMessage` is the immutable row projection for stored group chat messages. V15 creates `trip_group_chat_conversations` (one row per group, allocated lazily), `trip_group_chat_messages` (UUID ID and unique per-conversation sequence), and `trip_group_chat_outbox` (one pending Kafka publication per saved message). A deleted account does not erase historical chat text; the sender ID becomes null and reads label it Former member. Deleting a group cascades to its conversation and messages.
