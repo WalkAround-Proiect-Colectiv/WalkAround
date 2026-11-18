@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { View } from 'react-native';
 import { filterPoiStyle } from './filters';
 import {
   Camera,
@@ -6,12 +7,13 @@ import {
   Images,
   Layer,
   Map,
+  Marker,
   type CameraRef,
   type MapRef,
 } from '@maplibre/maplibre-react-native';
-import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
+import { getPoiHitRadiusPixels, MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps } from './MapCanvas.types';
-import { selectMapHit } from './poi';
+import { selectMapHit, selectMapPois } from './poi';
 
 const EVENT_PIN_IMAGE = require('../../assets/map/event-pin.png');
 
@@ -46,7 +48,6 @@ export default function MapCanvas({
   const nativeMap = useRef<MapRef>(null);
   const currentZoom = useRef(PLACES[0].zoom);
   const center = useRef(PLACES[0].center);
-  const lastPress = useRef<{ time: number; point: [number, number] } | null>(null);
     useImperativeHandle(
         ref,
         () => ({
@@ -157,25 +158,47 @@ export default function MapCanvas({
         });
         void updateSelectedPinScreenPoint();
       }}
+      onLongPress={async event => {
+        const { lngLat, point } = event.nativeEvent;
+        const poiHitRadius = getPoiHitRadiusPixels(
+          currentZoom.current,
+          lngLat[1],
+        );
+
+        if (nativeMap.current) {
+          try {
+            const poiLayers = style.layers
+              .filter(layer => ['poi-dot', 'poi-label'].includes(layer.id))
+              .map(layer => layer.id);
+            const poiFeatures = poiLayers.length
+              ? await nativeMap.current.queryRenderedFeatures(
+                  [
+                    [point[0] - poiHitRadius, point[1] - poiHitRadius],
+                    [point[0] + poiHitRadius, point[1] + poiHitRadius],
+                  ],
+                  { layers: poiLayers },
+                )
+              : [];
+            const hit = selectMapHit(poiFeatures ?? [], []);
+            if (hit.poi) {
+              onPoiSelect(hit.poi, lngLat, selectMapPois(poiFeatures ?? []));
+              onPress?.(null, lngLat);
+              return;
+            }
+          } catch {
+            // Fall through to the coordinate-only fallback.
+          }
+        }
+
+        onPoiSelect(null);
+        onCoordinateSelect?.(lngLat);
+      }}
       onPress={async event => {
         const { lngLat, point } = event.nativeEvent;
-        const now = Date.now();
-        const previousPress = lastPress.current;
-
-        // Detect double-tap for coordinate selection
-        if (
-          previousPress &&
-          now - previousPress.time < 350 &&
-          Math.hypot(
-            point[0] - previousPress.point[0],
-            point[1] - previousPress.point[1],
-          ) < 30
-        ) {
-          lastPress.current = null;
-          onCoordinateSelect?.(lngLat);
-        } else {
-          lastPress.current = { time: now, point };
-        }
+        const poiHitRadius = getPoiHitRadiusPixels(
+          currentZoom.current,
+          lngLat[1],
+        );
 
         if (hasEventPins && onEventPinPress && nativeMap.current) {
           try {
@@ -200,7 +223,10 @@ export default function MapCanvas({
             .map(layer => layer.id);
           const poiFeatures = poiLayers.length
             ? await nativeMap.current?.queryRenderedFeatures(
-                [[point[0] - 12, point[1] - 12], [point[0] + 12, point[1] + 12]],
+                [
+                  [point[0] - poiHitRadius, point[1] - poiHitRadius],
+                  [point[0] + poiHitRadius, point[1] + poiHitRadius],
+                ],
                 { layers: poiLayers },
               )
             : [];
@@ -210,7 +236,7 @@ export default function MapCanvas({
               })
             : [];
           const hit = selectMapHit(poiFeatures ?? [], zoneFeatures ?? []);
-          onPoiSelect(hit.poi);
+          onPoiSelect(hit.poi, lngLat, selectMapPois(poiFeatures ?? []));
           onPress?.(hit.zone, lngLat);
         } catch {
           onPoiSelect(null);
@@ -373,28 +399,36 @@ export default function MapCanvas({
 
       {/* Searched location marker */}
       {searchedLocation && (
-        <GeoJSONSource
-          id="searched-location"
-          data={{
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: searchedLocation,
-            },
-            properties: {},
-          }}
-        >
-          <Layer
-            id="searched-location-marker"
-            type="circle"
-            style={{
-              circleRadius: 9,
-              circleColor: '#0065EB',
-              circleStrokeColor: '#FFFFFF',
-              circleStrokeWidth: 3,
-            }}
-          />
-        </GeoJSONSource>
+        <Marker id="searched-location-marker" lngLat={searchedLocation} anchor="bottom">
+          <View style={{ width: 30, height: 38, alignItems: 'center' }}>
+            <View
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 13,
+                backgroundColor: '#0065EB',
+                borderWidth: 3,
+                borderColor: '#FFFFFF',
+                shadowColor: '#000000',
+                shadowOpacity: 0.35,
+                shadowRadius: 3,
+                shadowOffset: { width: 0, height: 2 },
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                bottom: 5,
+                width: 12,
+                height: 12,
+                backgroundColor: '#0065EB',
+                borderBottomLeftRadius: 2,
+                borderBottomRightRadius: 2,
+                transform: [{ rotate: '45deg' }],
+              }}
+            />
+          </View>
+        </Marker>
       )}
     </Map>
   );
