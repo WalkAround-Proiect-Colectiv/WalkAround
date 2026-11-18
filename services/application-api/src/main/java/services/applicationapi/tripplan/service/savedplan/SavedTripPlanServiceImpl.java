@@ -6,6 +6,7 @@ import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import services.applicationapi.country.repository.CountryRepository;
@@ -49,6 +50,7 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
     private final FlightSearchProperties flightProperties;
     private final BusSearchProperties busProperties;
     private final TrainSearchProperties trainProperties;
+    private final ApplicationEventPublisher events;
 
     public SavedTripPlanServiceImpl(
             TripPlanRepository tripPlans,
@@ -60,7 +62,8 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
             DestinationCityValidator cityValidator,
             FlightSearchProperties flightProperties,
             BusSearchProperties busProperties,
-            TrainSearchProperties trainProperties
+            TrainSearchProperties trainProperties,
+            ApplicationEventPublisher events
     ) {
         this.tripPlans = tripPlans;
         this.groups = groups;
@@ -72,6 +75,7 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         this.flightProperties = flightProperties;
         this.busProperties = busProperties;
         this.trainProperties = trainProperties;
+        this.events = events;
     }
 
     @Override
@@ -161,6 +165,16 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         );
 
         TripPlan saved = tripPlans.save(plan);
+        if (group != null) {
+            events.publishEvent(new GroupPlanSavedEvent(
+                    groupId,
+                    saved.getId(),
+                    group.getName(),
+                    saved.getTitle(),
+                    saved.getCreatedAt(),
+                    members.findUserIdsByGroupId(groupId)
+            ));
+        }
         log.info("Saved {} trip plan {} for user {} in group {}", request.transportMode(),
                 saved.getId(), userId, groupId);
         return toResponse(saved);

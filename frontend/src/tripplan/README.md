@@ -4,6 +4,8 @@ The travel selector offers Plane, Bus, and Train. Plane uses the selected origin
 
 The top of the planner links to group creation and `/trip-groups`. The creation page accepts a name, optional description, and optional JPEG/PNG photo, then links to the new group. The group page lists memberships and lets an admin create, share, and revoke one-use invitation links. Opening a link previews the group and allows a signed-in user to join; a signed-out user returns to the invite after sign-in. Group members can open the same planner from their group view, save group-owned search presets, and see the current group plan. The first saved plan becomes current; admins can select a different current plan. Chat is a later feature.
 
+When a group plan is saved, connected members receive an app-wide notification through the existing authenticated WebSocket. **View plan** opens the saved preset and refreshes the group's plan list. Disconnected members can still find the plan in the group view; these group notifications do not have a missed-notification inbox.
+
 Group admins can open `/trip-group-edit` from the group page to change the name, description, and photo. The edit form can keep, replace, or remove the existing photo, and saves through a protected backend `PUT` request.
 
 Group photos appear in the group list, detail, creation confirmation, edit form, and invitation preview. The invite preview uses its active invitation token for the photo because the invitee is not a member yet; other views use the member-protected photo endpoint.

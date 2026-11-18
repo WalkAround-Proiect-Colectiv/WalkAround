@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -13,6 +13,7 @@ import {
   type CreatedTripGroup, type TripGroupInvite, type TripGroupInviteSummary,
 } from '../api/tripGroups';
 import type { SavedTripPlan } from '../api/tripPlanning';
+import { subscribeToGroupPlanSaves } from '../api/groupPlanNotifications';
 
 const BLUE = '#0065EB';
 
@@ -42,6 +43,13 @@ export default function TripGroupsScreen() {
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const planRequestId = useRef(0);
+
+  async function reloadPlans(targetGroupId: string) {
+    const requestId = ++planRequestId.current;
+    const found = await listGroupPlans(targetGroupId);
+    if (requestId === planRequestId.current && targetGroupId === groupId) setPlans(found);
+  }
 
   useEffect(() => {
     if (!session) return;
@@ -54,6 +62,7 @@ export default function TripGroupsScreen() {
   }, [session, groupId]);
 
   useEffect(() => {
+    const requestId = ++planRequestId.current;
     if (!session || !groupId) {
       setSelected(null);
       setInvitations([]);
@@ -78,14 +87,27 @@ export default function TripGroupsScreen() {
           group.memberRole === 'ADMIN' ? listGroupInvites(groupId) : Promise.resolve([]),
         ]);
         if (active) {
-          setPlans(foundPlans);
+          if (requestId === planRequestId.current) setPlans(foundPlans);
           setInvitations(foundInvites);
         }
       })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not load group.'); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, [session, groupId]);
+  }, [session, groupId, params.planId]);
+
+  useEffect(() => {
+    if (!session || !groupId) return;
+    let active = true;
+
+    const unsubscribe = subscribeToGroupPlanSaves((saved) => {
+      if (saved.groupId !== groupId) return;
+      void reloadPlans(groupId).catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Could not load the new group plan.');
+      });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [session?.user.id, groupId]);
 
   async function createInvite() {
     if (!groupId || creating) return;
@@ -139,7 +161,7 @@ export default function TripGroupsScreen() {
     setError(null);
     try {
       await makeGroupPlanCurrent(groupId, planId);
-      setPlans(await listGroupPlans(groupId));
+      await reloadPlans(groupId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not select this plan.');
     } finally {
@@ -152,7 +174,7 @@ export default function TripGroupsScreen() {
     setRefreshingPlans(true);
     setError(null);
     try {
-      setPlans(await listGroupPlans(groupId));
+      await reloadPlans(groupId);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not refresh group plans.');
     } finally {
@@ -169,7 +191,10 @@ export default function TripGroupsScreen() {
 
   if (planning && selected?.id === groupId && !busy) return <TripPlanningScreen key={openedPlan?.id ?? 'new'} group={selected}
     initialPlan={openedPlan}
-    onGroupPlanSaved={(plan) => setPlans((current) => [plan, ...current])} />;
+    onGroupPlanSaved={(plan) => {
+      planRequestId.current += 1;
+      setPlans((current) => [plan, ...current.filter((item) => item.id !== plan.id)]);
+    }} />;
 
   return <View style={styles.screen}>
     <ScrollView contentContainerStyle={[styles.content, {

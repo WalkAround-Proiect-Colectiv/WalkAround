@@ -43,3 +43,4 @@ app:
     issuer: ${JWT_ISSUER:walkaround}
     audience: ${JWT_AUDIENCE:walkaround-api}
     reminder-topic: ${EVENTS_REMINDER_TOPIC:event-reminders-topic}
+    group-plan-topic: ${GROUP_PLAN_NOTIFICATION_TOPIC:trip-group-plan-notifications-topic}

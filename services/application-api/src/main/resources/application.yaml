@@ -73,6 +73,7 @@ app:
     picture-output-size: ${GROUP_PICTURE_OUTPUT_SIZE:512}
     invite-ttl: ${GROUP_INVITE_TTL:P7D}
     max-active-invites: ${GROUP_MAX_ACTIVE_INVITES:10}
+    plan-notification-topic: ${GROUP_PLAN_NOTIFICATION_TOPIC:trip-group-plan-notifications-topic}
   login:
     signing-secret: ${JWT_SIGNING_SECRET:}
     issuer: ${JWT_ISSUER:walkaround}
