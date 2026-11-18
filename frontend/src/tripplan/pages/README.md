@@ -10,6 +10,8 @@ The chat header keeps the group photo, name, and connection state visible above 
 
 The composer has an emoji button that opens `EmojiPicker` above it. The picker includes all bundled Unicode Emoji 18.0 entries, with category tabs and name search. Choosing an emoji inserts it at the saved cursor position while respecting the 2,000-character message limit. The native keyboard can still be used for emoji entry. Closing or sending a message hides the palette.
 
+The poll button opens a compact question and choice form above the composer. Posting a poll uses the same idempotent message POST as text. Poll cards remain at their original chat position while votes and close actions update their counts, selection, and status. The screen subscribes to the socket before taking an event cursor and loading messages; later event pages and WebSocket snapshots merge by message ID and poll revision. The event cursor, rather than the chat message cursor, preserves poll updates across reconnects.
+
 Admins can open `EditTripGroupScreen` from their group page. It loads the current details, validates edited text and optional JPEG/PNG image, and lets the admin retain, replace, or remove the photo. The backend enforces the role and writes all changes in one transaction. Saving returns to the group page.
 
 Where a group is displayed, its photo appears when available: the group list, detail heading, creation confirmation, edit form, and invitation preview. A rounded group icon appears when there is no photo or a protected picture request fails.

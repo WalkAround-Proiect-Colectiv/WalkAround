@@ -79,6 +79,8 @@ app:
     partitions: ${GROUP_CHAT_PARTITIONS:6}
     page-size: ${GROUP_CHAT_PAGE_SIZE:100}
     max-message-length: ${GROUP_CHAT_MAX_MESSAGE_LENGTH:2000}
+    max-poll-options: ${GROUP_CHAT_MAX_POLL_OPTIONS:10}
+    max-poll-option-length: ${GROUP_CHAT_MAX_POLL_OPTION_LENGTH:100}
     socket-token-ttl: ${GROUP_CHAT_SOCKET_TOKEN_TTL:PT5M}
     outbox-poll-ms: ${GROUP_CHAT_OUTBOX_POLL_MS:1000}
     outbox-batch-size: ${GROUP_CHAT_OUTBOX_BATCH_SIZE:50}

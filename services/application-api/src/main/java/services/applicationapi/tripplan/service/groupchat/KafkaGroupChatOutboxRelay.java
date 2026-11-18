@@ -38,17 +38,22 @@ public class KafkaGroupChatOutboxRelay implements GroupChatOutboxRelay {
     @Transactional
     @Scheduled(fixedDelayString = "${app.group-chat.outbox-poll-ms}")
     public void publishPending() {
-        for (GroupChatRepository.PendingMessage pending : outbox.lockPending(properties.outboxBatchSize())) {
+        for (int processed = 0; processed < properties.outboxBatchSize(); processed++) {
+            var pendingEvents = outbox.lockPending(1);
+            if (pendingEvents.isEmpty()) return;
+            GroupChatRepository.PendingEvent pending = pendingEvents.getFirst();
             GroupChatMessage message = pending.message();
             try {
-                String payload = mapper.writeValueAsString(new ChatEvent(
-                        "GROUP_CHAT_MESSAGE", message.id(), message.conversationId(), message.sequence(),
-                        message.senderId(), message.senderName(), message.body(), message.createdAt()));
+                String payload = pending.payload() != null ? pending.payload()
+                        : mapper.writeValueAsString(new ChatEvent("GROUP_CHAT_MESSAGE",
+                        message.id(), message.conversationId(), message.sequence(), pending.eventSequence(),
+                        message.senderId(), message.senderName(), message.body(), message.createdAt(),
+                        message.messageType()));
                 kafka.send(properties.topic(), message.conversationId().toString(), payload)
                         .get(properties.publishTimeout().toMillis(), TimeUnit.MILLISECONDS);
-                outbox.markPublished(message.id());
-                log.info("Published chat message {} in conversation {} at sequence {}",
-                        message.id(), message.conversationId(), message.sequence());
+                outbox.markPublished(pending.eventId());
+                log.info("Published chat event {} in conversation {} at event sequence {}",
+                        pending.eventId(), message.conversationId(), pending.eventSequence());
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 postpone(pending, exception);
@@ -59,12 +64,12 @@ public class KafkaGroupChatOutboxRelay implements GroupChatOutboxRelay {
         }
     }
 
-    private void postpone(GroupChatRepository.PendingMessage pending, Exception exception) {
+    private void postpone(GroupChatRepository.PendingEvent pending, Exception exception) {
         long seconds = Math.min(properties.retryMaxDelay().toSeconds(),
                 1L << Math.min(pending.attempts(), 30));
-        outbox.defer(pending.message().id(), Instant.now().plusSeconds(Math.max(1, seconds)));
-        log.warn("Could not publish chat message {} (attempt {}): {}",
-                pending.message().id(), pending.attempts() + 1, exception.getClass().getSimpleName());
+        outbox.defer(pending.eventId(), Instant.now().plusSeconds(Math.max(1, seconds)));
+        log.warn("Could not publish chat event {} (attempt {}): {}",
+                pending.eventId(), pending.attempts() + 1, exception.getClass().getSimpleName());
     }
 
     private record ChatEvent(
@@ -72,10 +77,12 @@ public class KafkaGroupChatOutboxRelay implements GroupChatOutboxRelay {
             UUID messageId,
             UUID conversationId,
             long sequence,
+            long eventSequence,
             UUID senderId,
             String senderName,
             String body,
-            Instant createdAt
+            Instant createdAt,
+            String messageType
     ) {
     }
 }
