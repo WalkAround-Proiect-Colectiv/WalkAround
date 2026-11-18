@@ -23,6 +23,7 @@ import services.applicationapi.tripplan.model.TripPlanGroupInvite;
 import services.applicationapi.tripplan.model.TripPlanGroupMember;
 import services.applicationapi.tripplan.repository.TripPlanGroupInviteRepository;
 import services.applicationapi.tripplan.repository.TripPlanGroupMemberRepository;
+import services.applicationapi.tripplan.repository.TripPlanGroupPictureRepository;
 import services.applicationapi.tripplan.repository.TripPlanGroupRepository;
 import services.applicationapi.tripplan.service.exceptions.TripGroupForbiddenException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupInviteLimitException;
@@ -41,16 +42,19 @@ public class TripGroupInviteServiceImpl implements TripGroupInviteService {
     private final TripPlanGroupInviteRepository invites;
     private final TripPlanGroupRepository groups;
     private final TripPlanGroupMemberRepository members;
+    private final TripPlanGroupPictureRepository pictures;
     private final UserRepository users;
     private final TripGroupService groupService;
     private final TripGroupProperties properties;
 
     public TripGroupInviteServiceImpl(TripPlanGroupInviteRepository invites, TripPlanGroupRepository groups,
-                                      TripPlanGroupMemberRepository members, UserRepository users,
+                                      TripPlanGroupMemberRepository members,
+                                      TripPlanGroupPictureRepository pictures, UserRepository users,
                                       TripGroupService groupService, TripGroupProperties properties) {
         this.invites = invites;
         this.groups = groups;
         this.members = members;
+        this.pictures = pictures;
         this.users = users;
         this.groupService = groupService;
         this.properties = properties;
@@ -101,10 +105,19 @@ public class TripGroupInviteServiceImpl implements TripGroupInviteService {
     @Override
     @Transactional(readOnly = true)
     public TripGroupInvitePreview preview(String token) {
-        TripPlanGroupInvite invite = invites.findByTokenHash(hash(token))
-                .filter(found -> found.activeAt(Instant.now()))
-                .orElseThrow(TripGroupInviteNotFoundException::new);
-        return new TripGroupInvitePreview(invite.getGroup().getName(), invite.getExpiresAt());
+        TripPlanGroupInvite invite = activeInvite(token);
+        UUID groupId = invite.getGroup().getId();
+        return new TripGroupInvitePreview(invite.getGroup().getName(), invite.getExpiresAt(),
+                pictures.existsById(groupId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public byte[] picture(String token) {
+        UUID groupId = activeInvite(token).getGroup().getId();
+        return pictures.findById(groupId)
+                .orElseThrow(TripGroupInviteNotFoundException::new)
+                .getImageData();
     }
 
     @Override
@@ -133,6 +146,12 @@ public class TripGroupInviteServiceImpl implements TripGroupInviteService {
                 .orElseThrow(TripGroupNotFoundException::new);
         if (!"ADMIN".equals(membership.getRole())) throw new TripGroupForbiddenException();
         return membership;
+    }
+
+    private TripPlanGroupInvite activeInvite(String token) {
+        return invites.findByTokenHash(hash(token))
+                .filter(found -> found.activeAt(Instant.now()))
+                .orElseThrow(TripGroupInviteNotFoundException::new);
     }
 
     private String hash(String token) {

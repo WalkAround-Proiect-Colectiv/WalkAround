@@ -18,7 +18,7 @@ This feature supports city suggestions, local city-to-airports lookup, flight, b
 | Destination news | [`service/newsfeed`](service/newsfeed/README.md) | Validate a destination and retrieve one Currents Search page of English-language city news. |
 | Destination weather | [`service/weather`](service/weather/README.md) | Validate a European city and retrieve destination-local daily forecasts and optional historical stay comparisons from Open-Meteo. |
 | Saved plans | [`service/savedplan`](service/savedplan/README.md) | Create and view user-owned search presets. |
-| Trip groups | [`service/tripgroup`](service/tripgroup/README.md) | Create and list groups, protect pictures, and manage one-use invitations. |
+| Trip groups | [`service/tripgroup`](service/tripgroup/README.md) | Create, list, and edit groups, protect pictures, and manage one-use invitations. |
 | Saved-plan model | [`model`](model/README.md) and [`repository`](repository/README.md) | Persist plans and scope reads by owner. |
 | Provider settings | [`configurations`](configurations/README.md) | Bind settings and create HTTP clients with timeouts. |
 | Name comparison | [`service/utils`](service/utils/README.md) | Normalize city spelling for comparisons across data sources. |
@@ -39,6 +39,7 @@ This feature supports city suggestions, local city-to-airports lookup, flight, b
 - Destination weather uses validated GeoNames coordinates. The explicit forecast request makes one Open-Meteo call for at most 14 days. A separate historical request makes one archive call for each configured comparison year and covers every night of the selected stay, including trips outside the forecast window.
 - Saved plans store the transport mode, selected departure and destination city/country pairs, departure interval, nights, ticket option, transport and accommodation budgets, title, and optional description. Plane plans also store an origin airport; Bus and Train plans do not. They do not store provider offers or an accommodation check-in date. A user can create a plan and view it by ID; list, edit, and delete are not implemented.
 - Trip groups have admin-controlled, one-use invitation links. Only token hashes are persisted; the raw token is shown once at creation and is passed to preview/accept in a JSON body. Membership, not possession of a group ID, grants access to group details and pictures.
+- An active invite token also permits its holder to preview the group's optional picture before joining. This request is separate from the member-only picture endpoint and returns no photo once the invite expires, is revoked, or is used.
 - The API key and GeoNames username come from application settings. Keep real values in the local `.env`; keep `.env.example` keys synchronized when adding settings.
 
 When changing a provider, preserve the service interfaces and request/response contracts. Review provider call counts as well as returned itineraries: a single flight, bus, or train request can make several external searches.

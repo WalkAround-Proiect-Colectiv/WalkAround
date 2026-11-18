@@ -4,6 +4,12 @@
 
 `tripGroups.ts` submits an authenticated multipart `POST /api/trip-plan-groups` with a required name and optional description and image. It uses a browser `File` on web and a local URI part in React Native. The backend returns the new group ID, the creator's `ADMIN` member role, and an optional member-protected picture URL. The client sends no owner ID or role. The same client lists joined groups, creates/lists/revokes admin invitations, and previews/accepts an invitation with its token in a JSON body. Creation returns the raw token once; later listings contain metadata only.
 
+`updateTripGroup` sends a multipart `PUT /api/trip-plan-groups/{id}` with the edited name and description. It can send a new image or `removePicture=true`; omitting both keeps the current image. The backend checks admin membership, so hiding the edit action in the frontend is only a usability choice.
+
+The edit page loads an existing photo through the authenticated picture request. On web, it displays a temporary object URL and revokes that URL when the page unloads; native uses an image request with the current bearer header.
+
+`getTripGroupPicture` retrieves a member-protected JPEG. `getGroupInvitePicture` sends a valid invitation token in a JSON body to retrieve the photo before membership exists. `TripGroupInvitePreview.pictureAvailable` prevents a photo request for groups without a picture. Tokens never appear in picture URLs.
+
 `pendingGroupInvite.ts` keeps a token temporarily while an invitee signs in, using web session storage or native SecureStore. Invite links put the token after `#` so web requests do not send it to the hosting server. The invite screen strips the web fragment once saved. The login screen checks pending invites after authentication and routes to `/trip-group-invite`; it clears the pending token after successful acceptance or when the user dismisses it. Neither the raw token nor its hash is logged.
 
 `TrainItinerary` also identifies Omio or Bilo as its source. Bilo responses can include original RON fare, estimated-fare status, and published outbound/return links; their EUR total is an approximation using a Frankfurter rate fetched by the backend for that search. The Bilo key stays on the backend.

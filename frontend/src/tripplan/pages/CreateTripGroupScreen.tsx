@@ -7,6 +7,7 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { ArrowLeft, Camera, Check, UsersRound, X } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import { createTripGroup, type CreatedTripGroup } from '../api/tripGroups';
+import GroupPicture from '../components/GroupPicture';
 
 const BLUE = '#0065EB';
 const INK = '#202632';
@@ -104,7 +105,7 @@ export default function CreateTripGroupScreen() {
         </View>
 
         {created ? <View style={styles.card}>
-          {picture && <Image source={{ uri: picture.uri }} style={styles.photo} accessibilityLabel="Group photo" />}
+          {created.pictureUrl && <GroupPicture groupId={created.id} size={90} />}
           <Text style={styles.createdName}>{created.name}</Text>
           {created.description && <Text style={styles.subtitle}>{created.description}</Text>}
           <View style={styles.roleBadge}><Check size={16} color={BLUE} /><Text style={styles.roleText}>You are an admin</Text></View>
@@ -177,7 +178,6 @@ const styles = StyleSheet.create({
   primaryText: { color: '#fff', fontWeight: '800', fontSize: 15 },
   disabled: { opacity: 0.5 },
   createdName: { color: INK, fontSize: 22, fontWeight: '800', textAlign: 'center' },
-  photo: { width: 90, height: 90, borderRadius: 28, alignSelf: 'center' },
   roleBadge: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 7,
     backgroundColor: '#EAF3FF', borderRadius: 15, paddingHorizontal: 12, paddingVertical: 8 },
   roleText: { color: BLUE, fontWeight: '700', fontSize: 13 },

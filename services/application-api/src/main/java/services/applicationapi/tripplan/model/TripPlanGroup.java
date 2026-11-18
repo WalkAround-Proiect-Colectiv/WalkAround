@@ -43,4 +43,9 @@ public class TripPlanGroup {
         this.createdByUser = creator;
         this.createdAt = Instant.now();
     }
+
+    public void updateDetails(String name, String description) {
+        this.name = name;
+        this.description = description;
+    }
 }

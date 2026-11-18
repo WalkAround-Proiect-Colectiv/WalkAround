@@ -25,4 +25,8 @@ public class TripPlanGroupPicture {
         this.groupId = groupId;
         this.imageData = imageData;
     }
+
+    public void replace(byte[] imageData) {
+        this.imageData = imageData;
+    }
 }

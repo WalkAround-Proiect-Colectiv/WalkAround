@@ -12,4 +12,6 @@ public interface TripPlanGroupPictureRepository extends Repository<TripPlanGroup
     Optional<TripPlanGroupPicture> findById(UUID groupId);
 
     boolean existsById(UUID groupId);
+
+    void deleteById(UUID groupId);
 }

@@ -7,6 +7,7 @@ import { ArrowLeft, UsersRound } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import { acceptGroupInvite, previewGroupInvite, type TripGroupInvitePreview } from '../api/tripGroups';
 import { clearPendingGroupInvite, readPendingGroupInvite, savePendingGroupInvite } from '../api/pendingGroupInvite';
+import GroupPicture from '../components/GroupPicture';
 
 const BLUE = '#0065EB';
 
@@ -99,7 +100,8 @@ export default function TripGroupInviteScreen() {
         <ArrowLeft size={20} color="#202632" />
       </Pressable>
       <View style={styles.card}>
-        <View style={styles.icon}><UsersRound size={27} color={BLUE} /></View>
+        {preview?.pictureAvailable && token ? <GroupPicture inviteToken={token} size={70} />
+          : <View style={styles.icon}><UsersRound size={27} color={BLUE} /></View>}
         <Text accessibilityRole="header" style={styles.title}>Group invitation</Text>
         {loading ? <ActivityIndicator color={BLUE} /> : preview ? <>
           <Text style={styles.body}>You have been invited to join</Text>

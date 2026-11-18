@@ -9,3 +9,5 @@ V4 requires both `departure_city` and `departure_country_code` for every saved p
 Flyway V12 creates `trip_plan_groups`, `trip_plan_group_members`, and `trip_plan_group_pictures`. `TripPlanGroup` stores the creator, name, optional description, and creation time. `TripPlanGroupMember` has a unique group/user pair, role, and join time; the creator is inserted as `ADMIN`. `TripPlanGroupPicture` stores normalized JPEG bytes separately to keep image data out of ordinary group reads.
 
 Flyway V13 creates `trip_plan_group_invites`. `TripPlanGroupInvite` stores a unique SHA-256 token hash, creator, expiry, optional use and revocation times, and the accepting user. The raw token is never stored. Group deletion cascades to its invites; the service makes invite use and membership insertion one transaction. Chat has no table yet.
+
+Group editing mutates the existing `TripPlanGroup` name and description and can replace or delete its separate `TripPlanGroupPicture` row. The V12 tables already support these changes, so editing needs no migration.

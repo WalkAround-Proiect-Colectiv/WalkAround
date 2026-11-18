@@ -29,11 +29,13 @@ export interface TripGroupInviteSummary {
 export interface TripGroupInvitePreview {
   groupName: string;
   expiresAt: string;
+  pictureAvailable: boolean;
 }
 
-async function groupRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function groupRequest<T>(path: string, options: RequestInit = {},
+                               responseType: 'json' | 'blob' = 'json'): Promise<T> {
   try {
-    return await authenticatedRequest<T>(path, options);
+    return await authenticatedRequest<T>(path, options, responseType);
   } catch (error) {
     if (error instanceof ApiError && error.detail) throw new Error(error.detail);
     throw error;
@@ -44,6 +46,9 @@ export const listTripGroups = () => groupRequest<CreatedTripGroup[]>('/api/trip-
 
 export const getTripGroup = (id: string) =>
   groupRequest<CreatedTripGroup>(`/api/trip-plan-groups/${encodeURIComponent(id)}`);
+
+export const getTripGroupPicture = (id: string) =>
+  groupRequest<Blob>(`/api/trip-plan-groups/${encodeURIComponent(id)}/picture`, {}, 'blob');
 
 export const createGroupInvite = (groupId: string) =>
   groupRequest<TripGroupInvite>(`/api/trip-plan-groups/${encodeURIComponent(groupId)}/invitations`, {
@@ -65,11 +70,14 @@ const invitationBody = (token: string): RequestInit => ({
 export const previewGroupInvite = (token: string) =>
   groupRequest<TripGroupInvitePreview>('/api/trip-plan-groups/invitations/preview', invitationBody(token));
 
+export const getGroupInvitePicture = (token: string) =>
+  groupRequest<Blob>('/api/trip-plan-groups/invitations/picture', invitationBody(token), 'blob');
+
 export const acceptGroupInvite = (token: string) =>
   groupRequest<CreatedTripGroup>('/api/trip-plan-groups/invitations/accept', invitationBody(token));
 
-export async function createTripGroup(name: string, description: string | null,
-                                      picture: ImagePickerAsset | null): Promise<CreatedTripGroup> {
+function groupFormData(name: string, description: string | null,
+                       picture: ImagePickerAsset | null): FormData {
   const body = new FormData();
   body.append('name', name);
   if (description) body.append('description', description);
@@ -87,5 +95,20 @@ export async function createTripGroup(name: string, description: string | null,
     }
   }
 
+  return body;
+}
+
+export async function createTripGroup(name: string, description: string | null,
+                                      picture: ImagePickerAsset | null): Promise<CreatedTripGroup> {
+  const body = groupFormData(name, description, picture);
   return groupRequest<CreatedTripGroup>('/api/trip-plan-groups', { method: 'POST', body });
+}
+
+export async function updateTripGroup(id: string, name: string, description: string | null,
+                                      picture: ImagePickerAsset | null, removePicture: boolean): Promise<CreatedTripGroup> {
+  const body = groupFormData(name, description, picture);
+  body.append('removePicture', String(removePicture));
+  return groupRequest<CreatedTripGroup>(`/api/trip-plan-groups/${encodeURIComponent(id)}`, {
+    method: 'PUT', body,
+  });
 }

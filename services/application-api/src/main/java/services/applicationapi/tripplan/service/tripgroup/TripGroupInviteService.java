@@ -17,5 +17,7 @@ public interface TripGroupInviteService {
 
     TripGroupInvitePreview preview(String token);
 
+    byte[] picture(String token);
+
     TripGroupResponse accept(String token, UUID userId);
 }

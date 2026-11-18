@@ -62,7 +62,7 @@ public class TripGroupExceptionHandler {
 
     @ExceptionHandler(TripGroupForbiddenException.class)
     ResponseEntity<ProblemDetail> forbidden() {
-        return problem(HttpStatus.FORBIDDEN, "Only a group admin can manage invitations");
+        return problem(HttpStatus.FORBIDDEN, "Only a group admin can make this change");
     }
 
     @ExceptionHandler(TripGroupInviteLimitException.class)

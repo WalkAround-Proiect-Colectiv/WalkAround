@@ -3,8 +3,9 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, Share, StyleSheet, 
 import * as Linking from 'expo-linking';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Link2, Plus, UsersRound } from 'lucide-react-native';
+import { ArrowLeft, Link2, Pencil, Plus, UsersRound } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
+import GroupPicture from '../components/GroupPicture';
 import {
   createGroupInvite, getTripGroup, listGroupInvites, listTripGroups, revokeGroupInvite,
   type CreatedTripGroup, type TripGroupInvite, type TripGroupInviteSummary,
@@ -136,7 +137,8 @@ export default function TripGroupsScreen() {
       </View>
 
       <View style={styles.heading}>
-        <View style={styles.icon}><UsersRound size={25} color={BLUE} /></View>
+        {selected?.pictureUrl ? <GroupPicture groupId={selected.id} size={58} />
+          : <View style={styles.icon}><UsersRound size={25} color={BLUE} /></View>}
         <Text accessibilityRole="header" style={styles.title}>{selected?.name ?? 'Your groups'}</Text>
         <Text style={styles.hint}>{selected ? 'Your shared trip space' : 'Find the people you plan trips with.'}</Text>
       </View>
@@ -152,7 +154,8 @@ export default function TripGroupsScreen() {
           : groups.map((group) => <Pressable key={group.id} accessibilityRole="button"
             onPress={() => router.push({ pathname: '/trip-groups', params: { groupId: group.id } })}
             style={styles.groupCard}>
-            <View style={styles.groupIcon}><UsersRound size={20} color={BLUE} /></View>
+            {group.pictureUrl ? <GroupPicture groupId={group.id} size={42} />
+              : <View style={styles.groupIcon}><UsersRound size={20} color={BLUE} /></View>}
             <View style={styles.groupText}><Text style={styles.groupName}>{group.name}</Text>
               <Text style={styles.hint}>{group.memberRole === 'ADMIN' ? 'Admin' : 'Member'}</Text></View>
           </Pressable>)}
@@ -164,6 +167,11 @@ export default function TripGroupsScreen() {
           <Text style={styles.sectionTitle}>Your role</Text>
           <Text style={styles.body}>{selected.memberRole === 'ADMIN' ? 'Admin' : 'Member'}</Text>
         </View>
+        {selected.memberRole === 'ADMIN' && <Pressable accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/trip-group-edit', params: { groupId: selected.id } })}
+          style={styles.editButton}>
+          <Pencil size={18} color={BLUE} /><Text style={styles.editText}>Edit group</Text>
+        </Pressable>}
         {selected.memberRole === 'ADMIN' && <View style={styles.card}>
           <Text style={styles.sectionTitle}>Invite someone</Text>
           <Text style={styles.hint}>Each link can be used once. You can revoke it before it is used.</Text>
@@ -217,6 +225,9 @@ const styles = StyleSheet.create({
   body: { color: '#4C5A6C', fontSize: 14, lineHeight: 20 },
   primaryButton: { minHeight: 50, backgroundColor: BLUE, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },
+  editButton: { minHeight: 48, borderWidth: 1, borderColor: '#B5D1FA', borderRadius: 15,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  editText: { color: BLUE, fontSize: 14, fontWeight: '800' },
   secondaryButton: { minHeight: 44, borderWidth: 1, borderColor: '#B5D1FA', borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { color: BLUE, fontSize: 13, fontWeight: '800' },
   linkBox: { backgroundColor: '#F3F8FF', borderRadius: 14, padding: 12, gap: 10 },

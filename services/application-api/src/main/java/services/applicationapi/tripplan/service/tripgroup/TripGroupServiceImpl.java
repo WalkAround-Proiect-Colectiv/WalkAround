@@ -23,6 +23,7 @@ import services.applicationapi.tripplan.repository.TripPlanGroupMemberRepository
 import services.applicationapi.tripplan.repository.TripPlanGroupPictureRepository;
 import services.applicationapi.tripplan.repository.TripPlanGroupRepository;
 import services.applicationapi.tripplan.service.exceptions.InvalidTripGroupException;
+import services.applicationapi.tripplan.service.exceptions.TripGroupForbiddenException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripPlanAuthenticationException;
 import services.applicationapi.user.model.User;
@@ -67,6 +68,38 @@ public class TripGroupServiceImpl implements TripGroupService {
         String pictureUrl = image == null ? null : "/api/trip-plan-groups/" + group.getId() + "/picture";
         return new TripGroupResponse(group.getId(), group.getName(), group.getDescription(),
                 "ADMIN", pictureUrl, group.getCreatedAt());
+    }
+
+    @Override
+    @Transactional
+    public TripGroupResponse update(UUID groupId, UUID adminId, String name, String description,
+                                    MultipartFile picture, boolean removePicture) {
+        TripPlanGroup group = groups.findByIdForUpdate(groupId).orElseThrow(TripGroupNotFoundException::new);
+        TripPlanGroupMember membership = members.findByGroup_IdAndUser_Id(groupId, adminId)
+                .orElseThrow(TripGroupNotFoundException::new);
+        if (!"ADMIN".equals(membership.getRole())) throw new TripGroupForbiddenException();
+        if (picture != null && removePicture) {
+            throw new InvalidTripGroupException("Choose a new photo or remove the current one");
+        }
+
+        String normalizedName = normalize(name, 100, true, "Group name");
+        String normalizedDescription = normalize(description, 1000, false, "Description");
+        byte[] image = picture == null ? null : normalizePicture(picture);
+
+        group.updateDetails(normalizedName, normalizedDescription);
+        if (image != null) {
+            pictures.findById(groupId).ifPresentOrElse(
+                    existing -> existing.replace(image),
+                    () -> pictures.save(new TripPlanGroupPicture(groupId, image)));
+        } else if (removePicture && pictures.existsById(groupId)) {
+            pictures.deleteById(groupId);
+        }
+
+        boolean hasPicture = image != null || (!removePicture && pictures.existsById(groupId));
+        String pictureUrl = hasPicture ? "/api/trip-plan-groups/" + groupId + "/picture" : null;
+        log.info("Updated trip group {} by admin {} withPicture={}", groupId, adminId, hasPicture);
+        return new TripGroupResponse(groupId, group.getName(), group.getDescription(),
+                membership.getRole(), pictureUrl, group.getCreatedAt());
     }
 
     @Override

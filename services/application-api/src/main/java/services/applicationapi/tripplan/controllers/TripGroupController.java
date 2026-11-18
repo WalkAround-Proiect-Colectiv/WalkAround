@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,6 +53,20 @@ public class TripGroupController {
         return ResponseEntity.created(URI.create("/api/trip-plan-groups/" + created.id()))
                 .cacheControl(CacheControl.noStore())
                 .body(created);
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<TripGroupResponse> update(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @RequestParam String name,
+            @RequestParam(required = false) String description,
+            @RequestPart(required = false) MultipartFile picture,
+            @RequestParam(defaultValue = "false") boolean removePicture
+    ) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(groups.update(id, currentUserId(jwt), name, description, picture, removePicture));
     }
 
     @GetMapping(value = "/{id}/picture", produces = MediaType.IMAGE_JPEG_VALUE)
@@ -107,6 +122,17 @@ public class TripGroupController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(invitations.preview(request.token()));
+    }
+
+    @PostMapping(value = "/invitations/picture", consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.IMAGE_JPEG_VALUE)
+    public ResponseEntity<byte[]> invitationPicture(
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody TripGroupInviteTokenRequest request) {
+        currentUserId(jwt);
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .contentType(MediaType.IMAGE_JPEG)
+                .body(invitations.picture(request.token()));
     }
 
     @PostMapping("/invitations/accept")

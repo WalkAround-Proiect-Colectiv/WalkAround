@@ -9,6 +9,9 @@ public interface TripGroupService {
 
     TripGroupResponse create(UUID creatorId, String name, String description, MultipartFile picture);
 
+    TripGroupResponse update(UUID groupId, UUID adminId, String name, String description,
+                             MultipartFile picture, boolean removePicture);
+
     TripGroupResponse get(UUID groupId, UUID memberId);
 
     List<TripGroupResponse> list(UUID memberId);

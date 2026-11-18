@@ -4,6 +4,10 @@
 
 The group card near the top links to `CreateTripGroupScreen` and `TripGroupsScreen`. Creation uses the signed-in session, selects an optional image with Expo Image Picker, and sends one multipart request. The group page lists the current user's groups and, for admins, creates, shares, lists, and revokes one-use invitation links. `TripGroupInviteScreen` reads a link token from the URL fragment, preserves it through login, previews the group, and joins on explicit confirmation. Group chat and a shared planner are not implemented.
 
+Admins can open `EditTripGroupScreen` from their group page. It loads the current details, validates edited text and optional JPEG/PNG image, and lets the admin retain, replace, or remove the photo. The backend enforces the role and writes all changes in one transaction. Saving returns to the group page.
+
+Where a group is displayed, its photo appears when available: the group list, detail heading, creation confirmation, edit form, and invitation preview. A rounded group icon appears when there is no photo or a protected picture request fails.
+
 Flight cards expand to show outbound and return segments and safe Google Flights links. Bus and train cards show both journey departures in their collapsed state; expanded cards show stations, operators, legs, transfers, optional availability, and prefilled Omio searches. Selecting any itinerary suggests accommodation check-in from the final outbound arrival date; the user can also choose a date in the calendar. Accommodation offers remain on the same page with a separate full-stay EUR budget. The save form appears for Plane, Bus, and Train, and stores the selected transport mode.
 
 Domestic Romanian train results can contain Omio and Bilo offers together when the user selects Two one-way. Round trip shows Omio round-trip fares only. Bilo cards display their source, original fare, approximate converted EUR total, and the available published links.
