@@ -33,7 +33,11 @@ export type MapCanvasProps = {
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
-  onPoiSelect(poi: MapPoi | null): void;
+  onPoiSelect(
+    poi: MapPoi | null,
+    coordinates?: [longitude: number, latitude: number],
+    candidates?: MapPoi[],
+  ): void;
   onPress?(zone: MapZone | null, coordinates?: [number, number]): void;
   onCoordinateSelect?(coordinates: [longitude: number, latitude: number]): void;
 };

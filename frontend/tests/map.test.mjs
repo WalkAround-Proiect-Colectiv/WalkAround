@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { PLACES, MIN_ZOOM, MAX_ZOOM, isInCoverage, MAP_STYLE_URL } from '../src/map/config.ts';
+import {
+  PLACES,
+  MIN_ZOOM,
+  MAX_ZOOM,
+  MIN_POI_HIT_RADIUS_PIXELS,
+  MAX_POI_HIT_RADIUS_PIXELS,
+  POI_HIT_RADIUS_METERS,
+  isInCoverage,
+  MAP_STYLE_URL,
+  getPoiHitRadiusPixels,
+} from '../src/map/config.ts';
 import { resolveStyleResources, styleMap } from '../src/map/style.ts';
-import { readPoi, selectMapHit } from '../src/map/poi.ts';
+import { readPoi, selectMapHit, selectMapPois } from '../src/map/poi.ts';
 
 test('Romania camera presets use longitude/latitude inside supported bounds', () => {
   for (const place of PLACES) {
@@ -16,6 +26,20 @@ test('coverage rejects out-of-region or invalid coordinates', () => {
   assert.equal(isInCoverage(NaN, 45), false);
   assert.equal(isInCoverage(45, 26), false);
   assert.ok(MAP_STYLE_URL.startsWith('https://') || MAP_STYLE_URL.startsWith('http://'));
+});
+
+test('POI hit radius scales with zoom and stays bounded', () => {
+  const zoomSix = getPoiHitRadiusPixels(6, 45.9);
+  const zoomFourteen = getPoiHitRadiusPixels(14, 45.9);
+  const zoomTwenty = getPoiHitRadiusPixels(20, 45.9);
+
+  assert.equal(POI_HIT_RADIUS_METERS, 15);
+  assert.equal(MIN_POI_HIT_RADIUS_PIXELS, 8);
+  assert.equal(MAX_POI_HIT_RADIUS_PIXELS, 24);
+  assert.equal(zoomSix, MIN_POI_HIT_RADIUS_PIXELS);
+  assert.ok(zoomFourteen >= zoomSix);
+  assert.ok(zoomTwenty <= MAX_POI_HIT_RADIUS_PIXELS);
+  assert.equal(getPoiHitRadiusPixels(NaN, NaN), getPoiHitRadiusPixels(PLACES[0].zoom, PLACES[0].center[1]));
 });
 
 test('flat map style removes relief and extrusions without mutating the source', () => {
@@ -73,6 +97,19 @@ test('a POI inside a danger zone takes selection priority', () => {
     [{ properties: { h3Index: 'zone', intensity: 3, topCategories: ['Theft'] } }]);
   assert.equal(hit.poi?.name, 'Cafe');
   assert.equal(hit.zone, null);
+});
+
+test('clustered POI hits preserve every distinct candidate and exact coordinates', () => {
+  const features = [
+    { properties: { poi_id: 'cafe', name: 'Cafe', category: 'food_drink' }, geometry: { type: 'Point', coordinates: [23.01, 46.01] } },
+    { properties: { poi_id: 'museum', name: 'Museum', category: 'tourism' }, geometry: { type: 'Point', coordinates: [23.0101, 46.0101] } },
+    { properties: { poi_id: 'cafe', name: 'Cafe', category: 'food_drink' }, geometry: { type: 'Point', coordinates: [23.01, 46.01] } },
+  ];
+  const candidates = selectMapPois(features);
+  assert.equal(candidates.length, 2);
+  assert.deepEqual(candidates[0].coordinates, [23.01, 46.01]);
+  assert.deepEqual(candidates[1].coordinates, [23.0101, 46.0101]);
+  assert.equal(selectMapHit(features, []).poi?.id, 'cafe');
 });
 
 test('zone-only selection handles web JSON categories and native arrays', () => {

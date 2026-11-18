@@ -6,4 +6,6 @@ import services.applicationapi.placesearch.dto.PlaceSearchResult;
 public interface PlaceSearchProvider {
 
     List<PlaceSearchResult> search(String query, double latitude, double longitude, int zoom, int limit);
+
+    PlaceSearchResult reverse(double latitude, double longitude);
 }

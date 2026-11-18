@@ -3,9 +3,9 @@ import { Map, Marker, ScaleControl, setWorkerUrl } from 'maplibre-gl';
 import type { GeoJSONSource } from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import './mapCanvas.web.css';
-import { MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
+import { getPoiHitRadiusPixels, MAX_ZOOM, MIN_ZOOM, PLACES, ROMANIA_BOUNDS } from './config';
 import type { MapCanvasProps, ScreenPoint } from './MapCanvas.types';
-import { selectMapHit } from './poi';
+import { selectMapHit, selectMapPois } from './poi';
 import { filterPoiStyle, isPoiLayer } from './filters';
 
 const EMPTY_FEATURE_COLLECTION = {
@@ -335,6 +335,14 @@ export default function MapCanvas({
       projectSelectedPin();
     });
     instance.on('click', event => {
+      if (suppressLongPressClick) {
+        suppressLongPressClick = false;
+        if (suppressClickTimer) {
+          clearTimeout(suppressClickTimer);
+          suppressClickTimer = null;
+        }
+        return;
+      }
       const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
       if (hasPinPressHandler() && instance.getLayer('event-pins-layer')) {
         const pinFeatures = instance.queryRenderedFeatures(
@@ -350,9 +358,13 @@ export default function MapCanvas({
       }
 
       const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+      const poiHitRadius = getPoiHitRadiusPixels(instance.getZoom(), event.lngLat.lat);
       const poiFeatures = layers.length
         ? instance.queryRenderedFeatures(
-            [[event.point.x - 12, event.point.y - 12], [event.point.x + 12, event.point.y + 12]],
+            [
+              [event.point.x - poiHitRadius, event.point.y - poiHitRadius],
+              [event.point.x + poiHitRadius, event.point.y + poiHitRadius],
+            ],
             { layers },
           )
         : [];
@@ -360,19 +372,92 @@ export default function MapCanvas({
         ? instance.queryRenderedFeatures(event.point, { layers: ['dangerous-zones-layer'] })
         : [];
       const hit = selectMapHit(poiFeatures, zoneFeatures);
-      selected(hit.poi);
+      selected(hit.poi, coords, selectMapPois(poiFeatures));
       pressed(hit.zone, coords);
     });
-    instance.on('dblclick', event => {
-      event.preventDefault();
-      coordinateSelected([event.lngLat.lng, event.lngLat.lat]);
-    });
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    let longPressStart: { x: number; y: number } | null = null;
+    let suppressLongPressClick = false;
+    let suppressClickTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      longPressStart = null;
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      cancelLongPress();
+      const rect = container.current?.getBoundingClientRect();
+      if (!rect) return;
+      const point = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      longPressStart = point;
+      longPressTimer = setTimeout(() => {
+        if (!longPressStart) return;
+        const point = longPressStart;
+        const lngLat = instance.unproject([point.x, point.y]);
+        suppressLongPressClick = true;
+        const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+        const poiHitRadius = getPoiHitRadiusPixels(instance.getZoom(), lngLat.lat);
+        const poiFeatures = layers.length
+          ? instance.queryRenderedFeatures(
+              [
+                [point.x - poiHitRadius, point.y - poiHitRadius],
+                [point.x + poiHitRadius, point.y + poiHitRadius],
+              ],
+              { layers },
+            )
+          : [];
+        const hit = selectMapHit(poiFeatures, []);
+        if (hit.poi) {
+          selected(hit.poi, [lngLat.lng, lngLat.lat], selectMapPois(poiFeatures));
+          pressed(null, [lngLat.lng, lngLat.lat]);
+        } else {
+          coordinateSelected([lngLat.lng, lngLat.lat]);
+        }
+        if (suppressClickTimer) clearTimeout(suppressClickTimer);
+        suppressClickTimer = setTimeout(() => {
+          suppressLongPressClick = false;
+          suppressClickTimer = null;
+        }, 500);
+        cancelLongPress();
+      }, 550);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!longPressStart) return;
+      const rect = container.current?.getBoundingClientRect();
+      if (!rect) return;
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      if (Math.hypot(x - longPressStart.x, y - longPressStart.y) > 10) {
+        cancelLongPress();
+      }
+    };
+
+    const handlePointerUp = () => {
+      cancelLongPress();
+    };
+
+    instance.getCanvasContainer().addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
     const observer = new ResizeObserver(() => {
       instance.resize();
       projectSelectedPin();
     });
     observer.observe(container.current);
     return () => {
+      cancelLongPress();
+      if (suppressClickTimer) clearTimeout(suppressClickTimer);
+      instance.getCanvasContainer().removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
       observer.disconnect();
       locationMarker.current?.remove();
       locationMarker.current = null;
