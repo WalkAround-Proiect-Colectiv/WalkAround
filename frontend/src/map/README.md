@@ -4,6 +4,18 @@
 
 The search field below the map accepts `latitude, longitude` coordinates or a place/POI name. Coordinate searches run when submitted and place a blue marker at the point only when it is within the configured Romania coverage rectangle. Place-name suggestions begin after two characters, are debounced while typing, and are loaded through `GET /api/places/search` on the Application API. The Photon adapter sends a hard bounding-box filter and `countrycode=ro`; it also checks returned coordinates and country codes, while the frontend checks coordinates again before display. This allows matching Romanian places such as a street named “Paris” in Cluj-Napoca while excluding results from Paris, France. Selecting a suggestion centers the map on it and places the same marker. The X control removes the marker. Double-clicking on web or double-tapping on native places the marker directly at the tapped point and fills in its coordinates; on web the gesture does not zoom the map. Search suggestions use the backend's configured provider, currently Photon.
 
+## Route location names
+
+The trip-planning and saved-routes interfaces use the Application API's public reverse-geocoding endpoint:
+
+```text
+GET /api/places/reverse?lat=46.7712&lon=23.6236
+```
+
+The endpoint resolves a readable Photon place name for route starts, destinations, intermediate stops, and saved-route destinations. Reverse lookups are limited to the configured Romania coverage rectangle (`19.5–30.0` longitude and `43.4–48.5` latitude) and Romanian results (`countrycode=ro`). Requests are cancellable so a stale lookup cannot overwrite a newer route point.
+
+Names are display metadata only. Routing requests and saved-route payloads continue to use `lat`/`lng` coordinates. Known POI names are reused without another lookup; while a lookup is pending or unavailable, the UI shows a neutral fallback label instead of raw coordinates.
+
 The web canvas still registers MapLibre's metric `ScaleControl` so it continues to update its scale calculation as the map moves. `mapCanvas.web.css` hides only that control's visual element. The native canvas has no scale control.
 
 The map fills the screen. The former brand, preset-city strip, and footer are removed. The features menu remains a floating control at the top left with safe-area spacing. It opens vertically over the map without changing its layout. **Explore map** closes the panel, **Plan a trip** opens `/trip-plan`, **Upcoming events** opens `/events` (passing the map centre as a fallback position; see [`src/events`](../events/README.md)), and **Account** (or **Sign in**) opens the corresponding page. Zoom, north, and current-location controls remain on the right. A compact, noninteractive badge near the bottom shows map-center coordinates and zoom without reserving map space; reporting and route overlays remain available.

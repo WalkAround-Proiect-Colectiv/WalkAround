@@ -27,7 +27,9 @@ flowchart LR
 - `services/tts/` defines the local Piper neural text-to-speech image used by the Application API for turn-by-turn audio directions.
 - `docker-compose.yaml` starts PostgreSQL, Valhalla, Piper TTS, and Kafka. The frontend and Java services are run separately.
 
-The frontend talks directly to the Application API. PostgreSQL stores user profiles, Google identities, and refresh-session hashes. Kafka and the Realtime service are infrastructure for future functionality; they are not currently part of the registration/login request path.
+The frontend talks directly to the Application API. PostgreSQL stores user profiles, Google identities, and refresh-session hashes. Kafka and the Realtime service are infrastructure for future functionality; they are not currently part of the registration/login request path. Public place search and reverse geocoding also go through the Application API, which currently uses Photon and the configured Romania coverage rectangle.
+
+Route planning keeps coordinates as its canonical data. The frontend reverse-geocodes route start points, destinations, intermediate stops, and saved-route destinations through `GET /api/places/reverse` so the interface can show readable place names without changing routing or saved-route payloads. If the lookup is unavailable, the UI uses a neutral fallback label rather than exposing raw coordinates.
 
 ### Map Direction
 
@@ -65,6 +67,8 @@ Prerequisites: Node.js/npm, Java 25, and Docker Compose 2.20.3 or newer for `inc
 2. If the map database has not been imported yet, run `node services/map-data/manage.mjs setup` first. Otherwise, stop the old standalone map Compose project as described in [the map guide](services/map-data/README.md#moving-from-the-standalone-map-project), then start local infrastructure with `docker compose up -d` from the repository root.
 3. Configure and run the Application API as described in [services/application-api/README.md](services/application-api/README.md).
 4. Configure and run the app as described in [frontend/README.md](frontend/README.md).
+
+For local routing and audio directions, the root `.env` maps Valhalla to `8022:8002` and Piper TTS to `5000:5000`. The Application API uses these host-facing URLs by default: `VALHALLA_URL=http://localhost:8022/route` and `TTS_BASE_URL=http://localhost:5000`. Keep environment files limited to `KEY=value` entries; shell commands such as `cd frontend` do not belong in `.env` files.
 
 The root `.env.example` contains placeholders rather than ready-to-run values. Frontend configuration is separate and uses `EXPO_PUBLIC_API_BASE_URL`, `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`, and `EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID`.
 

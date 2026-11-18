@@ -26,8 +26,9 @@ import { jsonPost } from '../login/api/http';
 import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
 import type { RouteInstruction } from '../audio-directions/phrases';
 import { useAudioDirections } from '../hooks/useAudioDirections';
+import { reversePlaceName } from './placeName';
 
-type LatLng = { lat: number; lng: number };
+type LatLng = { lat: number; lng: number; name?: string };
 type RouteStop = { id: string; point: LatLng };
 
 type PoiSearchResult = {
@@ -219,12 +220,55 @@ export default function MapScreen() {
   });
 
   const [routeMode, setRouteMode] = useState(false);
-  const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
-  const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
+  const [routeStart, setRouteStart] = useState<LatLng | null>(null);
+  const [routeEnd, setRouteEnd] = useState<LatLng | null>(null);
   const [avoidDanger, setAvoidDanger] = useState(false);
   const [routeError, setRouteError] = useState<RouteError | null>(null);
   const [activeRouteField, setActiveRouteField] = useState<string | null>(null);
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  useEffect(() => {
+    if (!routeStart || routeStart.name) return;
+    const controller = new AbortController();
+    void reversePlaceName(routeStart.lat, routeStart.lng, controller.signal)
+      .then(place => {
+        if (place) setRouteStart(current => current?.lat === routeStart.lat && current.lng === routeStart.lng
+          ? { ...current, name: place.name }
+          : current);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [routeStart]);
+
+  useEffect(() => {
+    if (!routeEnd || routeEnd.name) return;
+    const controller = new AbortController();
+    void reversePlaceName(routeEnd.lat, routeEnd.lng, controller.signal)
+      .then(place => {
+        if (place) setRouteEnd(current => current?.lat === routeEnd.lat && current.lng === routeEnd.lng
+          ? { ...current, name: place.name }
+          : current);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [routeEnd]);
+
+  useEffect(() => {
+    if (routeStops.length === 0) return;
+    const controller = new AbortController();
+    void Promise.all(routeStops.map(async stop => {
+      if (stop.point.name) return { id: stop.id, name: stop.point.name };
+      const place = await reversePlaceName(stop.point.lat, stop.point.lng, controller.signal);
+      return { id: stop.id, name: place?.name ?? null };
+    })).then(results => {
+      setRouteStops(current => current.map(stop => {
+        const resolved = results.find(result => result.id === stop.id);
+        return resolved?.name && !stop.point.name
+          ? { ...stop, point: { ...stop.point, name: resolved.name } }
+          : stop;
+      }));
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [routeStops]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
   const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
@@ -833,7 +877,7 @@ export default function MapScreen() {
 
             <Pressable onPress={() => setActiveRouteField('start')} style={[styles.routeInput, activeRouteField === 'start' && styles.routeInputActive]}>
               <View style={[styles.routeDot, { backgroundColor: '#0065EB' }]} />
-              <Text style={styles.routeInputText}>{routeStart ? `Start: ${routeStart.lat.toFixed(4)}, ${routeStart.lng.toFixed(4)}` : 'Tap map to select start point'}</Text>
+              <Text style={styles.routeInputText}>{routeStart ? `Start: ${routeStart.name || 'Selected starting location'}` : 'Tap map to select start point'}</Text>
             </Pressable>
 
             {routeStops.map((stop, index) => (
@@ -843,7 +887,7 @@ export default function MapScreen() {
                       style={[styles.routeInput, styles.routeStopInput, activeRouteField === stop.id && styles.routeInputActive]}>
                     <View style={[styles.routeDot, { backgroundColor: '#9157a2' }]} />
                     <Text style={styles.routeInputText}>
-                      {`Stop ${index + 1}: ${stop.point.lat.toFixed(4)}, ${stop.point.lng.toFixed(4)}`}
+                      {`Stop ${index + 1}: ${stop.point.name || 'Selected stop location'}`}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -863,7 +907,7 @@ export default function MapScreen() {
 
             <Pressable onPress={() => setActiveRouteField('end')} style={[styles.routeInput, activeRouteField === 'end' && styles.routeInputActive]}>
               <View style={[styles.routeDot, { backgroundColor: '#d93838' }]} />
-              <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
+              <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.name || 'Selected destination'}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
             <View style={styles.avoidDangerRow}>
@@ -1085,7 +1129,7 @@ export default function MapScreen() {
                 {
                   setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
                 }
-                setRouteEnd({ lat: destCoords[1], lng: destCoords[0] });
+                setRouteEnd({ lat: destCoords[1], lng: destCoords[0], name: selectedPoi.name });
                 setActiveRouteField(null);
               }}
           />
