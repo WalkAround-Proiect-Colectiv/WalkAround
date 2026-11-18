@@ -32,6 +32,11 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | `AccommodationBookingOptionResponse` | Booking source, tax-and-fee-inclusive full-stay EUR price, and HTTPS booking-site URL. |
 | `SaveTripPlanRequest` | Title, optional description, transport mode, Plane-only origin airport, GeoNames departure and destination cities/country codes, departure interval, nights, ticket option, EUR transport and accommodation budgets. It has no accommodation check-in date or selected provider offer. |
 | `TripPlanResponse` | Saved plan ID, transport mode, optional origin airport, other stored preset fields, and creation time. The owner ID is not exposed or accepted from the client. |
+| `TripGroupResponse` | Group ID, name, optional description, the requesting member's role, optional member-protected picture URL, and creation time. |
+| `TripGroupInviteResponse` | New invitation ID, raw one-use token, and expiry. Returned only at creation. |
+| `TripGroupInviteSummary` | Admin-only invitation metadata without the token. |
+| `TripGroupInviteTokenRequest` | Validated token in a JSON body for preview and acceptance. |
+| `TripGroupInvitePreview` | Group name, expiry, and photo availability for an active invitation. The photo itself is fetched through a token-protected request. |
 
 For `ROUND_TRIP`, `viewUrls` contains one search-page URL. For `TWO_ONE_WAY`, the first URL is for the outbound search and the second is for the return search. These URLs can point to a search page rather than the exact displayed offer. No DTO contains a booking token or a purchased-ticket record.
 

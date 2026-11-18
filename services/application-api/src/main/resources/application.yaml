@@ -67,6 +67,12 @@ app:
     picture-max-bytes: ${PROFILE_PICTURE_MAX_BYTES:5242880}
     picture-max-pixels: ${PROFILE_PICTURE_MAX_PIXELS:16000000}
     picture-output-size: ${PROFILE_PICTURE_OUTPUT_SIZE:512}
+  trip-groups:
+    picture-max-bytes: ${GROUP_PICTURE_MAX_BYTES:2097152}
+    picture-max-pixels: ${GROUP_PICTURE_MAX_PIXELS:12000000}
+    picture-output-size: ${GROUP_PICTURE_OUTPUT_SIZE:512}
+    invite-ttl: ${GROUP_INVITE_TTL:P7D}
+    max-active-invites: ${GROUP_MAX_ACTIVE_INVITES:10}
   login:
     signing-secret: ${JWT_SIGNING_SECRET:}
     issuer: ${JWT_ISSUER:walkaround}
