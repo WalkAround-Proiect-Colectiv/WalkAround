@@ -79,6 +79,41 @@ public class PhotonPlaceSearchProvider implements PlaceSearchProvider {
         return List.copyOf(results);
     }
 
+    @Override
+    public PlaceSearchResult reverse(double latitude, double longitude) {
+        if (!isWithinCoverage(longitude, latitude)) {
+            throw new InvalidPlaceSearchException("Location is outside the supported coverage area");
+        }
+        JsonNode response;
+        try {
+            response = restClient.get()
+                    .uri(builder -> builder.path("/reverse")
+                            .queryParam("lat", latitude)
+                            .queryParam("lon", longitude)
+                            .queryParam("lang", "en")
+                            .build())
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (RestClientException exception) {
+            Throwable cause = rootCause(exception);
+            log.warn("Photon reverse lookup transport failed; root cause: {}", cause.getClass().getSimpleName());
+            throw new PlaceSearchUnavailableException("Place lookup is temporarily unavailable", exception);
+        }
+
+        JsonNode features = response == null ? null : response.get("features");
+        if (features == null || !features.isArray() || features.isEmpty()) {
+            throw new PlaceSearchUnavailableException("Place lookup returned an invalid response");
+        }
+        JsonNode properties = features.get(0).path("properties");
+        String countryCode = text(properties, "countrycode");
+        if (countryCode == null || !"ro".equalsIgnoreCase(countryCode)) {
+            throw new PlaceSearchUnavailableException("Place lookup returned an unsupported location");
+        }
+        String name = firstText(properties, "name", "street", "district", "city", "locality");
+        if (name == null) name = "Selected location";
+        return new PlaceSearchResult(name, detail(properties), latitude, longitude);
+    }
+
     private static boolean isWithinCoverage(double longitude, double latitude) {
         return longitude >= COVERAGE_WEST && longitude <= COVERAGE_EAST
                 && latitude >= COVERAGE_SOUTH && latitude <= COVERAGE_NORTH;

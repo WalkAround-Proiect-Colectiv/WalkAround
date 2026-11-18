@@ -31,4 +31,14 @@ public class PlaceSearchService {
         }
         return provider.search(query.trim(), latitude, longitude, zoom, properties.maxResults());
     }
+
+    public PlaceSearchResult reverse(double latitude, double longitude) {
+        if (!Double.isFinite(latitude) || latitude < -90 || latitude > 90) {
+            throw new InvalidPlaceSearchException("Latitude must be between -90 and 90");
+        }
+        if (!Double.isFinite(longitude) || longitude < -180 || longitude > 180) {
+            throw new InvalidPlaceSearchException("Longitude must be between -180 and 180");
+        }
+        return provider.reverse(latitude, longitude);
+    }
 }
