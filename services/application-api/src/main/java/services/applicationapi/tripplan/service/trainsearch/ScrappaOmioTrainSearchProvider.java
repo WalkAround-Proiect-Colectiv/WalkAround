@@ -31,7 +31,6 @@ import tools.jackson.databind.JsonNode;
 public class ScrappaOmioTrainSearchProvider implements TrainSearchProvider {
 
     private static final Logger log = LoggerFactory.getLogger(ScrappaOmioTrainSearchProvider.class);
-    private static final int ADULTS = 1;
 
     private final RestClient client;
     private final TrainSearchProperties properties;
@@ -69,7 +68,7 @@ public class ScrappaOmioTrainSearchProvider implements TrainSearchProvider {
 
     @Override
     public SearchPage search(long originId, long destinationId, LocalDate date,
-                             LocalDate returnDate, int page) {
+                             LocalDate returnDate, int page, int adults) {
         JsonNode response;
         try {
             response = client.get()
@@ -81,7 +80,7 @@ public class ScrappaOmioTrainSearchProvider implements TrainSearchProvider {
                                 .queryParam("travel_mode", "train")
                                 .queryParam("currency", "EUR")
                                 .queryParam("sort", "price")
-                                .queryParam("adults", ADULTS)
+                                .queryParam("adults", adults)
                                 .queryParam("limit", 100)
                                 .queryParam("page", page);
                         if (returnDate != null) builder.queryParam("return_date", returnDate);

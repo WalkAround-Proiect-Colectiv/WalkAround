@@ -16,6 +16,13 @@ import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import services.applicationapi.tripplan.controllers.TripGroupController;
 import services.applicationapi.tripplan.service.exceptions.InvalidTripGroupException;
+import services.applicationapi.tripplan.service.exceptions.InvalidTripPlanException;
+import services.applicationapi.tripplan.service.exceptions.InvalidFlightSearchException;
+import services.applicationapi.tripplan.service.exceptions.InvalidCitySelectionException;
+import services.applicationapi.tripplan.service.exceptions.AmbiguousCitySelectionException;
+import services.applicationapi.tripplan.service.exceptions.FlightSearchUnavailableException;
+import services.applicationapi.tripplan.service.exceptions.CitySearchUnavailableException;
+import services.applicationapi.tripplan.service.exceptions.TripPlanNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupForbiddenException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupInviteLimitException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupInviteNotFoundException;
@@ -32,12 +39,28 @@ public class TripGroupExceptionHandler {
         return problem(HttpStatus.BAD_REQUEST, exception.getMessage());
     }
 
+    @ExceptionHandler({InvalidTripPlanException.class, InvalidFlightSearchException.class,
+            InvalidCitySelectionException.class})
+    ResponseEntity<ProblemDetail> invalidPlan(RuntimeException exception) {
+        return problem(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(AmbiguousCitySelectionException.class)
+    ResponseEntity<ProblemDetail> ambiguousCity(AmbiguousCitySelectionException exception) {
+        return problem(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler({FlightSearchUnavailableException.class, CitySearchUnavailableException.class})
+    ResponseEntity<ProblemDetail> cityUnavailable() {
+        return problem(HttpStatus.BAD_GATEWAY, "City validation is temporarily unavailable");
+    }
+
     @ExceptionHandler({MissingServletRequestParameterException.class,
             MissingServletRequestPartException.class, MethodArgumentTypeMismatchException.class,
             MultipartException.class, MethodArgumentNotValidException.class,
             HttpMessageNotReadableException.class})
     ResponseEntity<ProblemDetail> malformedRequest() {
-        return problem(HttpStatus.BAD_REQUEST, "Valid group details are required");
+        return problem(HttpStatus.BAD_REQUEST, "Valid request details are required");
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
@@ -53,6 +76,11 @@ public class TripGroupExceptionHandler {
     @ExceptionHandler(TripGroupNotFoundException.class)
     ResponseEntity<ProblemDetail> notFound() {
         return problem(HttpStatus.NOT_FOUND, "Trip group was not found");
+    }
+
+    @ExceptionHandler(TripPlanNotFoundException.class)
+    ResponseEntity<ProblemDetail> planNotFound() {
+        return problem(HttpStatus.NOT_FOUND, "Trip plan was not found");
     }
 
     @ExceptionHandler(TripGroupInviteNotFoundException.class)

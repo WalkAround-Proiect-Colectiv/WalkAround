@@ -18,5 +18,7 @@ Each `@RestControllerAdvice` is scoped to its own trip-planning controller. Vali
 - `TripPlanExceptionHandler` handles saved-plan validation (`400`), ambiguous departure-city matches (`409`), unavailable account (`401`), owner-scoped misses (`404`), and GeoNames validation failure (`502`).
 - `TripGroupExceptionHandler` handles invalid group or invite input (`400`), oversized multipart requests (`413`), missing authentication (`401`), nonmember or unknown group reads and unavailable invites (`404`), member attempts to edit a group or manage invites (`403`), active-invite limit (`409`), and unexpected failures (`500`). Raw image parsing errors, token hashes, and stack traces do not reach clients.
 
+The same group handler covers group-plan input (`400`), unavailable GeoNames validation (`502`), inaccessible plans (`404`), and nonadmin current-plan selection (`403`). Provider error bodies are not sent to clients.
+
 When adding another endpoint, keep its error mapping scoped to its controller so an exception in one flow does not change responses from another.
 `HistoricalWeatherExceptionHandler` scopes client-friendly `400` and generic `502` responses to the historical weather controller, hides upstream error details, and logs unexpected failures.

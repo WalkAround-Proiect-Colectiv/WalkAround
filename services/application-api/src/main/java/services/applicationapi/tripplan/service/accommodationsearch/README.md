@@ -4,7 +4,7 @@
 
 ## Request and validation
 
-The request contains `destinationCity` and `countryCode` from a GeoNames city suggestion, `checkInDate` (first booked night), `stayingNights`, and a total EUR `budget`. Check-out is `checkInDate + stayingNights`. Bean Validation checks required fields, country-code shape, positive budget, and 1–365 nights. The service rejects past check-in dates, impossible check-out dates, and invalid city text.
+The request contains `destinationCity` and `countryCode` from a GeoNames city suggestion, `checkInDate` (first booked night), `stayingNights`, a total EUR `budget`, and 1 to 9 adults. Missing `adults` defaults to 1 for existing clients. Check-out is `checkInDate + stayingNights`. Bean Validation checks required fields, country-code shape, positive budget, adult count, and 1 to 365 nights. The service rejects past check-in dates, impossible check-out dates, and invalid city text.
 
 `GeoNamesAccommodationCityValidator` verifies a populated place (`featureClass=P`) with the requested name and country code in geographical Europe (`continentCode=EU`). Name comparison uses `CityNameNormalizer` for spelling variants, including diacritics. The country code comes from the autocomplete option; the endpoint still validates it against GeoNames rather than trusting the client. This covers geographical Europe, including countries outside the EU member-country table used by flight search. A selected city is represented by its name and country code, so two same-named places in one country cannot be distinguished by this request.
 
@@ -12,7 +12,7 @@ The validated city also carries GeoNames latitude and longitude. Accommodation s
 
 ## SerpApi request and prices
 
-`SerpApiAccommodationSearchProvider` makes one `google_hotels` list request with the validated `City, Country` query, check-in/check-out dates, `currency=EUR`, `adults=1`, and lowest-price sorting. The property-details requests also use `adults=1`, so displayed prices and booking options are evaluated for one adult. The application inspects only the returned first page; it does not promise the cheapest available property across all pages.
+`SerpApiAccommodationSearchProvider` makes one `google_hotels` list request with the validated `City, Country` query, check-in/check-out dates, `currency=EUR`, the requested `adults`, and lowest-price sorting. Property-details requests use the same adult count, so displayed prices and booking options are evaluated for that party size. The application inspects only the returned first page; it does not promise the cheapest available property across all pages.
 
 Only list properties with a positive `total_rate.extracted_after_taxes_fees` and a `property_token` are eligible. That price represents the entire stay including taxes and fees. Properties without it are skipped because their total cost cannot be compared reliably with the budget. The service sorts affordable properties and selects at most `ACCOMMODATION_SEARCH_MAX_RESULTS` (default `3`). It then makes one property-details request for each selected property, using its token and the same dates and currency. **One application request makes at most `1 + ACCOMMODATION_SEARCH_MAX_RESULTS` SerpApi searches** plus one GeoNames request; with the default limit, at most four SerpApi searches. There is no pagination or automatic replacement of a selected property whose details lack a bookable rate. Identical SerpApi searches may be served from its cache without using a plan credit.
 

@@ -6,8 +6,8 @@ export interface CitySuggestion {
   country: string;
   countryCode: string;
   lookupName: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface Airport {
@@ -209,6 +209,7 @@ export interface FlightSearchInput {
   departureUntil: string;
   stayingNights: number;
   ticketOption: TicketOption;
+  adults: number;
 }
 
 export interface TrainSearchInput {
@@ -221,6 +222,7 @@ export interface TrainSearchInput {
   departureUntil: string;
   stayingNights: number;
   ticketOption: TicketOption;
+  adults: number;
 }
 
 export interface TrainStop {
@@ -293,6 +295,7 @@ export interface BusSearchInput {
   departureUntil: string;
   stayingNights: number;
   ticketOption: TicketOption;
+  adults: number;
 }
 
 export interface BusLeg {
@@ -354,6 +357,7 @@ export interface AccommodationSearchInput {
   checkInDate: string;
   stayingNights: number;
   budget: number;
+  adults: number;
 }
 
 export interface AccommodationBookingOption {
@@ -395,11 +399,28 @@ export interface SaveTripPlanInput {
   ticketOption: TicketOption;
   transportBudget: number;
   accommodationBudget: number;
+  adults: number;
 }
 
 export interface SavedTripPlan {
   id: string;
+  groupId: string | null;
   title: string;
+  description: string | null;
+  transportMode: 'PLANE' | 'BUS' | 'TRAIN';
+  originAirport: string | null;
+  departureCity: string;
+  departureCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  adults: number;
+  ticketOption: TicketOption;
+  transportBudget: number;
+  accommodationBudget: number;
+  current: boolean;
   createdAt: string;
 }
 
@@ -532,8 +553,9 @@ export function searchAccommodations(input: AccommodationSearchInput): Promise<A
   });
 }
 
-export function saveTripPlan(input: SaveTripPlanInput): Promise<SavedTripPlan> {
-  return send('/api/trip-plans', {
+export function saveTripPlan(input: SaveTripPlanInput, groupId?: string): Promise<SavedTripPlan> {
+  const path = groupId ? `/api/trip-plan-groups/${encodeURIComponent(groupId)}/plans` : '/api/trip-plans';
+  return send(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

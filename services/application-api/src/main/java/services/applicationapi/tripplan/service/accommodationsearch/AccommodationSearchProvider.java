@@ -6,9 +6,11 @@ import java.util.List;
 
 public interface AccommodationSearchProvider {
 
-    List<AccommodationOffer> search(String destination, LocalDate checkInDate, LocalDate checkOutDate);
+    List<AccommodationOffer> search(String destination, LocalDate checkInDate,
+                                    LocalDate checkOutDate, int adults);
 
-    AccommodationDetails details(String propertyToken, LocalDate checkInDate, LocalDate checkOutDate);
+    AccommodationDetails details(String propertyToken, LocalDate checkInDate,
+                                  LocalDate checkOutDate, int adults);
 
     record AccommodationOffer(
             String name,

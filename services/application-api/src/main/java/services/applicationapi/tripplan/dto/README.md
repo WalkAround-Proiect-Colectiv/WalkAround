@@ -12,6 +12,8 @@ Each transfer has optional `fromStop` and `toStop` values of type `BusStopRespon
 
 These records form the JSON contract for the trip-planning controllers. Keep their field names and meanings stable when changing a provider or service implementation.
 
+Flight, Bus, Train, accommodation, and saved-plan requests accept `adults` from 1 to 9. Omitted `adults` defaults to 1 so earlier clients keep their behavior. Budgets are totals for the requested party, and each provider receives that party size for every priced leg or property-details request.
+
 | Record | Meaning |
 | --- | --- |
 | `CitySuggestion` | GeoNames display name, country/code, coordinates, and `lookupName` for a later city lookup. `lookupName` preserves Unicode spelling with normalized whitespace. |
@@ -22,16 +24,16 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | `CountryHotlineResponse` | EU country code and hotlines grouped by source record ID. Each hotline has typed numbers, organization, category, service details, verification context, source hostname, and evidence links. |
 | `NewsArticleResponse` | Currents article title, description, publisher URL, optional image/author/language/categories, publication string, and provider ID. Only safe HTTPS article URLs are returned. |
 | `DestinationWeatherResponse` | Validated city/country, destination timezone, and daily local dates with WMO weather codes, Celsius high/low, precipitation chance/amount, and maximum wind speed. |
-| `FlightSearchRequest` | Origin IATA code, destination city/country, EUR budget, inclusive local departure interval, nights, and ticket option. Bean Validation covers individual fields; the service validates relationships between fields and database/provider existence. |
+| `FlightSearchRequest` | Origin IATA code, destination city/country, total EUR budget, inclusive local departure interval, nights, ticket option, and 1 to 9 adults. Bean Validation covers individual fields; the service validates relationships between fields and database/provider existence. |
 | `FlightItineraryResponse` | Ticket option, EUR total price, outbound and return segment lists, and Google Flights `viewUrls`. |
 | `FlightSegmentResponse` | One flight segment, including airport codes, local provider time strings, flight number, and airline. Multiple segments represent connections. |
 | `TicketOption` | `ROUND_TRIP` or `TWO_ONE_WAY`. |
 | `TransportMode` | Saved-plan transport choice: `PLANE`, `BUS`, or `TRAIN`. |
-| `AccommodationSearchRequest` | Selected GeoNames city name and country code, first booked night, staying nights, and total EUR budget. |
+| `AccommodationSearchRequest` | Selected GeoNames city name and country code, first booked night, staying nights, total EUR budget, and 1 to 9 adults. |
 | `AccommodationOfferResponse` | Property name and type, full-stay EUR price, dates, optional property website, description, address, rating, review count, amenities, room type names, and booking options. |
 | `AccommodationBookingOptionResponse` | Booking source, tax-and-fee-inclusive full-stay EUR price, and HTTPS booking-site URL. |
-| `SaveTripPlanRequest` | Title, optional description, transport mode, Plane-only origin airport, GeoNames departure and destination cities/country codes, departure interval, nights, ticket option, EUR transport and accommodation budgets. It has no accommodation check-in date or selected provider offer. |
-| `TripPlanResponse` | Saved plan ID, transport mode, optional origin airport, other stored preset fields, and creation time. The owner ID is not exposed or accepted from the client. |
+| `SaveTripPlanRequest` | Title, optional description, transport mode, Plane-only origin airport, GeoNames departure and destination cities/country codes, departure interval, nights, 1 to 9 adults, ticket option, EUR transport and accommodation budgets. It has no accommodation check-in date or selected provider offer. |
+| `TripPlanResponse` | Saved plan ID, nullable group ID, transport mode, optional origin airport, adult count, current-group-plan marker, other stored preset fields, and creation time. The owner user ID is not exposed or accepted from the client. |
 | `TripGroupResponse` | Group ID, name, optional description, the requesting member's role, optional member-protected picture URL, and creation time. |
 | `TripGroupInviteResponse` | New invitation ID, raw one-use token, and expiry. Returned only at creation. |
 | `TripGroupInviteSummary` | Admin-only invitation metadata without the token. |

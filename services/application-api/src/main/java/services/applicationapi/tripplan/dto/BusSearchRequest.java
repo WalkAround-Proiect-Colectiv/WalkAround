@@ -20,6 +20,10 @@ public record BusSearchRequest(
         @NotNull LocalDateTime departureFrom,
         @NotNull LocalDateTime departureUntil,
         @NotNull @Min(1) @Max(365) Integer stayingNights,
-        @NotNull TicketOption ticketOption
+        @NotNull TicketOption ticketOption,
+        @Min(1) @Max(9) Integer adults
 ) {
+    public BusSearchRequest {
+        if (adults == null) adults = 1;
+    }
 }

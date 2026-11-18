@@ -4,7 +4,7 @@ This package assembles priced itineraries for `POST /api/trip-plans/flight-searc
 
 ## Destination and input validation
 
-The request uses an origin airport **IATA code**, destination city name, destination country code, EUR budget, inclusive departure datetime interval, number of staying nights, and `ROUND_TRIP` or `TWO_ONE_WAY`.
+The request uses an origin airport **IATA code**, destination city name, destination country code, total EUR budget, inclusive departure datetime interval, number of staying nights, 1 to 9 adults, and `ROUND_TRIP` or `TWO_ONE_WAY`. Missing `adults` defaults to 1 for existing clients.
 
 1. Bean Validation checks field presence, code shapes, budget precision/positivity, and nights range. The service checks interval order and its configured maximum number of calendar dates.
 2. `AirportRepository.existsByIataCodeIgnoreCase` verifies the origin against the local airports table. `CountryRepository.findByCode` verifies the country against the imported EU member-country table. The import script currently loads only those countries; if the table's import scope changes, this membership assumption must be revisited.
@@ -15,7 +15,7 @@ The separate `cityairport` package is not used to find destination airports for 
 
 ## Search and price assembly
 
-[`SerpApiFlightSearchProvider`](SerpApiFlightSearchProvider.java) calls the `google_flights` engine with the origin IATA code, destination city ID, EUR currency, `max_price`, dates, and an hourly `outbound_times` filter. The service then applies the exact local departure datetime interval to returned flights. Provider results are read from both `best_flights` and `other_flights`.
+[`SerpApiFlightSearchProvider`](SerpApiFlightSearchProvider.java) calls the `google_flights` engine with the origin IATA code, destination city ID, EUR currency, requested `adults`, `max_price`, dates, and an hourly `outbound_times` filter. The same adult count is used for outbound, return-token, and reverse one-way searches. The service then applies the exact local departure datetime interval to returned flights. Provider results are read from both `best_flights` and `other_flights`.
 
 - **Round trip:** for each departure date, the service searches return dates from `outbound date + stayingNights` through that date plus `flightSearchMaxArrivalOffsetDays` (default `2`). It keeps only outbounds whose final arrival date plus `stayingNights` equals the searched return date, then uses the departure token from that matching search to obtain return legs. Searching every permitted offset also covers cases where an earlier return date yields no outbound results. After sorting qualifying outbound candidates by their initial price, the service follows at most `flightSearchMaxResults` distinct tokens. The price on the selected return option is treated as the full round-trip price; it must fit the budget.
 - **Two one-way tickets:** for each departure date, the service searches outbound one-way flights. It calculates each return date from the final outbound segment's arrival date plus `stayingNights`, then searches return one-way flights for each distinct date. Return searches are reused when multiple outbounds need the same date. Offers with an unparseable final arrival time are skipped. It combines outbound/return offers and retains pairs whose **sum** fits the budget. The return airport can be any airport Google Flights associates with the destination city.

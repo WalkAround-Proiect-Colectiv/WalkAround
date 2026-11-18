@@ -25,6 +25,10 @@ public record SaveTripPlanRequest(
         @NotNull @Min(1) @Max(365) Integer stayingNights,
         @NotNull TicketOption ticketOption,
         @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal transportBudget,
-        @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal accommodationBudget
+        @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal accommodationBudget,
+        @Min(1) @Max(9) Integer adults
 ) {
+    public SaveTripPlanRequest {
+        if (adults == null) adults = 1;
+    }
 }

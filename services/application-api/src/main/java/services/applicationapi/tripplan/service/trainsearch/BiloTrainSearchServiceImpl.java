@@ -54,7 +54,7 @@ public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
 
         for (LocalDate date = request.departureFrom().toLocalDate();
                 !date.isAfter(request.departureUntil().toLocalDate()); date = date.plusDays(1)) {
-            for (Offer outbound : provider.search(origin, destination, date)) {
+            for (Offer outbound : provider.search(origin, destination, date, request.adults())) {
                 if (outbound.departure().isBefore(request.departureFrom())
                         || outbound.departure().isAfter(request.departureUntil())) continue;
 
@@ -63,7 +63,7 @@ public class BiloTrainSearchServiceImpl implements RomaniaTrainSearchService {
                 if (returnDate.isAfter(lastSupportedDate)) continue;
 
                 List<Offer> returning = returnDays.computeIfAbsent(returnDate,
-                        day -> provider.search(destination, origin, day));
+                        day -> provider.search(destination, origin, day, request.adults()));
                 for (Offer returnOffer : returning) {
                     BigDecimal totalEur = eur(outbound, ronToEur).add(eur(returnOffer, ronToEur));
                     if (!returnOffer.departure().toLocalDate().equals(returnDate)

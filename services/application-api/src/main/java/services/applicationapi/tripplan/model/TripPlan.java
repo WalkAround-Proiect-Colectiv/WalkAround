@@ -25,9 +25,17 @@ public class TripPlan {
     @Id
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    private TripPlanGroup group;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private User createdByUser;
 
     @Column(nullable = false, length = 120)
     private String title;
@@ -62,6 +70,12 @@ public class TripPlan {
     @Column(nullable = false)
     private int stayingNights;
 
+    @Column(nullable = false)
+    private int adults;
+
+    @Column(name = "is_current", nullable = false)
+    private boolean current;
+
     @Column(nullable = false, length = 16)
     private String ticketOption;
 
@@ -76,6 +90,8 @@ public class TripPlan {
 
     public TripPlan(
             User user,
+            TripPlanGroup group,
+            User createdByUser,
             String title,
             String description,
             String transportMode,
@@ -87,12 +103,16 @@ public class TripPlan {
             LocalDateTime departureFrom,
             LocalDateTime departureUntil,
             int stayingNights,
+            int adults,
             String ticketOption,
             BigDecimal transportBudget,
-            BigDecimal accommodationBudget
+            BigDecimal accommodationBudget,
+            boolean current
     ) {
         this.id = UUID.randomUUID();
         this.user = user;
+        this.group = group;
+        this.createdByUser = createdByUser;
         this.title = title;
         this.description = description;
         this.transportMode = transportMode;
@@ -104,9 +124,15 @@ public class TripPlan {
         this.departureFrom = departureFrom;
         this.departureUntil = departureUntil;
         this.stayingNights = stayingNights;
+        this.adults = adults;
+        this.current = current;
         this.ticketOption = ticketOption;
         this.transportBudget = transportBudget;
         this.accommodationBudget = accommodationBudget;
         this.createdAt = Instant.now();
+    }
+
+    public void setCurrent(boolean current) {
+        this.current = current;
     }
 }
