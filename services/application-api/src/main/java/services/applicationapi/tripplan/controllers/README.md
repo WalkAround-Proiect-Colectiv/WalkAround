@@ -25,6 +25,11 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 | `POST /api/trip-plans/accommodation-searches` | JSON `AccommodationSearchRequest` | Up to the configured number of `AccommodationOfferResponse` objects. Search creates no booking. |
 | `POST /api/trip-plans` | JSON `SaveTripPlanRequest` and authenticated JWT | `201 Created`, `Location: /api/trip-plans/{id}`, and `TripPlanResponse`. |
 | `GET /api/trip-plans/{id}` | Plan UUID and authenticated JWT | `TripPlanResponse` for the current owner, or `404`. |
+| `POST /api/trip-plan-groups` | Authenticated multipart form with required `name`, optional `description` and `picture` | `201 Created`, `Location: /api/trip-plan-groups/{id}`, and `TripGroupResponse`. The creator becomes the sole `ADMIN`. |
+| `GET /api/trip-plan-groups/{id}` | Authenticated group member and group UUID | `TripGroupResponse`, or `404` for an unknown group or nonmember. |
+| `GET /api/trip-plan-groups/{id}/picture` | Authenticated group member and group UUID | Normalized JPEG bytes, or `404` for an unknown group, nonmember, or missing picture. |
+
+`TripGroupController` handles group creation and member-protected detail and picture reads. It does not expose a group listing, invitations, chat, or a shared planner yet. The picture is optional; JPEG and PNG inputs are normalized to JPEG. All responses use `Cache-Control: no-store`.
 
 The flight-search JSON uses `originAirport` as a three-letter IATA code, `destinationCity`, a two-letter `countryCode`, a positive EUR `budget`, `departureFrom` and `departureUntil` as ISO local datetimes, `stayingNights`, and `ticketOption` (`ROUND_TRIP` or `TWO_ONE_WAY`). The datetime interval is interpreted in the origin airport's local time and its endpoints are inclusive. No UTC offset is accepted by the current request DTO. See [`dto/FlightSearchRequest.java`](../dto/FlightSearchRequest.java) for the exact Bean Validation constraints.
 

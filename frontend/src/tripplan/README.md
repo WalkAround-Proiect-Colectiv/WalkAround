@@ -2,6 +2,8 @@
 
 The travel selector offers Plane, Bus, and Train. Plane uses the selected origin airport; Bus and Train send both selected GeoNames cities and country codes to their respective `/api/trip-plans/bus-searches` and `/api/trip-plans/train-searches` endpoints. All three modes use the EUR budget, local departure interval, staying nights, and ticket option. The airport picker appears only for Plane; the saved-plan form works for every transport mode. Changing transport clears stale ticket results and the saved confirmation; selecting an itinerary suggests accommodation check-in from its outbound arrival date.
 
+The top of the planner links to `/trip-group-create`. Group creation is the only group action implemented so far. The new page accepts a name, optional description, and optional JPEG/PNG photo, then shows the created group and the creator's admin role. Group listing, invites, chat, and shared planning are later features.
+
 Bus cards and Omio-sourced train cards open Omio searches prefilled with the journey's cities and dates. Round trips use one search with a return date; two one-way tickets use separate outbound and return searches. The user must select the offer again on Omio because the links do not identify an exact fare.
 
 For Romanian city pairs, a Two one-way train request can also return Bilo offers when the backend has a Bilo API key. Round trip requests return Omio offers only. Cards identify their source. Bilo pairs use two one-way tickets, show the published original RON fare and an approximate EUR total, and open Bilo's published ticket/search links when available. The backend applies the shared EUR budget after conversion; final fares and seat availability must be checked with the operator.

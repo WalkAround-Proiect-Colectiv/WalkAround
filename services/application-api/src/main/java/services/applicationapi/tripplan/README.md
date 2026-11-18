@@ -18,6 +18,7 @@ This feature supports city suggestions, local city-to-airports lookup, flight, b
 | Destination news | [`service/newsfeed`](service/newsfeed/README.md) | Validate a destination and retrieve one Currents Search page of English-language city news. |
 | Destination weather | [`service/weather`](service/weather/README.md) | Validate a European city and retrieve destination-local daily forecasts and optional historical stay comparisons from Open-Meteo. |
 | Saved plans | [`service/savedplan`](service/savedplan/README.md) | Create and view user-owned search presets. |
+| Trip groups | [`service/tripgroup`](service/tripgroup/README.md) | Create a group with its initial admin membership and optional picture. |
 | Saved-plan model | [`model`](model/README.md) and [`repository`](repository/README.md) | Persist plans and scope reads by owner. |
 | Provider settings | [`configurations`](configurations/README.md) | Bind settings and create HTTP clients with timeouts. |
 | Name comparison | [`service/utils`](service/utils/README.md) | Normalize city spelling for comparisons across data sources. |
