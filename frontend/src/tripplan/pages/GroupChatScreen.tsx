@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MessageCircle, Send } from 'lucide-react-native';
+import { ArrowLeft, MessageCircle, Send, Smile } from 'lucide-react-native';
 import * as Crypto from 'expo-crypto';
 import { useSession } from '../../login/components/SessionProvider';
 import GroupPicture from '../components/GroupPicture';
+import EmojiPicker from '../components/EmojiPicker';
 import { getGroupChatMessages, getGroupChatTicket, sendGroupChatMessage,
   type GroupChatMessage } from '../api/groupChat';
 import type { CreatedTripGroup } from '../api/tripGroups';
@@ -64,6 +65,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const { session } = useSession();
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [showEmojis, setShowEmojis] = useState(false);
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [pending, setPending] = useState<PendingMessage | null>(null);
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -215,7 +218,23 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     pendingRef.current = item;
     setPending(item);
     setDraft('');
+    setSelection({ start: 0, end: 0 });
+    setShowEmojis(false);
     void send(item);
+  }
+
+  function insertEmoji(emoji: string) {
+    const start = Math.min(selection.start, draft.length);
+    const end = Math.min(selection.end, draft.length);
+    const next = draft.slice(0, start) + emoji + draft.slice(end);
+    if (next.length > 2000) {
+      setSendError('Message limit is 2,000 characters.');
+      return;
+    }
+    const cursor = start + emoji.length;
+    setDraft(next);
+    setSelection({ start: cursor, end: cursor });
+    setSendError(null);
   }
 
   async function loadOlder() {
@@ -300,6 +319,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       </View>}
     </ScrollView>
 
+    {showEmojis && <EmojiPicker onClose={() => setShowEmojis(false)} onSelect={insertEmoji} />}
     {sendError && <Text accessibilityRole="alert" style={styles.error}>{sendError}</Text>}
     {pending && !sending && <View style={styles.retryRow}>
       <Pressable accessibilityRole="button" onPress={() => { void send(pending); }}>
@@ -312,9 +332,18 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       }}><Text style={styles.discardText}>Discard</Text></Pressable>
     </View>}
     <View style={styles.composer}>
+      <Pressable accessibilityRole="button" accessibilityLabel={showEmojis ? 'Close emoji palette' : 'Open emoji palette'}
+        accessibilityState={{ expanded: showEmojis }} onPress={() => {
+          Keyboard.dismiss();
+          setShowEmojis((open) => !open);
+        }} style={[styles.emojiToggle, showEmojis && styles.emojiToggleActive]}>
+        <Smile size={21} color={showEmojis ? BLUE : '#7D8B9E'} />
+      </Pressable>
       <TextInput accessibilityLabel="Group message" multiline maxLength={2000}
         placeholder="Message your group" placeholderTextColor="#8A96A6"
-        style={styles.input} value={draft} onChangeText={setDraft} />
+        style={styles.input} value={draft} onChangeText={setDraft} selection={selection}
+        onSelectionChange={({ nativeEvent }) => setSelection(nativeEvent.selection)}
+        onFocus={() => setShowEmojis(false)} />
       <Pressable accessibilityRole="button" accessibilityLabel="Send message"
         disabled={sending || Boolean(pending) || !draft.trim()} onPress={submit}
         style={[styles.sendButton, (sending || Boolean(pending) || !draft.trim()) && styles.disabled]}>
@@ -378,8 +407,10 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E3EAF3',
     shadowColor: '#253043', shadowOpacity: 0.08, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  emojiToggle: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  emojiToggleActive: { backgroundColor: '#E5F0FF' },
   input: { flex: 1, maxHeight: 110, minHeight: 43, borderRadius: 15, backgroundColor: '#F5F7FB',
-    color: '#202632', paddingHorizontal: 14, paddingVertical: 11, fontSize: 14 },
+    color: '#202632', paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, outlineWidth: 0 },
   sendButton: { width: 43, height: 43, borderRadius: 15, backgroundColor: BLUE,
     alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.5 },
