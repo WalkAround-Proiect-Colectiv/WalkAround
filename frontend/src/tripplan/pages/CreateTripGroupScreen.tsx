@@ -108,8 +108,9 @@ export default function CreateTripGroupScreen() {
           <Text style={styles.createdName}>{created.name}</Text>
           {created.description && <Text style={styles.subtitle}>{created.description}</Text>}
           <View style={styles.roleBadge}><Check size={16} color={BLUE} /><Text style={styles.roleText}>You are an admin</Text></View>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/trip-plan')}
-            style={styles.primaryButton}><Text style={styles.primaryText}>Back to trip planner</Text></Pressable>
+          <Pressable accessibilityRole="button" onPress={() => router.replace({
+            pathname: '/trip-groups', params: { groupId: created.id },
+          })} style={styles.primaryButton}><Text style={styles.primaryText}>Open group</Text></Pressable>
         </View> : <View style={styles.card}>
           <Text style={styles.label}>Group name</Text>
           <TextInput accessibilityLabel="Group name" value={name} maxLength={100}

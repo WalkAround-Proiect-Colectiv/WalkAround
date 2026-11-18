@@ -10,5 +10,6 @@ These custom runtime exceptions carry application-level failure categories from 
 - Ambiguous city-airport lookup: `AmbiguousCitySelectionException`.
 - External provider availability: `CitySearchUnavailableException`, `FlightSearchUnavailableException`, `AccommodationSearchUnavailableException`, `AttractionSearchUnavailableException`, `SafetyInformationUnavailableException`, `NewsFeedUnavailableException`, and `WeatherForecastUnavailableException`.
 - Saved-plan access: `TripPlanAuthenticationException` when the authenticated account is unavailable and `TripPlanNotFoundException` for a missing or other user's plan.
+- Trip group invites: `TripGroupForbiddenException` for nonadmin invite management, `TripGroupInviteNotFoundException` for unavailable links, and `TripGroupInviteLimitException` when the group has reached its active-link limit.
 
 The exception handlers determine HTTP status and `ProblemDetail` formatting. A provider may retain a `RestClientException` as a cause for debugging, but that cause must not be serialized to clients.

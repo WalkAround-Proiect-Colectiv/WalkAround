@@ -28,8 +28,14 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 | `POST /api/trip-plan-groups` | Authenticated multipart form with required `name`, optional `description` and `picture` | `201 Created`, `Location: /api/trip-plan-groups/{id}`, and `TripGroupResponse`. The creator becomes the sole `ADMIN`. |
 | `GET /api/trip-plan-groups/{id}` | Authenticated group member and group UUID | `TripGroupResponse`, or `404` for an unknown group or nonmember. |
 | `GET /api/trip-plan-groups/{id}/picture` | Authenticated group member and group UUID | Normalized JPEG bytes, or `404` for an unknown group, nonmember, or missing picture. |
+| `GET /api/trip-plan-groups` | Authenticated user | Groups joined by the user, with that user's role. |
+| `POST /api/trip-plan-groups/{id}/invitations` | Authenticated group admin | `201 Created` with invitation ID, one-use token, and expiry. The raw token is returned only here. |
+| `GET /api/trip-plan-groups/{id}/invitations` | Authenticated group admin | Recent invitation metadata, without tokens. |
+| `DELETE /api/trip-plan-groups/{id}/invitations/{invitationId}` | Authenticated group admin | `204 No Content`; an active invitation is revoked. |
+| `POST /api/trip-plan-groups/invitations/preview` | Authenticated user and JSON `{"token":"..."}` | Group name and expiry for an active invitation. |
+| `POST /api/trip-plan-groups/invitations/accept` | Authenticated user and JSON `{"token":"..."}` | Joined `TripGroupResponse` after one-use acceptance. |
 
-`TripGroupController` handles group creation and member-protected detail and picture reads. It does not expose a group listing, invitations, chat, or a shared planner yet. The picture is optional; JPEG and PNG inputs are normalized to JPEG. All responses use `Cache-Control: no-store`.
+`TripGroupController` handles group creation, member-protected listing, detail and picture reads, and invitation management. Invite creation, listing, and revocation require the `ADMIN` role. Preview and acceptance require sign-in; the token is sent in a JSON body, not an API URL. Expired, used, revoked, and unknown invitations all return a generic `404`. The picture is optional; JPEG and PNG inputs are normalized to JPEG. All responses use `Cache-Control: no-store`. Chat and shared planning are not exposed yet.
 
 The flight-search JSON uses `originAirport` as a three-letter IATA code, `destinationCity`, a two-letter `countryCode`, a positive EUR `budget`, `departureFrom` and `departureUntil` as ISO local datetimes, `stayingNights`, and `ticketOption` (`ROUND_TRIP` or `TWO_ONE_WAY`). The datetime interval is interpreted in the origin airport's local time and its endpoints are inclusive. No UTC offset is accepted by the current request DTO. See [`dto/FlightSearchRequest.java`](../dto/FlightSearchRequest.java) for the exact Bean Validation constraints.
 

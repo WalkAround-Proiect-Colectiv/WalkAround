@@ -6,6 +6,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.List;
 import java.util.UUID;
 import javax.imageio.ImageIO;
 import org.slf4j.Logger;
@@ -78,6 +79,20 @@ public class TripGroupServiceImpl implements TripGroupService {
                 ? "/api/trip-plan-groups/" + groupId + "/picture" : null;
         return new TripGroupResponse(groupId, group.getName(), group.getDescription(),
                 membership.getRole(), pictureUrl, group.getCreatedAt());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TripGroupResponse> list(UUID memberId) {
+        return members.findByUser_IdOrderByJoinedAtDesc(memberId).stream()
+                .map(membership -> {
+                    TripPlanGroup group = membership.getGroup();
+                    String pictureUrl = pictures.existsById(group.getId())
+                            ? "/api/trip-plan-groups/" + group.getId() + "/picture" : null;
+                    return new TripGroupResponse(group.getId(), group.getName(), group.getDescription(),
+                            membership.getRole(), pictureUrl, group.getCreatedAt());
+                })
+                .toList();
     }
 
     @Override

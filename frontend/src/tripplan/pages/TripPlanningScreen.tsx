@@ -979,8 +979,12 @@ export default function TripPlanningScreen() {
             <Text style={styles.sectionTitle}>Planning with others?</Text>
             <Text style={styles.helper}>Create a space for your trip group.</Text>
           </View>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/trip-group-create')}
-            style={styles.groupButton}><Text style={styles.groupButtonText}>Create a group</Text></Pressable>
+          <View style={styles.groupActions}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/trip-group-create')}
+              style={styles.groupButton}><Text style={styles.groupButtonText}>Create a group</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/trip-groups')}
+              style={styles.groupSecondaryButton}><Text style={styles.groupSecondaryText}>Your groups</Text></Pressable>
+          </View>
         </View>
 
         <View style={styles.card}>
@@ -1283,9 +1287,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
   groupIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
   groupCopy: { flex: 1, minWidth: 160 },
+  groupActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   groupButton: { minHeight: 42, borderRadius: 13, backgroundColor: BLUE, paddingHorizontal: 15,
     alignItems: 'center', justifyContent: 'center' },
   groupButtonText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  groupSecondaryButton: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: '#B5D1FA',
+    paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
+  groupSecondaryText: { color: BLUE, fontWeight: '800', fontSize: 13 },
   routeDot: { width: 12, height: 12, borderWidth: 3, borderColor: '#fff', borderRadius: 6 },
   routeLine: { flex: 1, borderTopWidth: 2, borderStyle: 'dashed', borderColor: '#fff', marginHorizontal: 8 },
   card: { backgroundColor: '#fff', borderRadius: 26, padding: 20, gap: 17, borderWidth: 1, borderColor: '#E9EEF4' },
