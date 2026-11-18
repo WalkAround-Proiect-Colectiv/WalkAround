@@ -1,5 +1,7 @@
 # Trip planning components
 
+`GroupPicture` displays member-protected group photos in the group list, group detail, and creation confirmation, and token-protected photos in invitation previews. It uses the authenticated API client, displays a rounded fallback icon while loading or if no photo is available, and releases browser object URLs on unmount. The edit form also previews the current protected photo and any newly selected local image.
+
 `TrainTicketCard` renders the total price, both journey departures, optional Omio carrier logo, stations, cities, legs, transfer waits and resolved stop names, availability, and split-ticket status. Missing transfer locations are hidden. Its Omio searches include train mode, route, EUR currency, and travel dates; round trips use one link and two one-way itineraries use separate links. These searches do not select the exact fare or book a ticket.
 
 For Bilo offers, the card labels the source, shows the original fare beside the approximate EUR conversion from a Frankfurter reference rate fetched for that search, explains Bilo's published-fare and seat-availability limits, and opens only valid HTTPS links supplied by the backend. It shows an additional notice when Bilo marks a fare as estimated.

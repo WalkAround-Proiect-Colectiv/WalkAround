@@ -57,3 +57,5 @@ The properties constructors reject non-HTTPS provider URLs, non-positive timeout
 
 Put real credentials only in the local `services/application-api/.env`; keep `services/application-api/.env.example` synchronized with new keys. Never log provider request URLs or raw exceptions that might contain the API key.
 Historical weather uses a separate `openMeteoArchiveRestClient` and `HistoricalWeatherProperties`. `OPEN_METEO_ARCHIVE_BASE_URL` defaults to `https://archive-api.open-meteo.com`; `WEATHER_HISTORY_YEARS` defaults to 3 and accepts 1 to 10. The archive client reuses `OPEN_METEO_TIMEOUT`. No API key is required.
+
+`TripGroupConfiguration` binds `TripGroupProperties` under `app.trip-groups`. `GROUP_PICTURE_MAX_BYTES` defaults to 2 MiB, `GROUP_PICTURE_MAX_PIXELS` to 12 million, and `GROUP_PICTURE_OUTPUT_SIZE` to 512 pixels. `GROUP_INVITE_TTL` defaults to `P7D` and `GROUP_MAX_ACTIVE_INVITES` to 10. The service validates images after multipart parsing; the application global multipart limit still applies. Keep local `.env` and `.env.example` keys aligned.
