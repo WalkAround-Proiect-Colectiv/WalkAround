@@ -13,3 +13,5 @@ Membership queries list only groups joined by the authenticated user. `TripPlanG
 `TripPlanGroupMemberRepository.findUserIdsByGroupId` projects every current member ID when a new group plan is saved. The save service snapshots these IDs before commit so the notification publisher can route a separate message to each member without sending a group-wide broadcast.
 
 Group editing also locks the group row and checks its admin membership before updating details. `TripPlanGroupPictureRepository` can save, replace, or delete the optional picture row in the same transaction.
+
+`GroupChatRepository` is implemented by `JdbcGroupChatRepository` for the conversation row lock, cursor queries, and outbox leasing. V15 creates conversation, message, and outbox tables. It allocates sequences under a row lock and inserts the message and outbox record in the caller's transaction. The relay selects only the earliest unpublished row of each conversation with `FOR UPDATE SKIP LOCKED` and marks it published after Kafka acknowledges it. A duplicate client message ID returns the existing message when its sender, group, and body match.

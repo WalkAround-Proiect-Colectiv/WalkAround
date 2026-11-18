@@ -46,3 +46,7 @@ Accommodation offers are filtered using SerpApi's tax-and-fee-inclusive total fo
 
 Saved plans persist the parameters needed to repeat a Plane, Bus, or Train search later. `departureCity` and `departureCountryCode` are present for every mode. For Plane, `originAirport` must appear in that city's local airport results; for Bus and Train it must be absent. `transportBudget` and `accommodationBudget` are separate total EUR limits. `departureFrom` and `departureUntil` are local datetimes. The accommodation check-in date is derived later from a selected itinerary and is not saved.
 `HistoricalWeatherResponse` contains the selected check-in date and night count, destination timezone, and one inclusive date range with daily temperature, weather code, precipitation, and wind values for each compared year. Historical precipitation probability is unavailable.
+
+# Group chat DTOs
+
+`GroupChatMessageRequest` requires a client-generated UUID `messageId` and a nonblank body of at most 2,000 characters. `GroupChatMessageResponse` includes that ID, conversation ID, server-assigned sequence, sender ID and display name, body, and creation time. `GroupChatSocketTicket` contains the short-lived group-scoped WebSocket token and its expiry. The token is returned only to an authenticated current group member and is never part of a message response.

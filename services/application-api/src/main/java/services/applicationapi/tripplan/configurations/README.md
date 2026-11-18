@@ -1,5 +1,7 @@
 # Trip planning configuration
 
+`GroupChatConfiguration` binds `app.group-chat`, enables scheduled outbox polling, and declares a multi-partition Kafka chat topic. Configure the topic, partition count, maximum message length and page size, socket-ticket lifetime, and relay polling/retry limits through the matching `GROUP_CHAT_*` environment keys. The Application API signs short-lived chat tickets with its existing JWT signer; no extra secret is needed. Keep the topic name synchronized with realtime-service.
+
 `BusSearchConfiguration` and `TrainSearchConfiguration` register separate qualified Scrappa REST clients and bind their respective search properties. Both use the same `SCRAPPA_API_KEY`, `SCRAPPA_BASE_URL`, and `SCRAPPA_TIMEOUT` settings. Each mode has its own provider selector, result limit, departure date range, arrival offset, and page cap. Keep the shared Scrappa keys only once in `application.yaml` and `.env.example`; no provider key is exposed to the frontend.
 
 `BiloTrainConfiguration` registers a separate qualified REST client for Romanian train search. `BILO_API_KEY` is a server-only bearer credential. Without it, the train service searches only Omio. `ExchangeRateConfiguration` registers the Frankfurter REST client used to fetch the latest RON-to-EUR reference rate once per eligible Bilo search. The returned offer retains its original fare currency and amount.

@@ -20,7 +20,11 @@ This requires the same `JWT_SIGNING_SECRET`, `JWT_ISSUER` and `JWT_AUDIENCE` as 
 
 When a group member saves a plan, the Application API publishes one `GROUP_PLAN_SAVED` message per group member after the save commits. The separate Kafka topic is configured by `GROUP_PLAN_NOTIFICATION_TOPIC` in both services (default `trip-group-plan-notifications-topic`). `NotificationSocketHandler` delivers the message through the existing authenticated `/ws/notifications` connection, so all connected members, including the creator, receive an in-app banner with a link to the plan. Group-plan notifications are live only; offline members can open the saved plan from the group view later. See [`notifications/README.md`](src/main/java/services/realtimeservice/notifications/README.md) for the message contract.
 
-Security is configured to allow open WebSocket handshakes for seamless frontend connectivity. This service operates completely statelessly and relies entirely on the Kafka broker for data input, with no direct database persistence (PostgreSQL is managed by the application and routing APIs).
+### Group chat
+
+`/ws/group-chats?token=...` delivers chat messages to one conversation after validating a short-lived, group-scoped ticket from the Application API. The `GROUP_CHAT_TOPIC` setting must match the Application API topic. Every realtime instance consumes the topic with its own consumer group, while Kafka partitions keep each conversation's events ordered. Clients wait for the `SUBSCRIBED` acknowledgement before requesting missed messages over HTTP. The realtime service does not save chat messages or accept chat writes over WebSocket. See [`chat/README.md`](src/main/java/services/realtimeservice/chat/README.md) for the event and reconnect contract.
+
+The dangerous-zone WebSocket is public; notification and group-chat handshakes require valid scoped tokens. This service operates without database persistence and receives its live data from Kafka.
 
 ## Run and Test
 

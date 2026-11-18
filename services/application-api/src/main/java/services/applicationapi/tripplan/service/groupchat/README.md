@@ -1,0 +1,15 @@
+# Group chat
+
+Each trip group has one conversation, with `conversationId` equal to its group UUID. `GroupChatService` is the controller-facing interface. Every HTTP operation checks current group membership. Chat messages are never accepted over WebSocket.
+
+`POST /api/trip-plan-groups/{groupId}/chat/messages` takes a client-generated UUID `messageId` and a text body. The service trims and validates text, then saves the message and an outbox row in one database transaction. `JdbcGroupChatRepository` locks the conversation row before allocating its next sequence, so concurrent writers get unique, increasing per-conversation numbers. A retry with the same ID, sender, group, and body returns the existing message without allocating another sequence or outbox row. Reusing the ID with different content returns `409`.
+
+The paged `GET /messages` returns the newest page when no cursor is supplied, messages after `afterSequence` in ascending order for catch-up, or earlier messages before `beforeSequence`. Each page is sorted by sequence. A sender's current display name is joined from `users`; deleted senders are shown as Former member. The API never trusts a client-supplied sender ID.
+
+The `GET /socket-ticket` endpoint verifies membership and signs a short-lived JWT containing `token_use=group_chat`, the user ID, and the conversation ID. The realtime service validates this token before accepting a WebSocket subscription. Its issuer, audience, and signing secret are shared with the application login configuration.
+
+`KafkaGroupChatOutboxRelay` polls pending outbox rows with `FOR UPDATE SKIP LOCKED`. Only the earliest unpublished message per conversation is eligible, preserving order even with multiple relay workers. It sends Kafka records keyed by conversation ID, waits for broker acknowledgement, and marks rows published in the same database transaction. Failed sends are deferred with bounded backoff. A crash after broker acknowledgement but before the database commit can republish a record: Kafka delivery is at least once, while clients deduplicate by `messageId`. This is the practical meaning of one visible message per send; the outbox cannot guarantee exactly one Kafka record across a database and broker crash boundary. [Transactional outbox reference](https://microservices.io/patterns/data/transactional-outbox.html).
+
+The relay logs a message ID, conversation ID, and sequence after a broker acknowledgement. If connected clients do not see an update, compare that entry with the realtime service's received-event log for the same conversation and sequence. Logs never include chat bodies.
+
+`GROUP_CHAT_TOPIC` defaults to `trip-group-chat-topic` with six partitions. Keep the topic's partition count fixed after messages have been published; changing it can remap a conversation key to a different partition. The Application API creates the topic on startup. Page size, poll interval, batch size, publish timeout, maximum retry delay, message length, and ticket lifetime are application settings.
