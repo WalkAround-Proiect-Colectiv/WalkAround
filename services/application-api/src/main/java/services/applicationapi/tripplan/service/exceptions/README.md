@@ -13,6 +13,6 @@ These custom runtime exceptions carry application-level failure categories from 
 - Trip group invites: `TripGroupForbiddenException` for nonadmin invite management, `TripGroupInviteNotFoundException` for unavailable links, and `TripGroupInviteLimitException` when the group has reached its active-link limit.
 - Group chat: `GroupChatInvalidMessageException` rejects invalid message text or history cursors; `GroupChatConflictException` rejects reuse of a client message ID with different content or ownership.
 
-Poll input and unknown choices also use `GroupChatInvalidMessageException`. `GroupChatPollNotFoundException` gives a `404` for an unknown or inaccessible poll. `GroupChatConflictException` additionally covers a second choice or a closed poll. `GroupChatForbiddenException` represents a close attempted by anyone other than the poll creator.
+Poll input and unknown choices also use `GroupChatInvalidMessageException`. `GroupChatPollNotFoundException` gives a `404` for an unknown or inaccessible poll. `GroupChatConflictException` additionally covers a new vote or changed choice after a poll is closed. `GroupChatForbiddenException` represents a close attempted by anyone other than the poll creator.
 
 The exception handlers determine HTTP status and `ProblemDetail` formatting. A provider may retain a `RestClientException` as a cause for debugging, but that cause must not be serialized to clients.

@@ -19,7 +19,7 @@ Each `@RestControllerAdvice` is scoped to its own trip-planning controller. Vali
 - `TripGroupExceptionHandler` handles invalid group or invite input (`400`), oversized multipart requests (`413`), missing authentication (`401`), nonmember or unknown group reads and unavailable invites (`404`), member attempts to edit a group or manage invites (`403`), active-invite limit (`409`), and unexpected failures (`500`). Raw image parsing errors, token hashes, and stack traces do not reach clients.
 - `GroupChatExceptionHandler` maps invalid bodies and cursors to `400`, reused message IDs with different content to `409`, inaccessible groups to `404`, missing authentication to `401`, and unexpected failures to a generic logged `500`.
 
-For polls, the same handler also maps an attempted second choice or a vote after closure to `409`, an unknown poll to `404`, and a noncreator close attempt to `403`. It never returns vote records or another member's selected option.
+For polls, the same handler also maps a new vote or changed choice after closure to `409`, an unknown poll to `404`, and a noncreator close attempt to `403`. It never returns vote records or another member's selected option.
 
 The same group handler covers group-plan input (`400`), unavailable GeoNames validation (`502`), inaccessible plans (`404`), and nonadmin current-plan selection (`403`). Provider error bodies are not sent to clients.
 

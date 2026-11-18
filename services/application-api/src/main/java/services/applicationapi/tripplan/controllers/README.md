@@ -43,7 +43,7 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 | `POST /api/trip-plan-groups/{id}/chat/messages` | Group member and JSON `{"messageId":"<client UUID>","body":"Hello"}` | `201 Created` and the saved message; retry with the same UUID and body returns the same message. |
 | `GET /api/trip-plan-groups/{id}/chat/messages` | Group member; optional `afterSequence`, `beforeSequence`, and `limit` | Messages ordered by conversation sequence. Use one cursor at a time. |
 | `GET /api/trip-plan-groups/{id}/chat/socket-ticket` | Group member | Short-lived, conversation-scoped WebSocket ticket and expiry. |
-| `POST /api/trip-plan-groups/{id}/chat/messages/{messageId}/votes` | Group member and `{"optionId":"<UUID>"}` | Updated poll message; one choice per user. Repeating the same vote is idempotent. |
+| `POST /api/trip-plan-groups/{id}/chat/messages/{messageId}/votes` | Group member and `{"optionId":"<UUID>"}` | Updated poll message; one current choice per user. Another choice replaces it while the poll is open. Repeating the same vote is idempotent. |
 | `PUT /api/trip-plan-groups/{id}/chat/messages/{messageId}/poll/closure` | Poll creator and group member | Updated closed poll message. Repeating the close is idempotent. |
 | `GET /api/trip-plan-groups/{id}/chat/events/cursor` | Group member | Current conversation event sequence, used before initial message loading. |
 | `GET /api/trip-plan-groups/{id}/chat/events?afterEventSequence=0&limit=50` | Group member and nonnegative event cursor | Ordered message creation and poll update references with current message state. |

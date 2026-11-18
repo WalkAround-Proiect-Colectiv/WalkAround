@@ -2,7 +2,7 @@
 
 `EmojiPicker` is the group chat's searchable, category-based Unicode emoji palette. It reads the bundled `data/emojiCatalog.json` file, displays the full catalog with a virtualized eight-column grid, and returns the selected glyph to the chat composer. The palette works offline and does not call a third-party API; see `../data/README.md` for the source and license.
 
-`GroupChatPollCard` renders a poll in the conversation with its option counts and percentages, the viewer's selected option, and closure status. Options can be pressed only while the poll is open and the viewer has not voted. The creator sees the close action. It receives state and callbacks from the chat screen rather than making requests itself.
+`GroupChatPollCard` renders a poll in the conversation with its option counts and percentages, the viewer's selected option, and closure status. While the poll is open, the viewer can select an option or change their vote by pressing another option. The creator sees the close action. It receives state and callbacks from the chat screen rather than making requests itself.
 
 `GroupPicture` displays member-protected group photos in the group list, group detail, and creation confirmation, and token-protected photos in invitation previews. It uses the authenticated API client, displays a rounded fallback icon while loading or if no photo is available, and releases browser object URLs on unmount. The edit form also previews the current protected photo and any newly selected local image.
 

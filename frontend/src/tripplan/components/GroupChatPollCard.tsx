@@ -15,7 +15,10 @@ export default function GroupChatPollCard({ message, own, busy, onVote, onClose 
   if (!poll) return null;
   const total = poll.options.reduce((sum, option) => sum + option.votes, 0);
   const closed = Boolean(poll.closedAt);
-  const canVote = !closed && !poll.selectedOptionId && !busy;
+  const canVote = !closed && !busy;
+  const voteHint = closed ? '' : poll.selectedOptionId
+    ? ' · Tap another choice to change your vote'
+    : ' · Choose one';
 
   return <View style={styles.card}>
     <View style={styles.eyebrow}>
@@ -29,11 +32,12 @@ export default function GroupChatPollCard({ message, own, busy, onVote, onClose 
     <View style={styles.options}>
       {poll.options.map((option) => {
         const selected = poll.selectedOptionId === option.id;
+        const canSelect = canVote && !selected;
         const percent = total ? Math.round(option.votes / total * 100) : 0;
         const progressWidth: `${number}%` = `${percent}%`;
         return <Pressable key={option.id} accessibilityRole="button"
           accessibilityLabel={`${option.label}, ${option.votes} votes`}
-          accessibilityState={{ selected, disabled: !canVote }} disabled={!canVote}
+          accessibilityState={{ selected, disabled: !canSelect }} disabled={!canSelect}
           onPress={() => onVote(option.id)} style={[styles.option, selected && styles.selectedOption]}>
           <View style={[styles.progress, { width: progressWidth }]} />
           <View style={styles.optionContent}>
@@ -50,7 +54,7 @@ export default function GroupChatPollCard({ message, own, busy, onVote, onClose 
     </View>
     <View style={styles.footer}>
       <Text style={styles.footerText}>{total} {total === 1 ? 'vote' : 'votes'}
-        {!closed && !poll.selectedOptionId ? ' · Choose one' : ''}
+        {voteHint}
         {' · '}{new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </Text>
       {own && !closed && <Pressable accessibilityRole="button" disabled={busy} onPress={onClose}>

@@ -87,17 +87,21 @@ public class JdbcGroupChatPollRepository implements GroupChatPollRepository {
                 SELECT option_id FROM trip_group_chat_poll_votes
                 WHERE poll_message_id = ? AND user_id = ?
                 """, (rs, row) -> rs.getObject("option_id", UUID.class), messageId, userId);
-        if (!existing.isEmpty()) {
-            if (existing.getFirst().equals(optionId)) return false;
-            throw new GroupChatConflictException("You already voted in this poll");
-        }
+        if (!existing.isEmpty() && existing.getFirst().equals(optionId)) return false;
         if (closed.getFirst()) throw new GroupChatConflictException("This poll is closed");
 
-        jdbc.update("""
-                INSERT INTO trip_group_chat_poll_votes
-                    (poll_message_id, user_id, option_id, created_at)
-                VALUES (?, ?, ?, ?)
-                """, messageId, userId, optionId, OffsetDateTime.ofInstant(now, ZoneOffset.UTC));
+        if (existing.isEmpty()) {
+            jdbc.update("""
+                    INSERT INTO trip_group_chat_poll_votes
+                        (poll_message_id, user_id, option_id, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """, messageId, userId, optionId, OffsetDateTime.ofInstant(now, ZoneOffset.UTC));
+        } else {
+            jdbc.update("""
+                    UPDATE trip_group_chat_poll_votes SET option_id = ?
+                    WHERE poll_message_id = ? AND user_id = ?
+                    """, optionId, messageId, userId);
+        }
         jdbc.update("UPDATE trip_group_chat_polls SET revision = revision + 1 WHERE message_id = ?", messageId);
         return true;
     }

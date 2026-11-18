@@ -2,7 +2,7 @@
 
 `groupChat.ts` owns the authenticated group-chat HTTP calls: send with a stable client UUID, read message pages using sequence cursors, and request the short-lived WebSocket ticket. The chat screen uses the existing `EXPO_PUBLIC_WS_URL` for live delivery. The token is kept in memory and messages are never written through the socket.
 
-The same client also creates poll messages, votes once per account, closes a creator-owned poll, and fetches event cursors/pages. Message sequence tracks chat bubble order; event sequence tracks both new bubbles and updates to existing polls. Vote and close responses return the updated poll, including the current user's selected option.
+The same client also creates poll messages, maintains one current choice per account, allows changing it while the poll is open, closes a creator-owned poll, and fetches event cursors/pages. Message sequence tracks chat bubble order; event sequence tracks both new bubbles and updates to existing polls. Vote and close responses return the updated poll, including the current user's selected option.
 
 `tripPlanning.ts` defines the request and response types and calls trip-planning endpoints for city autocomplete, city airports, flight, bus, and train search, accommodation search, saved-plan creation, four place categories, destination safety, country hotlines, destination news, and weather. `searchBuses` and `searchTrains` post their city-based presets to `/api/trip-plans/bus-searches` and `/api/trip-plans/train-searches` through the authenticated `send` helper. Their response types contain a combined fare, outbound and return journeys, legs, and optional transfer stops. Scrappa requests and its key stay on the backend.
 
