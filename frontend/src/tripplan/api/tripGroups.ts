@@ -2,6 +2,7 @@ import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { ApiError } from '../../login/api/http';
 import { authenticatedRequest } from '../../login/api/session';
+import type { SavedTripPlan } from './tripPlanning';
 
 export interface CreatedTripGroup {
   id: string;
@@ -49,6 +50,15 @@ export const getTripGroup = (id: string) =>
 
 export const getTripGroupPicture = (id: string) =>
   groupRequest<Blob>(`/api/trip-plan-groups/${encodeURIComponent(id)}/picture`, {}, 'blob');
+
+export const listGroupPlans = (groupId: string) =>
+  groupRequest<SavedTripPlan[]>(`/api/trip-plan-groups/${encodeURIComponent(groupId)}/plans`);
+
+export const makeGroupPlanCurrent = (groupId: string, planId: string) =>
+  groupRequest<SavedTripPlan>(
+    `/api/trip-plan-groups/${encodeURIComponent(groupId)}/plans/${encodeURIComponent(planId)}/current`,
+    { method: 'PUT' },
+  );
 
 export const createGroupInvite = (groupId: string) =>
   groupRequest<TripGroupInvite>(`/api/trip-plan-groups/${encodeURIComponent(groupId)}/invitations`, {

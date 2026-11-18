@@ -26,9 +26,12 @@ import services.applicationapi.tripplan.dto.TripGroupInviteResponse;
 import services.applicationapi.tripplan.dto.TripGroupInviteSummary;
 import services.applicationapi.tripplan.dto.TripGroupInviteTokenRequest;
 import services.applicationapi.tripplan.dto.TripGroupResponse;
+import services.applicationapi.tripplan.dto.SaveTripPlanRequest;
+import services.applicationapi.tripplan.dto.TripPlanResponse;
 import services.applicationapi.tripplan.service.exceptions.TripPlanAuthenticationException;
 import services.applicationapi.tripplan.service.tripgroup.TripGroupInviteService;
 import services.applicationapi.tripplan.service.tripgroup.TripGroupService;
+import services.applicationapi.tripplan.service.savedplan.SavedTripPlanService;
 
 @RestController
 @RequestMapping("/api/trip-plan-groups")
@@ -36,10 +39,13 @@ public class TripGroupController {
 
     private final TripGroupService groups;
     private final TripGroupInviteService invitations;
+    private final SavedTripPlanService plans;
 
-    public TripGroupController(TripGroupService groups, TripGroupInviteService invitations) {
+    public TripGroupController(TripGroupService groups, TripGroupInviteService invitations,
+                               SavedTripPlanService plans) {
         this.groups = groups;
         this.invitations = invitations;
+        this.plans = plans;
     }
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -89,6 +95,38 @@ public class TripGroupController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(groups.list(currentUserId(jwt)));
+    }
+
+    @PostMapping("/{id}/plans")
+    public ResponseEntity<TripPlanResponse> createPlan(@AuthenticationPrincipal Jwt jwt,
+                                                       @PathVariable UUID id,
+                                                       @Valid @RequestBody SaveTripPlanRequest request) {
+        TripPlanResponse saved = plans.createForGroup(id, currentUserId(jwt), request);
+        return ResponseEntity.created(URI.create("/api/trip-plan-groups/" + id + "/plans/" + saved.id()))
+                .cacheControl(CacheControl.noStore())
+                .body(saved);
+    }
+
+    @GetMapping("/{id}/plans")
+    public ResponseEntity<List<TripPlanResponse>> plans(@AuthenticationPrincipal Jwt jwt,
+                                                        @PathVariable UUID id) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(plans.listForGroup(id, currentUserId(jwt)));
+    }
+
+    @GetMapping("/{id}/plans/{planId}")
+    public ResponseEntity<TripPlanResponse> plan(@AuthenticationPrincipal Jwt jwt,
+                                                 @PathVariable UUID id, @PathVariable UUID planId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(plans.getForGroup(id, currentUserId(jwt), planId));
+    }
+
+    @PutMapping("/{id}/plans/{planId}/current")
+    public ResponseEntity<TripPlanResponse> makePlanCurrent(@AuthenticationPrincipal Jwt jwt,
+                                                             @PathVariable UUID id,
+                                                             @PathVariable UUID planId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(plans.makeCurrent(id, currentUserId(jwt), planId));
     }
 
     @PostMapping("/{id}/invitations")

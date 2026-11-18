@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record TripPlanResponse(
         UUID id,
+        UUID groupId,
         String title,
         String description,
         TransportMode transportMode,
@@ -18,9 +19,11 @@ public record TripPlanResponse(
         LocalDateTime departureFrom,
         LocalDateTime departureUntil,
         int stayingNights,
+        int adults,
         TicketOption ticketOption,
         BigDecimal transportBudget,
         BigDecimal accommodationBudget,
+        boolean current,
         Instant createdAt
 ) {
 }

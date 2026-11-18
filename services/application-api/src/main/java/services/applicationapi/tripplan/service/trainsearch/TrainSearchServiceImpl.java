@@ -177,7 +177,7 @@ public class TrainSearchServiceImpl implements TrainSearchService {
                 LocalDate returnDate = date.plusDays(request.stayingNights() + offset);
                 if (returnDate.isAfter(lastSupportedDate)) continue;
 
-                for (SearchPage page : pages(originId, destinationId, date, returnDate)) {
+                for (SearchPage page : pages(originId, destinationId, date, returnDate, request.adults())) {
                     for (TrainOffer offer : page.offers()) {
                         if (offer.priceMinor() <= budgetMinor
                                 && inDepartureWindow(offer, request)
@@ -219,7 +219,7 @@ public class TrainSearchServiceImpl implements TrainSearchService {
 
         for (LocalDate date = request.departureFrom().toLocalDate();
                 !date.isAfter(request.departureUntil().toLocalDate()); date = date.plusDays(1)) {
-            for (SearchPage page : pages(originId, destinationId, date, null)) {
+            for (SearchPage page : pages(originId, destinationId, date, null, request.adults())) {
                 for (TrainOffer outbound : page.offers()) {
                     if (outbound.priceMinor() > budgetMinor || !inDepartureWindow(outbound, request)) continue;
                     LocalDate returnDate = outbound.arrival().toLocalDate()
@@ -227,7 +227,7 @@ public class TrainSearchServiceImpl implements TrainSearchService {
                     if (returnDate.isAfter(lastSupportedDate)) continue;
 
                     List<TrainOffer> returnOffers = returnsByDate.computeIfAbsent(returnDate,
-                            day -> pages(destinationId, originId, day, null).stream()
+                            day -> pages(destinationId, originId, day, null, request.adults()).stream()
                                     .flatMap(returnPage -> returnPage.offers().stream())
                                     .toList());
                     for (TrainOffer returning : returnOffers) {
@@ -245,10 +245,10 @@ public class TrainSearchServiceImpl implements TrainSearchService {
     }
 
     private List<SearchPage> pages(long originId, long destinationId, LocalDate date,
-                                   LocalDate returnDate) {
+                                   LocalDate returnDate, int adults) {
         List<SearchPage> found = new ArrayList<>();
         for (int pageNumber = 1; pageNumber <= properties.trainSearchMaxPagesPerDate(); pageNumber++) {
-            SearchPage page = provider.search(originId, destinationId, date, returnDate, pageNumber);
+            SearchPage page = provider.search(originId, destinationId, date, returnDate, pageNumber, adults);
             found.add(page);
             if (!page.hasMore()) break;
         }

@@ -16,6 +16,10 @@ The service also delivers per-user event reminders:
 
 This requires the same `JWT_SIGNING_SECRET`, `JWT_ISSUER` and `JWT_AUDIENCE` as the Application API (see `.env.example`). The notification code is in `services.realtimeservice.notifications` and is registered separately from the dangerous-zone `WebSocketConfig`. Reminders are not stored here: users who are offline get missed reminders from the Application API when the app opens.
 
+### Group plan notifications
+
+When a group member saves a plan, the Application API publishes one `GROUP_PLAN_SAVED` message per group member after the save commits. The separate Kafka topic is configured by `GROUP_PLAN_NOTIFICATION_TOPIC` in both services (default `trip-group-plan-notifications-topic`). `NotificationSocketHandler` delivers the message through the existing authenticated `/ws/notifications` connection, so all connected members, including the creator, receive an in-app banner with a link to the plan. Group-plan notifications are live only; offline members can open the saved plan from the group view later. See [`notifications/README.md`](src/main/java/services/realtimeservice/notifications/README.md) for the message contract.
+
 Security is configured to allow open WebSocket handshakes for seamless frontend connectivity. This service operates completely statelessly and relies entirely on the Kafka broker for data input, with no direct database persistence (PostgreSQL is managed by the application and routing APIs).
 
 ## Run and Test

@@ -1,15 +1,19 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import { Redirect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Link2, Pencil, Plus, UsersRound } from 'lucide-react-native';
+import { ArrowLeft, Link2, Pencil, Plus, RefreshCw, UsersRound } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
 import GroupPicture from '../components/GroupPicture';
+import TripPlanningScreen from './TripPlanningScreen';
 import {
-  createGroupInvite, getTripGroup, listGroupInvites, listTripGroups, revokeGroupInvite,
+  createGroupInvite, getTripGroup, listGroupInvites, listGroupPlans, listTripGroups,
+  makeGroupPlanCurrent, revokeGroupInvite,
   type CreatedTripGroup, type TripGroupInvite, type TripGroupInviteSummary,
 } from '../api/tripGroups';
+import type { SavedTripPlan } from '../api/tripPlanning';
+import { subscribeToGroupPlanSaves } from '../api/groupPlanNotifications';
 
 const BLUE = '#0065EB';
 
@@ -24,17 +28,28 @@ export default function TripGroupsScreen() {
   const { session, ready } = useSession();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const params = useLocalSearchParams<{ groupId?: string }>();
+  const params = useLocalSearchParams<{ groupId?: string; tab?: string; planId?: string }>();
   const groupId = typeof params.groupId === 'string' ? params.groupId : null;
+  const planning = params.tab === 'plan';
   const [groups, setGroups] = useState<CreatedTripGroup[]>([]);
   const [selected, setSelected] = useState<CreatedTripGroup | null>(null);
   const [invitations, setInvitations] = useState<TripGroupInviteSummary[]>([]);
+  const [plans, setPlans] = useState<SavedTripPlan[]>([]);
+  const [selectingPlanId, setSelectingPlanId] = useState<string | null>(null);
+  const [refreshingPlans, setRefreshingPlans] = useState(false);
   const [newInvite, setNewInvite] = useState<TripGroupInvite | null>(null);
   const [busy, setBusy] = useState(true);
   const [creating, setCreating] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const planRequestId = useRef(0);
+
+  async function reloadPlans(targetGroupId: string) {
+    const requestId = ++planRequestId.current;
+    const found = await listGroupPlans(targetGroupId);
+    if (requestId === planRequestId.current && targetGroupId === groupId) setPlans(found);
+  }
 
   useEffect(() => {
     if (!session) return;
@@ -47,9 +62,11 @@ export default function TripGroupsScreen() {
   }, [session, groupId]);
 
   useEffect(() => {
+    const requestId = ++planRequestId.current;
     if (!session || !groupId) {
       setSelected(null);
       setInvitations([]);
+      setPlans([]);
       setNewInvite(null);
       setBusy(false);
       return;
@@ -59,20 +76,38 @@ export default function TripGroupsScreen() {
     setError(null);
     setSelected(null);
     setInvitations([]);
+    setPlans([]);
     setNewInvite(null);
     void getTripGroup(groupId)
       .then(async (group) => {
         if (!active) return;
         setSelected(group);
-        if (group.memberRole === 'ADMIN') {
-          const found = await listGroupInvites(groupId);
-          if (active) setInvitations(found);
+        const [foundPlans, foundInvites] = await Promise.all([
+          listGroupPlans(groupId),
+          group.memberRole === 'ADMIN' ? listGroupInvites(groupId) : Promise.resolve([]),
+        ]);
+        if (active) {
+          if (requestId === planRequestId.current) setPlans(foundPlans);
+          setInvitations(foundInvites);
         }
       })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not load group.'); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, [session, groupId]);
+  }, [session, groupId, params.planId]);
+
+  useEffect(() => {
+    if (!session || !groupId) return;
+    let active = true;
+
+    const unsubscribe = subscribeToGroupPlanSaves((saved) => {
+      if (saved.groupId !== groupId) return;
+      void reloadPlans(groupId).catch((reason) => {
+        if (active) setError(reason instanceof Error ? reason.message : 'Could not load the new group plan.');
+      });
+    });
+    return () => { active = false; unsubscribe(); };
+  }, [session?.user.id, groupId]);
 
   async function createInvite() {
     if (!groupId || creating) return;
@@ -120,10 +155,46 @@ export default function TripGroupsScreen() {
     }
   }
 
+  async function makeCurrent(planId: string) {
+    if (!groupId || selectingPlanId) return;
+    setSelectingPlanId(planId);
+    setError(null);
+    try {
+      await makeGroupPlanCurrent(groupId, planId);
+      await reloadPlans(groupId);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not select this plan.');
+    } finally {
+      setSelectingPlanId(null);
+    }
+  }
+
+  async function refreshPlans() {
+    if (!groupId || refreshingPlans) return;
+    setRefreshingPlans(true);
+    setError(null);
+    try {
+      await reloadPlans(groupId);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not refresh group plans.');
+    } finally {
+      setRefreshingPlans(false);
+    }
+  }
+
   if (!ready) return <View style={styles.center}><ActivityIndicator color={BLUE} /></View>;
   if (!session) return <Redirect href="/login" />;
 
   const link = newInvite ? Linking.createURL('/trip-group-invite') + '#token=' + newInvite.token : null;
+  const currentPlan = plans.find((plan) => plan.current);
+  const openedPlan = plans.find((plan) => plan.id === params.planId);
+
+  if (planning && selected?.id === groupId && !busy) return <TripPlanningScreen key={openedPlan?.id ?? 'new'} group={selected}
+    initialPlan={openedPlan}
+    onGroupPlanSaved={(plan) => {
+      planRequestId.current += 1;
+      setPlans((current) => [plan, ...current.filter((item) => item.id !== plan.id)]);
+    }} />;
 
   return <View style={styles.screen}>
     <ScrollView contentContainerStyle={[styles.content, {
@@ -162,6 +233,47 @@ export default function TripGroupsScreen() {
       </>}
 
       {selected && !busy && <>
+        <Pressable accessibilityRole="button" onPress={() => router.push({
+          pathname: '/trip-groups', params: { groupId: selected.id, tab: 'plan' },
+        })} style={styles.primaryButton}>
+          <Plus size={18} color="#fff" /><Text style={styles.primaryText}>Plan a group trip</Text>
+        </Pressable>
+        <View style={styles.card}>
+          <View style={styles.planHeading}>
+            <Text style={styles.sectionTitle}>Group trip plans</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel="Refresh group plans"
+              disabled={refreshingPlans} onPress={() => { void refreshPlans(); }}>
+              {refreshingPlans ? <ActivityIndicator color={BLUE} size="small" />
+                : <RefreshCw size={19} color={BLUE} />}
+            </Pressable>
+          </View>
+          {currentPlan ? <>
+            <Text style={styles.groupName}>{currentPlan.title} · Current plan</Text>
+            <Text style={styles.body}>{currentPlan.departureCity} → {currentPlan.destinationCity}</Text>
+            <Text style={styles.hint}>{currentPlan.transportMode.toLowerCase()} · {currentPlan.adults} adult{currentPlan.adults === 1 ? '' : 's'} · {currentPlan.stayingNights} nights</Text>
+            <Text style={styles.hint}>Departure: {currentPlan.departureFrom.replace('T', ' ').slice(0, 16)} to {currentPlan.departureUntil.replace('T', ' ').slice(0, 16)}</Text>
+            <Text style={styles.hint}>Budgets: €{currentPlan.transportBudget} transport · €{currentPlan.accommodationBudget} stay</Text>
+            {currentPlan.description && <Text style={styles.body}>{currentPlan.description}</Text>}
+            <Pressable accessibilityRole="button" onPress={() => router.push({
+              pathname: '/trip-groups', params: { groupId: selected.id, tab: 'plan', planId: currentPlan.id },
+            })} style={styles.editButton}>
+              <Text style={styles.editText}>Open current preset</Text>
+            </Pressable>
+          </> : <Text style={styles.hint}>No group plan saved yet. Start a search and save its preset here.</Text>}
+          {plans.filter((plan) => !plan.current).map((plan) => <View key={plan.id} style={styles.invitationRow}>
+            <View style={styles.groupText}>
+              <Text style={styles.body}>{plan.title}</Text>
+              <Text style={styles.hint}>{plan.departureCity} → {plan.destinationCity} · {plan.adults} adults</Text>
+              <Pressable accessibilityRole="button" onPress={() => router.push({
+                pathname: '/trip-groups', params: { groupId: selected.id, tab: 'plan', planId: plan.id },
+              })}><Text style={styles.editText}>Open preset</Text></Pressable>
+            </View>
+            {selected.memberRole === 'ADMIN' && <Pressable accessibilityRole="button"
+              disabled={Boolean(selectingPlanId)} onPress={() => { void makeCurrent(plan.id); }}>
+              <Text style={styles.editText}>{selectingPlanId === plan.id ? 'Selecting…' : 'Set current'}</Text>
+            </Pressable>}
+          </View>)}
+        </View>
         {selected.description && <View style={styles.card}><Text style={styles.body}>{selected.description}</Text></View>}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Your role</Text>
@@ -222,6 +334,7 @@ const styles = StyleSheet.create({
   groupText: { flex: 1 },
   groupName: { color: '#202632', fontSize: 17, fontWeight: '800' },
   sectionTitle: { color: '#202632', fontSize: 17, fontWeight: '800' },
+  planHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   body: { color: '#4C5A6C', fontSize: 14, lineHeight: 20 },
   primaryButton: { minHeight: 50, backgroundColor: BLUE, borderRadius: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   primaryText: { color: '#fff', fontSize: 14, fontWeight: '800' },

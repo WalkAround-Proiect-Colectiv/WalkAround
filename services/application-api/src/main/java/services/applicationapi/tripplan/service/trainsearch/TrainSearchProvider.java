@@ -10,7 +10,8 @@ public interface TrainSearchProvider {
 
     long findCityId(String city, String countryCode);
 
-    SearchPage search(long originId, long destinationId, LocalDate date, LocalDate returnDate, int page);
+    SearchPage search(long originId, long destinationId, LocalDate date, LocalDate returnDate,
+                      int page, int adults);
 
     List<ReturnOffer> returns(String searchId, String tripId);
 

@@ -8,7 +8,7 @@ import services.applicationapi.tripplan.dto.TrainJourneyResponse;
 
 public interface BiloTrainProvider {
 
-    List<Offer> search(String origin, String destination, LocalDate date);
+    List<Offer> search(String origin, String destination, LocalDate date, int adults);
 
     record Offer(LocalDateTime departure, LocalDateTime arrival, BigDecimal price,
                  String currency, boolean estimated, boolean partialCatalog,

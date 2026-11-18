@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -9,7 +9,9 @@ import {
   BusFront, Plane, Search, Sparkles, Ticket, TrainFront, UsersRound, Wallet,
 } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
+import { type CreatedTripGroup } from '../api/tripGroups';
 import CalendarPicker from '../components/CalendarPicker';
+import GroupPicture from '../components/GroupPicture';
 import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import SafetyInformationCard from '../components/SafetyInformationCard';
@@ -334,7 +336,11 @@ function TicketCard({ ticket, index, selected, onSelect }: {
   </View>;
 }
 
-export default function TripPlanningScreen() {
+export default function TripPlanningScreen({ group, initialPlan, onGroupPlanSaved }: {
+  group?: CreatedTripGroup;
+  initialPlan?: SavedTripPlan;
+  onGroupPlanSaved?: (plan: SavedTripPlan) => void;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { session, ready } = useSession();
@@ -366,6 +372,7 @@ export default function TripPlanningScreen() {
   const [untilDate, setUntilDate] = useState('');
   const [untilTime, setUntilTime] = useState('');
   const [nights, setNights] = useState('');
+  const [adults, setAdults] = useState('1');
   const [ticketOption, setTicketOption] = useState<TicketOption>('ROUND_TRIP');
   const [transport, setTransport] = useState<'PLANE' | 'BUS' | 'TRAIN'>('PLANE');
   const [tickets, setTickets] = useState<FlightItinerary[] | null>(null);
@@ -411,6 +418,66 @@ export default function TripPlanningScreen() {
   const [history, setHistory] = useState<HistoricalWeather | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialPlan) return;
+
+    const origin: CitySuggestion = {
+      name: initialPlan.departureCity,
+      lookupName: initialPlan.departureCity,
+      country: initialPlan.departureCountryCode,
+      countryCode: initialPlan.departureCountryCode,
+      latitude: null,
+      longitude: null,
+    };
+    const destination: CitySuggestion = {
+      name: initialPlan.destinationCity,
+      lookupName: initialPlan.destinationCity,
+      country: initialPlan.countryCode,
+      countryCode: initialPlan.countryCode,
+      latitude: null,
+      longitude: null,
+    };
+
+    setDepartureCity(origin);
+    setDestinationCity(destination);
+    setTransport(initialPlan.transportMode);
+    setBudget(String(initialPlan.transportBudget));
+    setAccommodationBudget(String(initialPlan.accommodationBudget));
+    setFromDate(initialPlan.departureFrom.slice(0, 10));
+    setFromTime(initialPlan.departureFrom.slice(11, 16));
+    setUntilDate(initialPlan.departureUntil.slice(0, 10));
+    setUntilTime(initialPlan.departureUntil.slice(11, 16));
+    setNights(String(initialPlan.stayingNights));
+    setAdults(String(initialPlan.adults));
+    setTicketOption(initialPlan.ticketOption);
+    setPlanTitle(initialPlan.title);
+    setPlanDescription(initialPlan.description ?? '');
+    setHasSavedBefore(true);
+    setSavedPlan(null);
+    setAirports([]);
+    setAirport(null);
+
+    if (initialPlan.transportMode !== 'PLANE' || !initialPlan.originAirport) return;
+
+    const requestId = ++airportRequestId.current;
+    setAirportsBusy(true);
+    setAirportsError(null);
+    void getCityAirports(origin)
+      .then((results) => {
+        if (airportRequestId.current !== requestId) return;
+        setAirports(results);
+        setAirport(results.find((candidate) => candidate.iataCode === initialPlan.originAirport) ?? null);
+      })
+      .catch((reason) => {
+        if (airportRequestId.current === requestId) setAirportsError(message(reason));
+      })
+      .finally(() => {
+        if (airportRequestId.current === requestId) setAirportsBusy(false);
+      });
+
+    return () => { airportRequestId.current += 1; };
+  }, [initialPlan?.id]);
 
   function clearHistory() {
     historyRequestId.current += 1;
@@ -732,6 +799,11 @@ export default function TripPlanningScreen() {
       return;
     }
     const stay = Number(nights);
+    const people = Number(adults);
+    if (!/^[1-9]$/.test(adults) || people < 1 || people > 9) {
+      setAccommodationError('Choose 1 to 9 adults.');
+      return;
+    }
     if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
       setAccommodationError('Enter a stay of 1 to 365 nights.');
       return;
@@ -752,6 +824,7 @@ export default function TripPlanningScreen() {
         checkInDate,
         stayingNights: stay,
         budget: amount,
+        adults: people,
       });
       if (accommodationRequestId.current === id) setAccommodations(results);
     } catch (reason) {
@@ -792,6 +865,11 @@ export default function TripPlanningScreen() {
       return;
     }
     const stay = Number(nights);
+    const people = Number(adults);
+    if (!/^[1-9]$/.test(adults) || people < 1 || people > 9) {
+      setSaveError('Choose 1 to 9 adults.');
+      return;
+    }
     if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
       setSaveError('Enter a stay of 1 to 365 nights.');
       return;
@@ -823,8 +901,10 @@ export default function TripPlanningScreen() {
         ticketOption,
         transportBudget: transportAmount,
         accommodationBudget: stayAmount,
-      });
+        adults: people,
+      }, group?.id);
       setHasSavedBefore(true);
+      if (group) onGroupPlanSaved?.(result);
       if (saveRequestId.current === id) {
         setSavedPlan(result);
       } else {
@@ -877,6 +957,11 @@ export default function TripPlanningScreen() {
     }
     const amount = Number(budget);
     const stay = Number(nights);
+    const people = Number(adults);
+    if (!/^[1-9]$/.test(adults) || people < 1 || people > 9) {
+      setFormError('Choose 1 to 9 adults.');
+      return;
+    }
     if (!/^\d+(\.\d{1,2})?$/.test(budget) || amount <= 0 || amount > 999_999_999.99) {
       setFormError('Enter a travel budget greater than zero, in EUR.');
       return;
@@ -910,6 +995,7 @@ export default function TripPlanningScreen() {
           departureUntil: until,
           stayingNights: stay,
           ticketOption,
+          adults: people,
         });
         if (flightRequestId.current === id) setTickets(results);
       } else if (transport === 'TRAIN') {
@@ -923,6 +1009,7 @@ export default function TripPlanningScreen() {
           departureUntil: until,
           stayingNights: stay,
           ticketOption,
+          adults: people,
         });
         if (flightRequestId.current === id) setTrainTickets(results);
       } else {
@@ -936,6 +1023,7 @@ export default function TripPlanningScreen() {
           departureUntil: until,
           stayingNights: stay,
           ticketOption,
+          adults: people,
         });
         if (flightRequestId.current === id) setBusTickets(results);
       }
@@ -953,8 +1041,9 @@ export default function TripPlanningScreen() {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scroll, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 24) + 28 }]}>
       <View style={styles.content}>
         <View style={styles.topBar}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to map"
-            onPress={() => router.push('/map')} style={styles.backButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel={group ? 'Back to group' : 'Back to map'}
+            onPress={() => group ? router.replace({ pathname: '/trip-groups', params: { groupId: group.id } })
+              : router.push('/map')} style={styles.backButton}>
             <ArrowLeft size={21} color={INK} />
           </Pressable>
           <Text style={styles.brand}>WalkAround</Text>
@@ -973,7 +1062,16 @@ export default function TripPlanningScreen() {
           </View>
         </View>
 
-        <View style={styles.groupCard}>
+        {group ? <View style={styles.groupCard}>
+          {group.pictureUrl ? <GroupPicture groupId={group.id} size={42} />
+            : <View style={styles.groupIcon}><UsersRound size={22} color={BLUE} /></View>}
+          <View style={styles.groupCopy}>
+            <Text style={styles.sectionTitle}>{group.name}</Text>
+            <Text style={styles.helper}>{initialPlan
+              ? `${initialPlan.current ? 'Current group plan' : 'Group plan'}: ${initialPlan.title}. Search again for live offers.`
+              : 'Search together and save a preset for this group.'}</Text>
+          </View>
+        </View> : <View style={styles.groupCard}>
           <View style={styles.groupIcon}><UsersRound size={22} color={BLUE} /></View>
           <View style={styles.groupCopy}>
             <Text style={styles.sectionTitle}>Planning with others?</Text>
@@ -985,7 +1083,7 @@ export default function TripPlanningScreen() {
             <Pressable accessibilityRole="button" onPress={() => router.push('/trip-groups')}
               style={styles.groupSecondaryButton}><Text style={styles.groupSecondaryText}>Your groups</Text></Pressable>
           </View>
-        </View>
+        </View>}
 
         <View style={styles.card}>
           <View style={styles.stepRow}><Text style={styles.stepNumber}>01</Text><Text style={styles.stepLabel}>START YOUR ROUTE</Text></View>
@@ -1062,11 +1160,12 @@ export default function TripPlanningScreen() {
               <Text style={[styles.optionTitle, transport === 'TRAIN' && styles.optionTitleSelected]}>Train</Text>
             </Pressable>
           </View>
+          <NumberField label="Adults" value={adults} placeholder="1 to 9"
+            onChange={(value) => { setAdults(value); clearTickets(); clearAccommodations(); }} />
+          <Text style={styles.helper}>Budgets cover the full trip for {adults || 'your'} adult{adults === '1' ? '' : 's'}.</Text>
           <NumberField label={`${transport === 'PLANE' ? 'Flight' : transport === 'BUS' ? 'Bus' : 'Train'} budget`}
             value={budget} suffix="EUR" placeholder="e.g. 300"
             onChange={(value) => { setBudget(value); clearTickets(); }} />
-          {transport === 'TRAIN' && <Text style={styles.helper}>Train fares are searched for one adult.</Text>}
-          {transport === 'BUS' && <Text style={styles.helper}>Bus fares are searched for one adult.</Text>}
           <Text style={styles.fieldLabel}>Departure period</Text>
           <Text style={styles.helper}>We’ll look for {transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'} leaving within this window. A shorter window searches faster.</Text>
           <DateTimeFields label="From" date={fromDate} time={fromTime}
@@ -1100,7 +1199,7 @@ export default function TripPlanningScreen() {
         {(searchBusy || tickets || trainTickets || busTickets) && <View style={styles.results}>
           <Text style={styles.stepLabel}>{transport === 'PLANE' ? 'FLIGHT' : transport === 'BUS' ? 'BUS' : 'TRAIN'} OPTIONS</Text>
           <Text style={styles.resultsTitle}>{transport === 'PLANE' ? 'Flights' : transport === 'BUS' ? 'Buses' : 'Trains'} for your trip</Text>
-          <Text style={styles.helper}>{transport === 'PLANE' ? airport?.iataCode : departureCity?.name} to {destinationCity?.name} · {nights} night{nights === '1' ? '' : 's'}</Text>
+          <Text style={styles.helper}>{transport === 'PLANE' ? airport?.iataCode : departureCity?.name} to {destinationCity?.name} · {nights} night{nights === '1' ? '' : 's'} · {adults} adult{adults === '1' ? '' : 's'}</Text>
           {searchBusy && <View style={styles.searchingPanel}><ActivityIndicator color={BLUE} /><Text style={styles.searchingText}>Searching available {transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}…</Text><Text style={styles.helper}>This can take a little while.</Text></View>}
           {tickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No flights found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
           {trainTickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No trains found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
@@ -1143,7 +1242,7 @@ export default function TripPlanningScreen() {
           </View>
           <NumberField label="Accommodation budget" value={accommodationBudget} suffix="EUR" placeholder="e.g. 450"
             onChange={(value) => { setAccommodationBudget(value); clearAccommodations(); clearSavedPlan(); }} />
-          <Text style={styles.helper}>Total budget for {nights || 'your'} night{nights === '1' ? '' : 's'}, including taxes and fees, for one adult.</Text>
+          <Text style={styles.helper}>Total budget for {nights || 'your'} night{nights === '1' ? '' : 's'}, including taxes and fees, for {adults || 'your'} adult{adults === '1' ? '' : 's'}.</Text>
           {accommodationError && <Text accessibilityRole="alert" style={styles.errorText}>{accommodationError}</Text>}
           <Pressable accessibilityRole="button" disabled={accommodationBusy} onPress={submitAccommodations}
             style={[styles.primaryButton, accommodationBusy && styles.disabled]}>
@@ -1156,7 +1255,7 @@ export default function TripPlanningScreen() {
         {(accommodationBusy || accommodations) && <View style={styles.results}>
           <Text style={styles.stepLabel}>STAY OPTIONS</Text>
           <Text style={styles.resultsTitle}>Stays in {destinationCity?.name}</Text>
-          <Text style={styles.helper}>{checkInDate} · {nights} night{nights === '1' ? '' : 's'} · one adult</Text>
+          <Text style={styles.helper}>{checkInDate} · {nights} night{nights === '1' ? '' : 's'} · {adults} adult{adults === '1' ? '' : 's'}</Text>
           {accommodationBusy && <View style={styles.searchingPanel}>
             <ActivityIndicator color={BLUE} />
             <Text style={styles.searchingText}>Finding places to stay…</Text>
@@ -1167,7 +1266,7 @@ export default function TripPlanningScreen() {
             <Text style={styles.helper}>Try another check-in date or a larger accommodation budget.</Text>
           </View>}
           {accommodations?.map((offer, index) => <AccommodationOfferCard
-            key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} />)}
+            key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} adults={Number(adults)} />)}
         </View>}
 
         <View style={styles.card}>
@@ -1175,11 +1274,11 @@ export default function TripPlanningScreen() {
           <View style={styles.sectionHeading}>
             <View style={styles.iconBubble}><BookmarkPlus size={20} color={BLUE} /></View>
             <View style={styles.headingCopy}>
-              <Text style={styles.sectionTitle}>Save this trip</Text>
+              <Text style={styles.sectionTitle}>{group ? 'Save a group plan' : 'Save this trip'}</Text>
               <Text style={styles.helper}>Keep your search choices for another day</Text>
             </View>
           </View>
-          <Text style={styles.helper}>Your transport choice, cities{transport === 'PLANE' ? ', departure airport' : ''}, dates, nights, ticket style, and budgets will be saved. Tickets and stay offers can change, so search again when you return.</Text>
+          <Text style={styles.helper}>Your transport choice, cities{transport === 'PLANE' ? ', departure airport' : ''}, dates, nights, adult count, ticket style, and budgets will be saved{group ? ' for group members' : ''}. Tickets and stay offers can change, so search again when you return.</Text>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Plan title</Text>
             <TextInput accessibilityLabel="Plan title" autoCapitalize="sentences" maxLength={120}
@@ -1193,7 +1292,7 @@ export default function TripPlanningScreen() {
             <TextInput accessibilityLabel="Plan description" maxLength={2000} multiline
               onFocus={() => setDescriptionFocused(true)} onBlur={() => setDescriptionFocused(false)}
               onChangeText={(value) => { setPlanDescription(value); clearSavedPlan(); }}
-              placeholder="Add a note for your future self"
+              placeholder={group ? 'Add a note for your group' : 'Add a note for your future self'}
               placeholderTextColor="#8892A2" style={[styles.saveInput, styles.saveDescription, descriptionFocused && styles.saveInputFocused]}
               textAlignVertical="top" value={planDescription} />
           </View>
@@ -1230,6 +1329,12 @@ export default function TripPlanningScreen() {
                 <Text style={[styles.placeCategoryText, placeCategory === category.id && styles.placeCategoryTextSelected]}>{category.label}</Text>
               </Pressable>)}
             </View>
+            {!placesBusy && !placesError && !placesByCategory[placeCategory] &&
+              <Pressable accessibilityRole="button" onPress={() => { void loadPlaces(destinationCity, placeCategory); }}
+                style={styles.placeLoadMore}>
+                <Search size={17} color={BLUE} />
+                <Text style={styles.placeLoadMoreText}>Find {PLACE_CATEGORIES.find((item) => item.id === placeCategory)?.label.toLowerCase()}</Text>
+              </Pressable>}
             {placesBusy && loadingPlacePage === 0 && <View accessibilityLiveRegion="polite" style={styles.placeStatus}>
               <ActivityIndicator color={BLUE} />
               <Text style={styles.helper}>Finding places around {destinationCity.name}…</Text>

@@ -10,6 +10,10 @@ The edit page loads an existing photo through the authenticated picture request.
 
 `getTripGroupPicture` retrieves a member-protected JPEG. `getGroupInvitePicture` sends a valid invitation token in a JSON body to retrieve the photo before membership exists. `TripGroupInvitePreview.pictureAvailable` prevents a photo request for groups without a picture. Tokens never appear in picture URLs.
 
+Transport and accommodation request types include `adults` from 1 to 9; the backend sends that count to SerpApi, Scrappa Omio, or Bilo. Budgets remain totals for the selected people. `saveTripPlan` posts to the personal endpoint normally and to the group-owned endpoint when given a group ID. `tripGroups.ts` lists group plans and lets an admin mark one current. The response includes adult count, group ID, and current status; no live ticket or stay offer is saved.
+
+`groupPlanNotifications.ts` is a small in-memory subscription channel for authenticated `GROUP_PLAN_SAVED` WebSocket messages. The app-wide notification banner publishes the group and plan IDs to it. A mounted group page subscribes and reloads its plan list only when the message belongs to that group; opening the page later uses the normal initial list request. The channel does not store messages or open another WebSocket.
+
 `pendingGroupInvite.ts` keeps a token temporarily while an invitee signs in, using web session storage or native SecureStore. Invite links put the token after `#` so web requests do not send it to the hosting server. The invite screen strips the web fragment once saved. The login screen checks pending invites after authentication and routes to `/trip-group-invite`; it clears the pending token after successful acceptance or when the user dismisses it. Neither the raw token nor its hash is logged.
 
 `TrainItinerary` also identifies Omio or Bilo as its source. Bilo responses can include original RON fare, estimated-fare status, and published outbound/return links; their EUR total is an approximation using a Frankfurter rate fetched by the backend for that search. The Bilo key stays on the backend.

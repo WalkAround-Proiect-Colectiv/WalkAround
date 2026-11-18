@@ -39,7 +39,7 @@ public class BiloHttpTrainProvider implements BiloTrainProvider {
     }
 
     @Override
-    public List<Offer> search(String origin, String destination, LocalDate date) {
+    public List<Offer> search(String origin, String destination, LocalDate date, int adults) {
         if (properties.biloApiKey() == null || properties.biloApiKey().isBlank()) {
             return List.of();
         }
@@ -48,7 +48,7 @@ public class BiloHttpTrainProvider implements BiloTrainProvider {
         body.put("origin", origin);
         body.put("destination", destination);
         body.put("date", date.toString());
-        body.put("passengers", 1);
+        body.put("passengers", adults);
         body.put("mode", "rail");
         body.put("railClass", "2");
         body.put("sort", "price");

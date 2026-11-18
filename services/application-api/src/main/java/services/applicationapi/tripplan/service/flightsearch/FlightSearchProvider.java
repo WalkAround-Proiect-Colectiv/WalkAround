@@ -13,6 +13,7 @@ public interface FlightSearchProvider {
             List<String> arrivalAirports,
             LocalDate date,
             BigDecimal maxPrice,
+            int adults,
             LocalTime earliestDeparture,
             LocalTime latestDeparture
     );
@@ -23,6 +24,7 @@ public interface FlightSearchProvider {
             LocalDate outboundDate,
             LocalDate returnDate,
             BigDecimal maxPrice,
+            int adults,
             LocalTime earliestDeparture,
             LocalTime latestDeparture
     );
@@ -33,6 +35,7 @@ public interface FlightSearchProvider {
             LocalDate outboundDate,
             LocalDate returnDate,
             BigDecimal maxPrice,
+            int adults,
             String departureToken
     );
 

@@ -16,6 +16,10 @@ public record AccommodationSearchRequest(
         @NotBlank @Pattern(regexp = "(?i)[a-z]{2}") String countryCode,
         @NotNull LocalDate checkInDate,
         @NotNull @Min(1) @Max(365) Integer stayingNights,
-        @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal budget
+        @NotNull @DecimalMin("0.01") @Digits(integer = 9, fraction = 2) BigDecimal budget,
+        @Min(1) @Max(9) Integer adults
 ) {
+    public AccommodationSearchRequest {
+        if (adults == null) adults = 1;
+    }
 }

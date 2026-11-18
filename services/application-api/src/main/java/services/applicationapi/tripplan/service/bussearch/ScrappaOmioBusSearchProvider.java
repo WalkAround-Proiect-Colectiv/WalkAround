@@ -31,7 +31,6 @@ import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
 public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
 
     private static final Logger log = LoggerFactory.getLogger(ScrappaOmioBusSearchProvider.class);
-    private static final int DEFAULT_ADULTS = 1;
 
     private final RestClient client;
     private final BusSearchProperties properties;
@@ -73,7 +72,7 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
 
     @Override
     public SearchPage search(long originId, long destinationId, LocalDate date,
-                             LocalDate returnDate, int page) {
+                             LocalDate returnDate, int page, int adults) {
         JsonNode response;
         try {
             response = client.get()
@@ -85,7 +84,7 @@ public class ScrappaOmioBusSearchProvider implements BusSearchProvider {
                                 .queryParam("travel_mode", "bus")
                                 .queryParam("currency", "EUR")
                                 .queryParam("sort", "price")
-                                .queryParam("adults", DEFAULT_ADULTS)
+                                .queryParam("adults", adults)
                                 .queryParam("limit", 100)
                                 .queryParam("page", page);
                         if (returnDate != null) {
