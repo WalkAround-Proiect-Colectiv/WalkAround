@@ -6,6 +6,8 @@ The group card near the top links to `CreateTripGroupScreen` and `TripGroupsScre
 
 `GroupChatScreen` opens from the floating message button on the group view. It displays sequenced history, older-page loading, live updates, and a message composer. A send failure leaves the draft message visible with Retry and Discard actions; Retry reuses the original client UUID. The screen obtains a short-lived socket ticket, waits for the `SUBSCRIBED` acknowledgement, then fetches history or missed messages. While connected, it also catches up by sequence every three seconds so a missed socket event appears without reopening the page. WebSocket events and HTTP responses merge by message ID, so a Kafka replay or HTTP retry remains one visible message. The chat view stays within `/trip-groups?groupId=...&tab=chat`.
 
+The chat header keeps the group photo, name, and connection state visible above the conversation. The message area groups entries by local day, uses the app's blue and purple palette, and retains sender names and timestamps. The composer stays at the bottom with the retry controls above it.
+
 Admins can open `EditTripGroupScreen` from their group page. It loads the current details, validates edited text and optional JPEG/PNG image, and lets the admin retain, replace, or remove the photo. The backend enforces the role and writes all changes in one transaction. Saving returns to the group page.
 
 Where a group is displayed, its photo appears when available: the group list, detail heading, creation confirmation, edit form, and invitation preview. A rounded group icon appears when there is no photo or a protected picture request fails.

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -236,15 +236,30 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   }
 
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    style={[styles.screen, { paddingTop: Math.max(insets.top, 12), paddingBottom: Math.max(insets.bottom, 12) }]}>
-    <View style={styles.header}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Back to group"
-        onPress={() => router.replace({ pathname: '/trip-groups', params: { groupId: group.id } })}
-        style={styles.back}><ArrowLeft size={20} color="#202632" /></Pressable>
-      {group.pictureUrl ? <GroupPicture groupId={group.id} size={38} />
-        : <View style={styles.icon}><MessageCircle size={19} color={BLUE} /></View>}
-      <View style={styles.heading}><Text style={styles.title} numberOfLines={1}>{group.name}</Text>
-        <Text style={styles.status}>{connection} · Group chat</Text></View>
+    style={[styles.screen, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+    <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
+      <View style={styles.headerTop}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Back to group"
+          onPress={() => router.replace({ pathname: '/trip-groups', params: { groupId: group.id } })}
+          style={styles.back}><ArrowLeft size={20} color="#202632" /></Pressable>
+        <Text style={styles.pageTitle}>Messages</Text>
+        <View style={styles.headerBadge}><MessageCircle size={14} color="#23012C" />
+          <Text style={styles.headerBadgeText}>GROUP</Text></View>
+      </View>
+      <View style={styles.groupBanner}>
+        {group.pictureUrl ? <GroupPicture groupId={group.id} size={46} />
+          : <View style={styles.icon}><MessageCircle size={22} color={BLUE} /></View>}
+        <View style={styles.heading}>
+          <Text style={styles.title} numberOfLines={1}>{group.name}</Text>
+          <Text style={styles.subtitle}>Shared trip space</Text>
+        </View>
+        <View style={[styles.connectionPill, connection === 'Live' && styles.connectionPillLive]}>
+          <View style={[styles.connectionDot, connection === 'Live' && styles.connectionDotLive]} />
+          <Text style={[styles.status, connection === 'Live' && styles.statusLive]}>
+            {connection === 'Live' ? 'Live' : connection.startsWith('Reconnecting') ? 'Retrying' : 'Connecting'}
+          </Text>
+        </View>
+      </View>
     </View>
 
     {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
@@ -253,16 +268,31 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       {hasOlder && <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => { void loadOlder(); }}
         style={styles.older}><Text style={styles.olderText}>{loadingOlder ? 'Loading…' : 'Load earlier messages'}</Text></Pressable>}
       {loading && <ActivityIndicator color={BLUE} />}
-      {!loading && messages.length === 0 && <Text style={styles.empty}>No messages yet. Start the conversation.</Text>}
-      {messages.map((message) => {
+      {!loading && messages.length === 0 && <View style={styles.emptyCard}>
+        <View style={styles.emptyIcon}><MessageCircle size={26} color={BLUE} /></View>
+        <Text style={styles.emptyTitle}>Start the conversation</Text>
+        <Text style={styles.empty}>Share ideas, dates, and little discoveries with your group.</Text>
+      </View>}
+      {messages.map((message, index) => {
         const own = message.senderId === session?.user.id;
-        return <View key={message.id} style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
-          {!own && <Text style={styles.sender}>{message.senderName}</Text>}
-          <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
-          <Text style={own ? styles.ownTime : styles.time}>
-            {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-        </View>;
+        const day = new Date(message.createdAt).toDateString();
+        const previousDay = index > 0 ? new Date(messages[index - 1].createdAt).toDateString() : null;
+        return <Fragment key={message.id}>
+          {day !== previousDay && <View style={styles.dayRow}>
+            <View style={styles.dayLine} />
+            <Text style={styles.dayText}>
+              {new Date(message.createdAt).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}
+            </Text>
+            <View style={styles.dayLine} />
+          </View>}
+          <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
+            {!own && <Text style={styles.sender}>{message.senderName}</Text>}
+            <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
+            <Text style={own ? styles.ownTime : styles.time}>
+              {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        </Fragment>;
       })}
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
         <Text style={styles.ownText}>{pending.body}</Text>
@@ -295,32 +325,62 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F4F7FB' },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#E3EAF3', backgroundColor: '#fff' },
-  back: { width: 40, height: 40, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F6FB' },
-  icon: { width: 38, height: 38, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF3FF' },
+  screen: { flex: 1, backgroundColor: '#F6F8FC' },
+  header: { paddingHorizontal: 16, paddingBottom: 15, backgroundColor: '#fff', gap: 15,
+    borderBottomWidth: 1, borderBottomColor: '#E5EAF2' },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  back: { width: 42, height: 42, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#F3F6FA' },
+  pageTitle: { flex: 1, color: '#202632', fontSize: 19, fontWeight: '800' },
+  headerBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10,
+    paddingVertical: 7, borderRadius: 20, backgroundColor: '#F4EDF6' },
+  headerBadgeText: { color: '#23012C', fontSize: 10, fontWeight: '800', letterSpacing: 0.7 },
+  groupBanner: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11,
+    borderRadius: 19, backgroundColor: '#F5F8FF', borderWidth: 1, borderColor: '#E4EDFB' },
+  icon: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#E3EFFF' },
   heading: { flex: 1 },
   title: { color: '#202632', fontSize: 16, fontWeight: '800' },
-  status: { color: '#718096', fontSize: 12 },
+  subtitle: { color: '#78869A', fontSize: 11, marginTop: 2 },
+  connectionPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9,
+    paddingVertical: 6, borderRadius: 14, backgroundColor: '#EDF1F6' },
+  connectionPillLive: { backgroundColor: '#E7F7EF' },
+  connectionDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#9AA6B5' },
+  connectionDotLive: { backgroundColor: '#22A76B' },
+  status: { color: '#687587', fontSize: 10, fontWeight: '700' },
+  statusLive: { color: '#168457' },
   messages: { flex: 1 },
-  messageContent: { padding: 16, gap: 10, flexGrow: 1, justifyContent: 'flex-end' },
-  bubble: { maxWidth: '82%', borderRadius: 17, paddingHorizontal: 13, paddingVertical: 9, gap: 3 },
-  ownBubble: { alignSelf: 'flex-end', backgroundColor: BLUE, borderBottomRightRadius: 5 },
-  otherBubble: { alignSelf: 'flex-start', backgroundColor: '#fff', borderWidth: 1, borderColor: '#E4EAF1', borderBottomLeftRadius: 5 },
-  sender: { color: '#23012C', fontWeight: '700', fontSize: 12 },
-  ownText: { color: '#fff', fontSize: 14, lineHeight: 20 },
-  messageText: { color: '#202632', fontSize: 14, lineHeight: 20 },
-  ownTime: { color: '#DCEAFF', fontSize: 10, alignSelf: 'flex-end' },
-  time: { color: '#8290A2', fontSize: 10, alignSelf: 'flex-end' },
-  empty: { color: '#718096', textAlign: 'center', marginTop: 36 },
+  messageContent: { paddingHorizontal: 16, paddingVertical: 20, gap: 10,
+    flexGrow: 1, justifyContent: 'flex-end' },
+  dayRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginVertical: 10 },
+  dayLine: { flex: 1, height: 1, backgroundColor: '#E4EAF2' },
+  dayText: { color: '#8895A6', fontSize: 11, fontWeight: '700' },
+  bubble: { maxWidth: '84%', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 10, gap: 5 },
+  ownBubble: { alignSelf: 'flex-end', backgroundColor: BLUE, borderBottomRightRadius: 6,
+    shadowColor: BLUE, shadowOpacity: 0.12, shadowRadius: 8, shadowOffset: { width: 0, height: 3 } },
+  otherBubble: { alignSelf: 'flex-start', backgroundColor: '#fff', borderWidth: 1,
+    borderColor: '#E7ECF4', borderBottomLeftRadius: 6,
+    shadowColor: '#33415C', shadowOpacity: 0.05, shadowRadius: 6, shadowOffset: { width: 0, height: 2 } },
+  sender: { color: '#23012C', fontWeight: '800', fontSize: 11 },
+  ownText: { color: '#fff', fontSize: 14, lineHeight: 21 },
+  messageText: { color: '#253043', fontSize: 14, lineHeight: 21 },
+  ownTime: { color: '#D9E9FF', fontSize: 10, alignSelf: 'flex-end' },
+  time: { color: '#8793A3', fontSize: 10, alignSelf: 'flex-end' },
+  emptyCard: { alignSelf: 'center', alignItems: 'center', gap: 8, maxWidth: 270, marginTop: 36 },
+  emptyIcon: { width: 54, height: 54, borderRadius: 20, backgroundColor: '#E5F0FF',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyTitle: { color: '#253043', fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  empty: { color: '#7D8B9E', fontSize: 13, lineHeight: 19, textAlign: 'center' },
   older: { alignSelf: 'center', padding: 8 },
   olderText: { color: BLUE, fontWeight: '700', fontSize: 13 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 9, padding: 12, backgroundColor: '#fff',
-    borderTopWidth: 1, borderTopColor: '#E3EAF3' },
-  input: { flex: 1, maxHeight: 110, minHeight: 44, borderRadius: 17, backgroundColor: '#F2F5F9',
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginHorizontal: 12,
+    padding: 7, paddingLeft: 8, backgroundColor: '#fff', borderRadius: 22,
+    borderWidth: 1, borderColor: '#E3EAF3',
+    shadowColor: '#253043', shadowOpacity: 0.08, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  input: { flex: 1, maxHeight: 110, minHeight: 43, borderRadius: 15, backgroundColor: '#F5F7FB',
     color: '#202632', paddingHorizontal: 14, paddingVertical: 11, fontSize: 14 },
-  sendButton: { width: 44, height: 44, borderRadius: 15, backgroundColor: BLUE,
+  sendButton: { width: 43, height: 43, borderRadius: 15, backgroundColor: BLUE,
     alignItems: 'center', justifyContent: 'center' },
   disabled: { opacity: 0.5 },
   error: { color: '#C51B2D', fontSize: 12, paddingHorizontal: 16, paddingTop: 8 },
