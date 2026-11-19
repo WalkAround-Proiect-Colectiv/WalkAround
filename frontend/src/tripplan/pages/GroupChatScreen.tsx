@@ -12,6 +12,7 @@ import EmojiPicker from '../components/EmojiPicker';
 import GroupChatPollCard from '../components/GroupChatPollCard';
 import GroupChatImageCard from '../components/GroupChatImageCard';
 import GroupChatImagePreview from '../components/GroupChatImagePreview';
+import type { PreviewImage } from '../components/GroupChatImagePreview';
 import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
   getGroupChatMessages, getGroupChatTicket, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
@@ -101,7 +102,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [imageAsset, setImageAsset] = useState<ImagePickerAsset | null>(null);
-  const [previewImage, setPreviewImage] = useState<ImagePickerAsset | null>(null);
+  const [previewImage, setPreviewImage] = useState<PreviewImage | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
@@ -438,7 +439,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
               onVote={(optionId) => { void vote(message.id, optionId); }}
               onClose={() => { void closePoll(message.id); }} />
             : message.messageType === 'IMAGE' && message.image
-            ? <GroupChatImageCard groupId={group.id} message={message} own={own} />
+            ? <GroupChatImageCard groupId={group.id} message={message} own={own}
+              onPreview={setPreviewImage} />
             : <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
               {!own && <Text style={styles.sender}>{message.senderName}</Text>}
               <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
@@ -503,7 +505,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       <Pressable accessibilityRole="button" accessibilityLabel="Remove selected image"
         onPress={() => setImageAsset(null)}><X size={19} color="#65758B" /></Pressable>
     </View>}
-    <GroupChatImagePreview image={previewImage} onClose={() => setPreviewImage(null)} />
+    <GroupChatImagePreview key={previewImage?.messageId ?? (previewImage ? 'local' : 'none')}
+      image={previewImage} onClose={() => setPreviewImage(null)} />
     {sendError && <Text accessibilityRole="alert" style={styles.error}>{sendError}</Text>}
     {pending && !sending && <View style={styles.retryRow}>
       <Pressable accessibilityRole="button" onPress={() => { void send(pending); }}>

@@ -1,16 +1,50 @@
+import { useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
-import type { ImagePickerAsset } from 'expo-image-picker';
 import { X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getGroupChatImageUrl } from '../api/groupChat';
+
+export interface PreviewImage {
+  uri: string;
+  width: number;
+  height: number;
+  groupId?: string;
+  messageId?: string;
+}
 
 interface Props {
-  image: ImagePickerAsset | null;
+  image: PreviewImage | null;
   onClose: () => void;
 }
 
 export default function GroupChatImagePreview({ image, onClose }: Props) {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const [refreshedUrl, setRefreshedUrl] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function refreshImage() {
+    if (refreshing || failed) return;
+    if (!image?.groupId || !image.messageId || refreshedUrl) {
+      setFailed(true);
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const refreshed = await getGroupChatImageUrl(image.groupId, image.messageId);
+      if (refreshed.url === image.uri) {
+        setFailed(true);
+      } else {
+        setRefreshedUrl(refreshed.url);
+      }
+    } catch {
+      setFailed(true);
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const availableWidth = Math.max(1, width - 32);
   const availableHeight = Math.max(1, height - insets.top - insets.bottom - 120);
   const imageWidth = image?.width && image.width > 0 ? image.width : availableWidth;
@@ -28,9 +62,10 @@ export default function GroupChatImagePreview({ image, onClose }: Props) {
         </Pressable>
       </View>
       <View style={styles.imageArea}>
-        {image && <Image source={{ uri: image.uri }} resizeMode="contain"
-          accessibilityLabel="Selected image preview"
-          style={{ width: imageWidth * scale, height: imageHeight * scale }} />}
+        {failed ? <Text style={styles.error}>Image unavailable</Text>
+          : image && <Image source={{ uri: refreshedUrl ?? image.uri }} resizeMode="contain"
+            accessibilityLabel="Chat image preview" onError={() => { void refreshImage(); }}
+            style={{ width: imageWidth * scale, height: imageHeight * scale }} />}
       </View>
       <Text style={styles.hint}>Close to return to your message</Text>
     </View>
@@ -45,4 +80,5 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center' },
   imageArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   hint: { color: '#E4EAF3', fontSize: 12, textAlign: 'center', paddingVertical: 8 },
+  error: { color: '#E4EAF3', fontSize: 14 },
 });

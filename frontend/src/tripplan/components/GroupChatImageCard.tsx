@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getGroupChatImageUrl, type GroupChatMessage } from '../api/groupChat';
+import type { PreviewImage } from './GroupChatImagePreview';
 
 interface Props {
   groupId: string;
   message: GroupChatMessage;
   own: boolean;
+  onPreview: (image: PreviewImage) => void;
 }
 
-export default function GroupChatImageCard({ groupId, message, own }: Props) {
+export default function GroupChatImageCard({ groupId, message, own, onPreview }: Props) {
   const [url, setUrl] = useState(message.image?.url ?? '');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
@@ -39,9 +41,13 @@ export default function GroupChatImageCard({ groupId, message, own }: Props) {
   return <View style={[styles.card, own ? styles.own : styles.other]}>
     {!own && <Text style={styles.sender}>{message.senderName}</Text>}
     {failed ? <Text style={styles.missing}>Image unavailable</Text>
-      : <Image source={{ uri: url }} resizeMode="contain"
-        style={[styles.image, { aspectRatio: displayRatio }]}
-        accessibilityLabel={message.body || 'Group chat image'} onError={() => { void refreshUrl(); }} />}
+      : <Pressable accessibilityRole="button" accessibilityLabel="Preview chat image"
+        onPress={() => onPreview({ uri: url, width: message.image?.width ?? 1,
+          height: message.image?.height ?? 1, groupId, messageId: message.id })}>
+        <Image source={{ uri: url }} resizeMode="contain"
+          style={[styles.image, { aspectRatio: displayRatio }]}
+          onError={() => { void refreshUrl(); }} />
+      </Pressable>}
     {Boolean(message.body) && <Text style={own ? styles.ownCaption : styles.caption}>{message.body}</Text>}
     <Text style={own ? styles.ownTime : styles.time}>
       {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
