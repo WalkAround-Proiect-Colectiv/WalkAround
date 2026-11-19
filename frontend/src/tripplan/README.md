@@ -6,6 +6,8 @@ The top of the planner links to group creation and `/trip-groups`. The creation 
 
 Group chat uses HTTP for authenticated, idempotent message saves and sequence-cursor history. It receives live messages through the conversation-scoped WebSocket. On connection or reconnect, it waits for `SUBSCRIBED` before requesting history or catch-up, then merges by message ID. A failed send retains its UUID for the retry so it cannot create a second message.
 
+Members can attach a JPEG/PNG image with an optional caption. The backend normalizes it, stores it privately in ImageKit, and publishes the saved image message through the same chat outbox. History and live events include a signed display URL; a failed image load requests a new member-authorized URL.
+
 Group members can post a poll as a chat message, choose one option at a time, change their choice while the poll is open, and watch vote totals update in that same card. Only its creator can close it. Poll updates have an event sequence separate from the original message sequence, so live delivery and reconnect catch-up can update an existing card without adding a new chat bubble.
 
 When a group plan is saved, connected members receive an app-wide notification through the existing authenticated WebSocket. **View plan** opens the saved preset and refreshes the group's plan list. Disconnected members can still find the plan in the group view; these group notifications do not have a missed-notification inbox.

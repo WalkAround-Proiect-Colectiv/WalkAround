@@ -15,9 +15,12 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import services.applicationapi.tripplan.dto.GroupChatCursorResponse;
 import services.applicationapi.tripplan.dto.GroupChatEventResponse;
+import services.applicationapi.tripplan.dto.GroupChatImageResponse;
 import services.applicationapi.tripplan.dto.GroupChatMessageRequest;
 import services.applicationapi.tripplan.dto.GroupChatMessageResponse;
 import services.applicationapi.tripplan.dto.GroupChatPollVoteRequest;
@@ -43,6 +46,27 @@ public class GroupChatController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .cacheControl(CacheControl.noStore())
                 .body(saved);
+    }
+
+    @PostMapping(path = "/messages/images", consumes = "multipart/form-data")
+    public ResponseEntity<GroupChatMessageResponse> sendImage(@AuthenticationPrincipal Jwt jwt,
+                                                              @PathVariable UUID groupId,
+                                                              @RequestParam UUID messageId,
+                                                              @RequestParam(required = false) String caption,
+                                                              @RequestPart("image") MultipartFile image) {
+        GroupChatMessageResponse saved = chat.sendImage(groupId, userId(jwt), messageId, caption, image);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .cacheControl(CacheControl.noStore())
+                .body(saved);
+    }
+
+    @GetMapping("/messages/{messageId}/image-url")
+    public ResponseEntity<GroupChatImageResponse> imageUrl(@AuthenticationPrincipal Jwt jwt,
+                                                           @PathVariable UUID groupId,
+                                                           @PathVariable UUID messageId) {
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .body(chat.imageUrl(groupId, userId(jwt), messageId));
     }
 
     @GetMapping("/messages")

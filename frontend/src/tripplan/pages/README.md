@@ -12,6 +12,10 @@ The composer has an emoji button that opens `EmojiPicker` above it. The picker i
 
 The poll button opens a compact question and choice form above the composer. Posting a poll uses the same idempotent message POST as text. Poll cards remain at their original chat position while votes, changed choices, and close actions update their counts, selection, and status. The screen subscribes to the socket before taking an event cursor and loading messages; later event pages and WebSocket snapshots merge by message ID and poll revision. The event cursor, rather than the chat message cursor, preserves poll updates across reconnects.
 
+The Photo and Poll actions sit above the compact mobile composer. Photo picks a JPEG/PNG from the device and allows an optional caption. Tapping its thumbnail opens a full-screen preview scaled to the image dimensions and screen size; closing it keeps the selection. Pending images can also be previewed. Sending keeps the selected image and its client UUID in the pending message so Retry cannot create another chat bubble. After HTTP save, the normal outbox and WebSocket flow delivers the `IMAGE` message to the group. `GroupChatImageCard` displays the signed ImageKit URL in history and live messages.
+
+Tapping a sent image also opens the same full-screen preview. The preview uses the currently displayed signed URL and fetches a fresh member-authorized URL if that link has expired.
+
 Admins can open `EditTripGroupScreen` from their group page. It loads the current details, validates edited text and optional JPEG/PNG image, and lets the admin retain, replace, or remove the photo. The backend enforces the role and writes all changes in one transaction. Saving returns to the group page.
 
 Where a group is displayed, its photo appears when available: the group list, detail heading, creation confirmation, edit form, and invitation preview. A rounded group icon appears when there is no photo or a protected picture request fails.

@@ -1,15 +1,20 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ListChecks, MessageCircle, Plus, Send, Smile, X } from 'lucide-react-native';
+import { ArrowLeft, ImagePlus, ListChecks, MessageCircle, Plus, Send, Smile, X } from 'lucide-react-native';
 import * as Crypto from 'expo-crypto';
+import * as ImagePicker from 'expo-image-picker';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { useSession } from '../../login/components/SessionProvider';
 import GroupPicture from '../components/GroupPicture';
 import EmojiPicker from '../components/EmojiPicker';
 import GroupChatPollCard from '../components/GroupChatPollCard';
+import GroupChatImageCard from '../components/GroupChatImageCard';
+import GroupChatImagePreview from '../components/GroupChatImagePreview';
+import type { PreviewImage } from '../components/GroupChatImagePreview';
 import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
-  getGroupChatMessages, getGroupChatTicket, sendGroupChatMessage, voteInGroupChatPoll,
+  getGroupChatMessages, getGroupChatTicket, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
 import type { CreatedTripGroup } from '../api/tripGroups';
 
@@ -18,7 +23,8 @@ const PAGE_SIZE = 50;
 const RECONNECT_DELAY_MS = 3000;
 const CATCH_UP_INTERVAL_MS = 3000;
 
-type PendingMessage = { id: string; body: string; messageType: 'TEXT' | 'POLL'; options?: string[] };
+type PendingMessage = { id: string; body: string; messageType: 'TEXT' | 'POLL' | 'IMAGE';
+  options?: string[]; image?: ImagePickerAsset };
 type SocketEvent = { type: 'SUBSCRIBED'; conversationId: string }
   | ({ type: 'GROUP_CHAT_MESSAGE'; eventSequence: number } & GroupChatMessage);
 
@@ -60,6 +66,10 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
           return typeof item.id !== 'string' || typeof item.label !== 'string'
             || !Number.isSafeInteger(item.votes);
         }))) return null;
+    const image = event.messageType === 'IMAGE' ? event.image : null;
+    if (event.messageType === 'IMAGE' && (!image || typeof image.url !== 'string'
+        || !Number.isSafeInteger(image.width) || image.width < 1
+        || !Number.isSafeInteger(image.height) || image.height < 1)) return null;
     return {
       type: 'GROUP_CHAT_MESSAGE',
       eventSequence: event.eventSequence,
@@ -70,8 +80,10 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
       senderName: event.senderName,
       body: event.body,
       createdAt: event.createdAt,
-      messageType: event.messageType === 'POLL' ? 'POLL' : 'TEXT',
+      messageType: event.messageType === 'POLL' || event.messageType === 'IMAGE'
+        ? event.messageType : 'TEXT',
       poll,
+      image,
     };
   } catch {
     return null;
@@ -89,6 +101,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const { session } = useSession();
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [imageAsset, setImageAsset] = useState<ImagePickerAsset | null>(null);
+  const [previewImage, setPreviewImage] = useState<PreviewImage | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
@@ -226,8 +240,10 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     setSending(true);
     setSendError(null);
     try {
-      const saved = await sendGroupChatMessage(group.id, item.id, item.body,
-        item.messageType, item.options);
+      const saved = item.image
+        ? await sendGroupChatImage(group.id, item.id, item.body, item.image)
+        : await sendGroupChatMessage(group.id, item.id, item.body,
+          item.messageType as 'TEXT' | 'POLL', item.options);
       acceptMessages([saved]);
       if (pendingRef.current?.id === item.id) {
         pendingRef.current = null;
@@ -245,18 +261,42 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   function submit() {
     if (sending || pendingRef.current) return;
     const body = draft.trim();
-    if (!body || body.length > 2000) {
-      setSendError('Enter a message of up to 2,000 characters.');
+    if ((!body && !imageAsset) || body.length > 2000) {
+      setSendError('Enter a message of up to 2,000 characters, or choose an image.');
       return;
     }
-    const item: PendingMessage = { id: Crypto.randomUUID(), body, messageType: 'TEXT' };
+    const item: PendingMessage = { id: Crypto.randomUUID(), body,
+      messageType: imageAsset ? 'IMAGE' : 'TEXT', image: imageAsset ?? undefined };
     pendingRef.current = item;
     setPending(item);
     scrollOnNextChange.current = true;
     setDraft('');
+    setImageAsset(null);
     setSelection({ start: 0, end: 0 });
     setShowEmojis(false);
     void send(item);
+  }
+
+  async function chooseImage() {
+    if (sending || pendingRef.current) return;
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'], quality: 0.85,
+      });
+      if (result.canceled) return;
+      const chosen = result.assets[0];
+      const mimeType = chosen.file?.type || chosen.mimeType;
+      if (mimeType && mimeType !== 'image/jpeg' && mimeType !== 'image/png') {
+        setSendError('Choose a JPEG or PNG image.');
+        return;
+      }
+      setImageAsset(chosen);
+      setSendError(null);
+      setShowEmojis(false);
+      setPollOpen(false);
+    } catch {
+      setSendError('Could not open your photos. Please try again.');
+    }
   }
 
   function createPoll() {
@@ -398,6 +438,9 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
             ? <GroupChatPollCard message={message} own={own} busy={busyPollId === message.id}
               onVote={(optionId) => { void vote(message.id, optionId); }}
               onClose={() => { void closePoll(message.id); }} />
+            : message.messageType === 'IMAGE' && message.image
+            ? <GroupChatImageCard groupId={group.id} message={message} own={own}
+              onPreview={setPreviewImage} />
             : <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
               {!own && <Text style={styles.sender}>{message.senderName}</Text>}
               <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
@@ -409,7 +452,11 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       })}
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
         {pending.messageType === 'POLL' && <Text style={styles.pendingType}>POLL · {pending.options?.length} choices</Text>}
-        <Text style={styles.ownText}>{pending.body}</Text>
+        {pending.image && <Pressable accessibilityRole="button"
+          accessibilityLabel="Preview pending image" onPress={() => setPreviewImage(pending.image ?? null)}>
+          <Image source={{ uri: pending.image.uri }} style={styles.pendingImage} />
+        </Pressable>}
+        {Boolean(pending.body) && <Text style={styles.ownText}>{pending.body}</Text>}
         <Text style={styles.ownTime}>{sending ? 'Sending…' : 'Not confirmed'}</Text>
       </View>}
     </ScrollView>
@@ -449,6 +496,17 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       </View>
     </View>}
     {showEmojis && <EmojiPicker onClose={() => setShowEmojis(false)} onSelect={insertEmoji} />}
+    {imageAsset && <View style={styles.imagePreview}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Preview selected image"
+        onPress={() => setPreviewImage(imageAsset)} style={styles.previewOpen}>
+        <Image source={{ uri: imageAsset.uri }} style={styles.previewImage} />
+        <Text style={styles.previewText}>Tap to preview image</Text>
+      </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Remove selected image"
+        onPress={() => setImageAsset(null)}><X size={19} color="#65758B" /></Pressable>
+    </View>}
+    <GroupChatImagePreview key={previewImage?.messageId ?? (previewImage ? 'local' : 'none')}
+      image={previewImage} onClose={() => setPreviewImage(null)} />
     {sendError && <Text accessibilityRole="alert" style={styles.error}>{sendError}</Text>}
     {pending && !sending && <View style={styles.retryRow}>
       <Pressable accessibilityRole="button" onPress={() => { void send(pending); }}>
@@ -460,12 +518,24 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
         setSendError(null);
       }}><Text style={styles.discardText}>Discard</Text></Pressable>
     </View>}
-    <View style={styles.composer}>
-      <Pressable accessibilityRole="button" accessibilityLabel={pollOpen ? 'Hide poll form' : 'Create poll'}
-        onPress={() => { Keyboard.dismiss(); setShowEmojis(false); setPollOpen((open) => !open); }}
-        style={[styles.emojiToggle, pollOpen && styles.emojiToggleActive]}>
-        <ListChecks size={21} color={pollOpen ? BLUE : '#7D8B9E'} />
+    <View style={styles.toolsRow}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Attach image"
+        disabled={sending || Boolean(pending)} onPress={() => { void chooseImage(); }}
+        style={styles.toolButton}>
+        <ImagePlus size={17} color={BLUE} /><Text style={styles.toolText}>Photo</Text>
       </Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={pollOpen ? 'Hide poll form' : 'Create poll'}
+        onPress={() => {
+          Keyboard.dismiss();
+          setShowEmojis(false);
+          if (!pollOpen) setImageAsset(null);
+          setPollOpen((open) => !open);
+        }}
+        style={[styles.toolButton, pollOpen && styles.toolButtonActive]}>
+        <ListChecks size={17} color={BLUE} /><Text style={styles.toolText}>Poll</Text>
+      </Pressable>
+    </View>
+    <View style={styles.composer}>
       <Pressable accessibilityRole="button" accessibilityLabel={showEmojis ? 'Close emoji palette' : 'Open emoji palette'}
         accessibilityState={{ expanded: showEmojis }} onPress={() => {
           Keyboard.dismiss();
@@ -474,14 +544,14 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
         }} style={[styles.emojiToggle, showEmojis && styles.emojiToggleActive]}>
         <Smile size={21} color={showEmojis ? BLUE : '#7D8B9E'} />
       </Pressable>
-      <TextInput accessibilityLabel="Group message" multiline maxLength={2000}
-        placeholder="Message your group" placeholderTextColor="#8A96A6"
+      <TextInput accessibilityLabel={imageAsset ? 'Image caption' : 'Group message'} multiline maxLength={2000}
+        placeholder={imageAsset ? 'Add a caption (optional)' : 'Message your group'} placeholderTextColor="#8A96A6"
         style={styles.input} value={draft} onChangeText={setDraft} selection={selection}
         onSelectionChange={({ nativeEvent }) => setSelection(nativeEvent.selection)}
         onFocus={() => setShowEmojis(false)} />
       <Pressable accessibilityRole="button" accessibilityLabel="Send message"
-        disabled={sending || Boolean(pending) || !draft.trim()} onPress={submit}
-        style={[styles.sendButton, (sending || Boolean(pending) || !draft.trim()) && styles.disabled]}>
+        disabled={sending || Boolean(pending) || (!draft.trim() && !imageAsset)} onPress={submit}
+        style={[styles.sendButton, (sending || Boolean(pending) || (!draft.trim() && !imageAsset)) && styles.disabled]}>
         <Send size={19} color="#fff" />
       </Pressable>
     </View>
@@ -542,6 +612,11 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E3EAF3',
     shadowColor: '#253043', shadowOpacity: 0.08, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  toolsRow: { flexDirection: 'row', gap: 7, marginHorizontal: 14, marginBottom: 7 },
+  toolButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, borderRadius: 11, backgroundColor: '#EAF3FF' },
+  toolButtonActive: { backgroundColor: '#D7E9FF' },
+  toolText: { color: BLUE, fontSize: 11, fontWeight: '800' },
   pollComposer: { marginHorizontal: 12, marginBottom: 8, padding: 14, borderRadius: 20,
     backgroundColor: '#fff', borderWidth: 1, borderColor: '#DDE8F7', gap: 9 },
   pollHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -559,6 +634,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
   createPollText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   pendingType: { color: '#D9E9FF', fontSize: 10, fontWeight: '800' },
+  pendingImage: { width: 180, height: 130, borderRadius: 12 },
+  imagePreview: { flexDirection: 'row', alignItems: 'center', gap: 10,
+    marginHorizontal: 14, marginBottom: 8, padding: 8, borderRadius: 14,
+    backgroundColor: '#EAF3FF' },
+  previewOpen: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  previewImage: { width: 42, height: 42, borderRadius: 9 },
+  previewText: { color: '#253043', fontSize: 12, fontWeight: '700' },
   emojiToggle: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   emojiToggleActive: { backgroundColor: '#E5F0FF' },
   input: { flex: 1, maxHeight: 110, minHeight: 43, borderRadius: 15, backgroundColor: '#F5F7FB',

@@ -21,6 +21,8 @@ Each `@RestControllerAdvice` is scoped to its own trip-planning controller. Vali
 
 For polls, the same handler also maps a new vote or changed choice after closure to `409`, an unknown poll to `404`, and a noncreator close attempt to `403`. It never returns vote records or another member's selected option.
 
+For chat images, invalid file content or dimensions returns `400`, an oversized multipart upload returns `413`, reuse of a message UUID with different content returns `409`, an inaccessible image returns `404`, and ImageKit failures return a generic `502`. Upstream response bodies and private credentials are kept out of client errors.
+
 The same group handler covers group-plan input (`400`), unavailable GeoNames validation (`502`), inaccessible plans (`404`), and nonadmin current-plan selection (`403`). Provider error bodies are not sent to clients.
 
 When adding another endpoint, keep its error mapping scoped to its controller so an exception in one flow does not change responses from another.

@@ -15,4 +15,6 @@ These custom runtime exceptions carry application-level failure categories from 
 
 Poll input and unknown choices also use `GroupChatInvalidMessageException`. `GroupChatPollNotFoundException` gives a `404` for an unknown or inaccessible poll. `GroupChatConflictException` additionally covers a new vote or changed choice after a poll is closed. `GroupChatForbiddenException` represents a close attempted by anyone other than the poll creator.
 
+Invalid image uploads use `GroupChatInvalidMessageException`; a matching image retry remains idempotent and a changed image/caption with the same UUID uses `GroupChatConflictException`. `GroupChatImageNotFoundException` gives a `404` for an inaccessible image message. `GroupChatImageStorageException` maps ImageKit upload or signing failures to a generic `502` without leaking provider details.
+
 The exception handlers determine HTTP status and `ProblemDetail` formatting. A provider may retain a `RestClientException` as a cause for debugging, but that cause must not be serialized to clients.

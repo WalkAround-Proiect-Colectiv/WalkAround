@@ -12,6 +12,9 @@ public record GroupChatProperties(
         @DefaultValue("2000") int maxMessageLength,
         @DefaultValue("10") int maxPollOptions,
         @DefaultValue("100") int maxPollOptionLength,
+        @DefaultValue("5242880") long imageMaxBytes,
+        @DefaultValue("16000000") long imageMaxPixels,
+        @DefaultValue("1600") int imageOutputSize,
         @DefaultValue("PT5M") Duration socketTokenTtl,
         @DefaultValue("1000") long outboxPollMs,
         @DefaultValue("50") int outboxBatchSize,
@@ -23,6 +26,9 @@ public record GroupChatProperties(
                 || pageSize < 1 || pageSize > 200 || maxMessageLength < 1 || maxMessageLength > 2000
                 || maxPollOptions < 2 || maxPollOptions > 20
                 || maxPollOptionLength < 1 || maxPollOptionLength > 100
+                || imageMaxBytes < 1 || imageMaxBytes > 5242880
+                || imageMaxPixels < 1 || imageMaxPixels > 40000000
+                || imageOutputSize < 1 || imageOutputSize > 4096
                 || socketTokenTtl.isNegative() || socketTokenTtl.isZero()
                 || socketTokenTtl.compareTo(Duration.ofMinutes(15)) > 0
                 || outboxPollMs < 100 || outboxBatchSize < 1 || outboxBatchSize > 200

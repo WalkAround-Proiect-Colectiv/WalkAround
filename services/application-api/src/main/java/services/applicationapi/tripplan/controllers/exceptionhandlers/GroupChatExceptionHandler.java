@@ -6,15 +6,20 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import services.applicationapi.tripplan.controllers.GroupChatController;
 import services.applicationapi.tripplan.service.exceptions.GroupChatConflictException;
 import services.applicationapi.tripplan.service.exceptions.GroupChatForbiddenException;
 import services.applicationapi.tripplan.service.exceptions.GroupChatInvalidMessageException;
+import services.applicationapi.tripplan.service.exceptions.GroupChatImageStorageException;
+import services.applicationapi.tripplan.service.exceptions.GroupChatImageNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.GroupChatPollNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripPlanAuthenticationException;
@@ -25,7 +30,8 @@ public class GroupChatExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GroupChatExceptionHandler.class);
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-            MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
+            MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class,
+            MissingServletRequestPartException.class})
     ResponseEntity<ProblemDetail> malformed() {
         return problem(HttpStatus.BAD_REQUEST, "Valid chat details are required");
     }
@@ -33,6 +39,22 @@ public class GroupChatExceptionHandler {
     @ExceptionHandler(GroupChatInvalidMessageException.class)
     ResponseEntity<ProblemDetail> invalid(GroupChatInvalidMessageException exception) {
         return problem(HttpStatus.BAD_REQUEST, exception.getMessage());
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ProblemDetail> oversized() {
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "The image is too large");
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    ResponseEntity<ProblemDetail> invalidUpload() {
+        return problem(HttpStatus.BAD_REQUEST, "A valid image upload is required");
+    }
+
+    @ExceptionHandler(GroupChatImageStorageException.class)
+    ResponseEntity<ProblemDetail> imageStorage(GroupChatImageStorageException exception) {
+        log.warn("Group chat image storage is unavailable: {}", exception.getClass().getSimpleName());
+        return problem(HttpStatus.BAD_GATEWAY, "Image service is temporarily unavailable");
     }
 
     @ExceptionHandler(GroupChatConflictException.class)
@@ -52,6 +74,11 @@ public class GroupChatExceptionHandler {
 
     @ExceptionHandler(GroupChatPollNotFoundException.class)
     ResponseEntity<ProblemDetail> pollNotFound(GroupChatPollNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, exception.getMessage());
+    }
+
+    @ExceptionHandler(GroupChatImageNotFoundException.class)
+    ResponseEntity<ProblemDetail> imageNotFound(GroupChatImageNotFoundException exception) {
         return problem(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 

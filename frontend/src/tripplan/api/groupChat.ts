@@ -1,3 +1,5 @@
+import { Platform } from 'react-native';
+import type { ImagePickerAsset } from 'expo-image-picker';
 import { ApiError } from '../../login/api/http';
 import { authenticatedRequest } from '../../login/api/session';
 
@@ -9,8 +11,15 @@ export interface GroupChatMessage {
   senderName: string;
   body: string;
   createdAt: string;
-  messageType: 'TEXT' | 'POLL';
+  messageType: 'TEXT' | 'POLL' | 'IMAGE';
   poll: GroupChatPoll | null;
+  image: GroupChatImage | null;
+}
+
+export interface GroupChatImage {
+  url: string;
+  width: number;
+  height: number;
 }
 
 export interface GroupChatPoll {
@@ -31,9 +40,10 @@ export interface GroupChatSocketTicket {
   expiresAt: string;
 }
 
-async function chatRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function chatRequest<T>(path: string, options: RequestInit = {},
+                              timeoutMs = 15000): Promise<T> {
   try {
-    return await authenticatedRequest<T>(path, options);
+    return await authenticatedRequest<T>(path, options, 'json', timeoutMs);
   } catch (error) {
     if (error instanceof ApiError && error.detail) throw new Error(error.detail);
     throw error;
@@ -41,6 +51,7 @@ async function chatRequest<T>(path: string, options: RequestInit = {}): Promise<
 }
 
 const chatPath = (groupId: string) => `/api/trip-plan-groups/${encodeURIComponent(groupId)}/chat`;
+const IMAGE_UPLOAD_TIMEOUT_MS = 60000;
 
 export function getGroupChatTicket(groupId: string): Promise<GroupChatSocketTicket> {
   return chatRequest(`${chatPath(groupId)}/socket-ticket`);
@@ -67,6 +78,28 @@ export function sendGroupChatMessage(groupId: string, messageId: string,
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ messageId, body, messageType, options }),
   });
+}
+
+export function sendGroupChatImage(groupId: string, messageId: string,
+                                   caption: string, image: ImagePickerAsset): Promise<GroupChatMessage> {
+  const body = new FormData();
+  body.append('messageId', messageId);
+  body.append('caption', caption);
+  if (Platform.OS === 'web') {
+    if (!image.file) throw new Error('Could not read the selected image. Choose it again.');
+    body.append('image', image.file, image.fileName ?? 'chat.jpg');
+  } else {
+    body.append('image', {
+      uri: image.uri,
+      name: image.fileName ?? 'chat.jpg',
+      type: image.mimeType ?? 'image/jpeg',
+    } as unknown as Blob);
+  }
+  return chatRequest(`${chatPath(groupId)}/messages/images`, { method: 'POST', body }, IMAGE_UPLOAD_TIMEOUT_MS);
+}
+
+export function getGroupChatImageUrl(groupId: string, messageId: string): Promise<GroupChatImage> {
+  return chatRequest(`${chatPath(groupId)}/messages/${encodeURIComponent(messageId)}/image-url`);
 }
 
 export function voteInGroupChatPoll(groupId: string, messageId: string,

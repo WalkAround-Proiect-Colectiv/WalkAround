@@ -4,10 +4,11 @@ export class ApiError extends Error {
   constructor(public readonly status: number, message: string, public readonly detail?: string) { super(message); }
 }
 
-export async function request<T>(path: string, options: RequestInit = {}, responseType: 'json' | 'blob' = 'json'): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {},
+                                 responseType: 'json' | 'blob' = 'json', timeoutMs = 15000): Promise<T> {
   if (!environment.apiBaseUrl) throw new Error('Sign-in is currently unavailable.');
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(environment.apiBaseUrl + path, { ...options, signal: controller.signal });
     if (!response.ok) {

@@ -4,6 +4,10 @@
 
 `GroupChatPollCard` renders a poll in the conversation with its option counts and percentages, the viewer's selected option, and closure status. While the poll is open, the viewer can select an option or change their vote by pressing another option. The creator sees the close action. It receives state and callbacks from the chat screen rather than making requests itself.
 
+`GroupChatImageCard` displays a private ImageKit image with an optional caption, sender, and time. It uses the signed URL from the authenticated chat response and requests one fresh signed URL if loading fails, such as after expiry. Pressing the image opens `GroupChatImagePreview` with the card's current URL and the original dimensions. It does not handle uploads or store ImageKit credentials.
+
+`GroupChatImagePreview` shows a selected, pending, or sent chat image in a full-screen modal. It scales the image to the available viewport while keeping its aspect ratio, including on small mobile screens. Closing the modal returns to the chat without changing a selected image. For sent images, it requests one fresh member-authorized signed URL if the current URL fails to load.
+
 `GroupPicture` displays member-protected group photos in the group list, group detail, and creation confirmation, and token-protected photos in invitation previews. It uses the authenticated API client, displays a rounded fallback icon while loading or if no photo is available, and releases browser object URLs on unmount. The edit form also previews the current protected photo and any newly selected local image.
 
 `TrainTicketCard` renders the total price, both journey departures, optional Omio carrier logo, stations, cities, legs, transfer waits and resolved stop names, availability, and split-ticket status. Missing transfer locations are hidden. Its Omio searches include train mode, route, EUR currency, and travel dates; round trips use one link and two one-way itineraries use separate links. These searches do not select the exact fare or book a ticket.
