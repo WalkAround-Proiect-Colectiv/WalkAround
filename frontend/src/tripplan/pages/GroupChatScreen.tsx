@@ -11,6 +11,7 @@ import GroupPicture from '../components/GroupPicture';
 import EmojiPicker from '../components/EmojiPicker';
 import GroupChatPollCard from '../components/GroupChatPollCard';
 import GroupChatImageCard from '../components/GroupChatImageCard';
+import GroupChatImagePreview from '../components/GroupChatImagePreview';
 import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
   getGroupChatMessages, getGroupChatTicket, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
@@ -100,6 +101,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [imageAsset, setImageAsset] = useState<ImagePickerAsset | null>(null);
+  const [previewImage, setPreviewImage] = useState<ImagePickerAsset | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['', '']);
@@ -448,7 +450,10 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       })}
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
         {pending.messageType === 'POLL' && <Text style={styles.pendingType}>POLL · {pending.options?.length} choices</Text>}
-        {pending.image && <Image source={{ uri: pending.image.uri }} style={styles.pendingImage} />}
+        {pending.image && <Pressable accessibilityRole="button"
+          accessibilityLabel="Preview pending image" onPress={() => setPreviewImage(pending.image ?? null)}>
+          <Image source={{ uri: pending.image.uri }} style={styles.pendingImage} />
+        </Pressable>}
         {Boolean(pending.body) && <Text style={styles.ownText}>{pending.body}</Text>}
         <Text style={styles.ownTime}>{sending ? 'Sending…' : 'Not confirmed'}</Text>
       </View>}
@@ -490,11 +495,15 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     </View>}
     {showEmojis && <EmojiPicker onClose={() => setShowEmojis(false)} onSelect={insertEmoji} />}
     {imageAsset && <View style={styles.imagePreview}>
-      <Image source={{ uri: imageAsset.uri }} style={styles.previewImage} />
-      <Text style={styles.previewText}>Image ready to send</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Preview selected image"
+        onPress={() => setPreviewImage(imageAsset)} style={styles.previewOpen}>
+        <Image source={{ uri: imageAsset.uri }} style={styles.previewImage} />
+        <Text style={styles.previewText}>Tap to preview image</Text>
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Remove selected image"
         onPress={() => setImageAsset(null)}><X size={19} color="#65758B" /></Pressable>
     </View>}
+    <GroupChatImagePreview image={previewImage} onClose={() => setPreviewImage(null)} />
     {sendError && <Text accessibilityRole="alert" style={styles.error}>{sendError}</Text>}
     {pending && !sending && <View style={styles.retryRow}>
       <Pressable accessibilityRole="button" onPress={() => { void send(pending); }}>
@@ -626,8 +635,9 @@ const styles = StyleSheet.create({
   imagePreview: { flexDirection: 'row', alignItems: 'center', gap: 10,
     marginHorizontal: 14, marginBottom: 8, padding: 8, borderRadius: 14,
     backgroundColor: '#EAF3FF' },
+  previewOpen: { flex: 1, minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 10 },
   previewImage: { width: 42, height: 42, borderRadius: 9 },
-  previewText: { flex: 1, color: '#253043', fontSize: 12, fontWeight: '700' },
+  previewText: { color: '#253043', fontSize: 12, fontWeight: '700' },
   emojiToggle: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   emojiToggleActive: { backgroundColor: '#E5F0FF' },
   input: { flex: 1, maxHeight: 110, minHeight: 43, borderRadius: 15, backgroundColor: '#F5F7FB',
