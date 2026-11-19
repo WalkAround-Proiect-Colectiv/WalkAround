@@ -13,11 +13,13 @@ public record GroupChatMessageResponse(
         String body,
         Instant createdAt,
         String messageType,
-        GroupChatPollResponse poll
+        GroupChatPollResponse poll,
+        GroupChatImageResponse image
 ) {
-    public static GroupChatMessageResponse from(GroupChatMessage message, GroupChatPollResponse poll) {
+    public static GroupChatMessageResponse from(GroupChatMessage message, GroupChatPollResponse poll,
+                                                GroupChatImageResponse image) {
         return new GroupChatMessageResponse(
                 message.id(), message.conversationId(), message.sequence(), message.senderId(),
-                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll);
+                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll, image);
     }
 }

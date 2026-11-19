@@ -6,6 +6,8 @@
 
 Poll votes and closure publish another `GROUP_CHAT_MESSAGE` snapshot with the original `messageId` and chat `sequence`, plus a new `eventSequence` and poll revision. Deduplication on the socket uses `eventSequence`, so updates to an existing poll are delivered. The payload includes vote counts but no user-specific selected option. Clients merge the update into the same poll card; the authenticated event catch-up endpoint supplies missed updates and the current viewer's selection.
 
+Image messages use the same `GROUP_CHAT_MESSAGE` event type, chat sequence, conversation partition key, and deduplication rules as text. Their payload includes `messageType=IMAGE`, an optional caption in `body`, and an `image` object with dimensions and a short-lived signed ImageKit URL. The realtime service forwards this payload without handling file bytes or ImageKit credentials. The Application API issues a new signed URL on authenticated history/catch-up reads and through its member-only image URL endpoint if a client needs to refresh an expired link.
+
 For each received event, the service logs its conversation ID, sequence, and number of local WebSocket connections reached. Compare this with the Application API's outbox publication log when investigating missing live updates. The frontend also performs periodic HTTP catch-up while connected, so a lost event does not require reopening chat.
 
 This service stores no chat history and does not authorize HTTP history reads. The Application API owns membership checks and message storage. Do not put message bodies or socket tokens in logs.

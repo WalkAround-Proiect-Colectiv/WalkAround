@@ -41,6 +41,8 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 | `POST /api/trip-plan-groups/invitations/picture` | Authenticated user and JSON `{"token":"..."}` | Group JPEG for an active invitation with a photo; `404` for an unavailable invite or absent photo. |
 | `POST /api/trip-plan-groups/invitations/accept` | Authenticated user and JSON `{"token":"..."}` | Joined `TripGroupResponse` after one-use acceptance. |
 | `POST /api/trip-plan-groups/{id}/chat/messages` | Group member and JSON `{"messageId":"<client UUID>","body":"Hello"}` | `201 Created` and the saved message; retry with the same UUID and body returns the same message. |
+| `POST /api/trip-plan-groups/{id}/chat/messages/images` | Group member and multipart `messageId`, optional `caption`, and JPEG/PNG `image` | `201 Created` and the saved `IMAGE` message with private signed image URL. A matching retry returns the existing message. |
+| `GET /api/trip-plan-groups/{id}/chat/messages/{messageId}/image-url` | Group member | A fresh short-lived signed URL and image dimensions; `404` for an inaccessible image message. |
 | `GET /api/trip-plan-groups/{id}/chat/messages` | Group member; optional `afterSequence`, `beforeSequence`, and `limit` | Messages ordered by conversation sequence. Use one cursor at a time. |
 | `GET /api/trip-plan-groups/{id}/chat/socket-ticket` | Group member | Short-lived, conversation-scoped WebSocket ticket and expiry. |
 | `POST /api/trip-plan-groups/{id}/chat/messages/{messageId}/votes` | Group member and `{"optionId":"<UUID>"}` | Updated poll message; one current choice per user. Another choice replaces it while the poll is open. Repeating the same vote is idempotent. |
@@ -51,6 +53,8 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 `TripGroupController` handles group creation and editing, member-protected listing, detail and picture reads, group-owned saved presets, and invitation management. Editing, current-plan selection, and invite creation/listing/revocation require the `ADMIN` role. Any group member can create and read group presets. Preview, invitation picture, and acceptance require sign-in; the token is sent in a JSON body, not an API URL. The preview reports whether a picture exists, so the client requests the photo only when needed. Expired, used, revoked, and unknown invitations all return a generic `404`. Pictures are optional; JPEG and PNG inputs are normalized to JPEG. All responses use `Cache-Control: no-store`.
 
 `GroupChatController` owns member-only chat writes, message history, event-cursor catch-up, and socket tickets. A client subscribes to `/ws/group-chats` with the ticket, waits for `SUBSCRIBED`, and then fetches missed events with `afterEventSequence`. Messages are saved over HTTP only; see `service/groupchat/README.md` for ordering, retries, and outbox delivery.
+
+Image uploads also save through HTTP and the same outbox. The controller accepts one multipart JPEG/PNG file and optional caption, and returns `Cache-Control: no-store`. The image response includes a signed ImageKit URL; the private ImageKit key is never included.
 
 Poll creation uses the same message POST with `messageType: "POLL"`, question in `body`, and an `options` array. Vote and close operations return the updated original message. The event cursor endpoints cover both new chat messages and revisions of existing polls; message sequence alone cannot catch poll changes.
 

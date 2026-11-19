@@ -81,6 +81,16 @@ app:
     max-message-length: ${GROUP_CHAT_MAX_MESSAGE_LENGTH:2000}
     max-poll-options: ${GROUP_CHAT_MAX_POLL_OPTIONS:10}
     max-poll-option-length: ${GROUP_CHAT_MAX_POLL_OPTION_LENGTH:100}
+    image-max-bytes: ${GROUP_CHAT_IMAGE_MAX_BYTES:5242880}
+    image-max-pixels: ${GROUP_CHAT_IMAGE_MAX_PIXELS:16000000}
+    image-output-size: ${GROUP_CHAT_IMAGE_OUTPUT_SIZE:1600}
+    imagekit:
+      private-key: ${IMAGEKIT_PRIVATE_KEY:}
+      url-endpoint: ${IMAGEKIT_URL_ENDPOINT:}
+      upload-url: ${IMAGEKIT_UPLOAD_URL:https://upload.imagekit.io/api/v1/files/upload}
+      files-url: ${IMAGEKIT_FILES_URL:https://api.imagekit.io/v1/files}
+      timeout: ${IMAGEKIT_TIMEOUT:PT10S}
+      signed-url-ttl: ${IMAGEKIT_SIGNED_URL_TTL:PT1H}
     socket-token-ttl: ${GROUP_CHAT_SOCKET_TOKEN_TTL:PT5M}
     outbox-poll-ms: ${GROUP_CHAT_OUTBOX_POLL_MS:1000}
     outbox-batch-size: ${GROUP_CHAT_OUTBOX_BATCH_SIZE:50}

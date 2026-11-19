@@ -12,6 +12,8 @@ Each transfer has optional `fromStop` and `toStop` values of type `BusStopRespon
 
 These records form the JSON contract for the trip-planning controllers. Keep their field names and meanings stable when changing a provider or service implementation.
 
+Chat message responses include `messageType` and an `image` object only for `IMAGE` messages. `GroupChatImageResponse` supplies a short-lived signed URL and dimensions; the ImageKit file ID and private key are never sent to clients. An image's optional caption remains in the message `body`.
+
 Flight, Bus, Train, accommodation, and saved-plan requests accept `adults` from 1 to 9. Omitted `adults` defaults to 1 so earlier clients keep their behavior. Budgets are totals for the requested party, and each provider receives that party size for every priced leg or property-details request.
 
 | Record | Meaning |

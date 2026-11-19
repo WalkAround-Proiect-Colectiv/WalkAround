@@ -4,6 +4,8 @@
 
 `GROUP_CHAT_MAX_POLL_OPTIONS` (default 10) and `GROUP_CHAT_MAX_POLL_OPTION_LENGTH` (default 100) limit poll input. Both are bound through `GroupChatProperties` and have matching local `.env` and `.env.example` keys.
 
+`ImageKitConfiguration` registers a timeout-bounded REST client and binds `ImageKitProperties` under `app.group-chat.imagekit`. Set `IMAGEKIT_PRIVATE_KEY` and `IMAGEKIT_URL_ENDPOINT` in the local service `.env`; the private key is never sent to the frontend. `IMAGEKIT_UPLOAD_URL` and `IMAGEKIT_FILES_URL` default to ImageKit's HTTPS upload and file-management endpoints. `IMAGEKIT_TIMEOUT` and `IMAGEKIT_SIGNED_URL_TTL` control requests and private-image links. `GROUP_CHAT_IMAGE_MAX_BYTES`, `GROUP_CHAT_IMAGE_MAX_PIXELS`, and `GROUP_CHAT_IMAGE_OUTPUT_SIZE` bound decoded and uploaded images. Keep these keys synchronized in `.env.example`.
+
 `BusSearchConfiguration` and `TrainSearchConfiguration` register separate qualified Scrappa REST clients and bind their respective search properties. Both use the same `SCRAPPA_API_KEY`, `SCRAPPA_BASE_URL`, and `SCRAPPA_TIMEOUT` settings. Each mode has its own provider selector, result limit, departure date range, arrival offset, and page cap. Keep the shared Scrappa keys only once in `application.yaml` and `.env.example`; no provider key is exposed to the frontend.
 
 `BiloTrainConfiguration` registers a separate qualified REST client for Romanian train search. `BILO_API_KEY` is a server-only bearer credential. Without it, the train service searches only Omio. `ExchangeRateConfiguration` registers the Frankfurter REST client used to fetch the latest RON-to-EUR reference rate once per eligible Bilo search. The returned offer retains its original fare currency and amount.
