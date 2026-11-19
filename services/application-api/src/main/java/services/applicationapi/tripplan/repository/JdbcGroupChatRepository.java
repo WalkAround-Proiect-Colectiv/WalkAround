@@ -19,7 +19,7 @@ import services.applicationapi.tripplan.model.GroupChatMessage;
 public class JdbcGroupChatRepository implements GroupChatRepository {
 
     private static final String MESSAGE_SELECT = """
-            SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.created_at,
+            SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at,
                    COALESCE(NULLIF(u.username, ''), NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
                             'Former member') AS sender_name
             FROM trip_group_chat_messages m
@@ -42,36 +42,35 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
 
     @Override
     public GroupChatMessage insert(UUID messageId, UUID conversationId, UUID senderId,
-                                   String body, Instant createdAt) {
+                                   String body, String messageType, Instant createdAt) {
         jdbc.update("""
                 INSERT INTO trip_group_chat_conversations (group_id)
                 VALUES (?) ON CONFLICT (group_id) DO NOTHING
                 """, conversationId);
 
-        Long next = jdbc.queryForObject("""
-                SELECT next_sequence FROM trip_group_chat_conversations
+        List<long[]> counters = jdbc.query("""
+                SELECT next_sequence, next_event_sequence FROM trip_group_chat_conversations
                 WHERE group_id = ? FOR UPDATE
-                """, Long.class, conversationId);
-        if (next == null) throw new IllegalStateException("Group conversation was not created");
+                """, (rs, row) -> new long[]{rs.getLong(1), rs.getLong(2)}, conversationId);
+        if (counters.isEmpty()) throw new IllegalStateException("Group conversation was not created");
+        long next = counters.getFirst()[0];
+        long eventSequence = counters.getFirst()[1];
 
         // The conversation lock serializes sequence allocation and duplicate retries.
         Optional<GroupChatMessage> existing = findById(messageId);
         if (existing.isPresent()) return existing.get();
 
-        jdbc.update("UPDATE trip_group_chat_conversations SET next_sequence = ? WHERE group_id = ?",
-                next + 1, conversationId);
+        jdbc.update("""
+                UPDATE trip_group_chat_conversations
+                SET next_sequence = ?, next_event_sequence = ? WHERE group_id = ?
+                """, next + 1, eventSequence + 1, conversationId);
         jdbc.update("""
                 INSERT INTO trip_group_chat_messages
-                    (id, conversation_id, sequence, sender_id, body, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """, messageId, conversationId, next, senderId, body,
+                    (id, conversation_id, sequence, sender_id, body, message_type, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, messageId, conversationId, next, senderId, body, messageType,
                 OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC));
-        jdbc.update("""
-                INSERT INTO trip_group_chat_outbox
-                    (message_id, conversation_id, sequence, created_at)
-                VALUES (?, ?, ?, ?)
-                """, messageId, conversationId, next,
-                OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC));
+        enqueueEvent(messageId, messageId, conversationId, next, eventSequence, null, createdAt);
 
         return findById(messageId).orElseThrow();
     }
@@ -104,12 +103,70 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
     }
 
     @Override
-    public List<PendingMessage> lockPending(int limit) {
+    public long eventCursor(UUID conversationId) {
+        Long current = jdbc.queryForObject("""
+                SELECT COALESCE(MAX(event_sequence), 0) FROM trip_group_chat_outbox
+                WHERE conversation_id = ?
+                """, Long.class, conversationId);
+        return current == null ? 0 : current;
+    }
+
+    @Override
+    public long eventSequence(UUID eventId) {
+        Long sequence = jdbc.queryForObject("""
+                SELECT event_sequence FROM trip_group_chat_outbox WHERE event_id = ?
+                """, Long.class, eventId);
+        if (sequence == null) throw new IllegalStateException("Chat event was not found");
+        return sequence;
+    }
+
+    @Override
+    public List<EventReference> eventsAfter(UUID conversationId, long eventSequence, int limit) {
         return jdbc.query("""
-                SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.created_at,
+                SELECT event_sequence, message_id FROM trip_group_chat_outbox
+                WHERE conversation_id = ? AND event_sequence > ?
+                ORDER BY event_sequence LIMIT ?
+                """, (rs, row) -> new EventReference(
+                rs.getLong("event_sequence"), rs.getObject("message_id", UUID.class)),
+                conversationId, eventSequence, limit);
+    }
+
+    @Override
+    public long nextEventSequence(UUID conversationId) {
+        Long next = jdbc.queryForObject("""
+                SELECT next_event_sequence FROM trip_group_chat_conversations
+                WHERE group_id = ? FOR UPDATE
+                """, Long.class, conversationId);
+        if (next == null) throw new IllegalStateException("Group conversation was not created");
+        jdbc.update("""
+                UPDATE trip_group_chat_conversations SET next_event_sequence = ? WHERE group_id = ?
+                """, next + 1, conversationId);
+        return next;
+    }
+
+    @Override
+    public void enqueueEvent(UUID eventId, UUID messageId, UUID conversationId, long sequence,
+                             long eventSequence, String payload, Instant createdAt) {
+        jdbc.update("""
+                INSERT INTO trip_group_chat_outbox
+                    (event_id, message_id, conversation_id, sequence, event_sequence, payload, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, eventId, messageId, conversationId, sequence, eventSequence, payload,
+                OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC));
+    }
+
+    @Override
+    public void setPayload(UUID eventId, String payload) {
+        jdbc.update("UPDATE trip_group_chat_outbox SET payload = ? WHERE event_id = ?", payload, eventId);
+    }
+
+    @Override
+    public List<PendingEvent> lockPending(int limit) {
+        return jdbc.query("""
+                SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at,
                        COALESCE(NULLIF(u.username, ''), NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
                                 'Former member') AS sender_name,
-                       o.attempts
+                       o.event_id, o.event_sequence, o.payload, o.attempts
                 FROM trip_group_chat_outbox o
                 JOIN trip_group_chat_messages m ON m.id = o.message_id
                 LEFT JOIN users u ON u.id = m.sender_id
@@ -117,25 +174,27 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
                   AND NOT EXISTS (
                       SELECT 1 FROM trip_group_chat_outbox earlier
                       WHERE earlier.conversation_id = o.conversation_id
-                        AND earlier.sequence < o.sequence AND earlier.published_at IS NULL
+                        AND earlier.event_sequence < o.event_sequence AND earlier.published_at IS NULL
                   )
-                ORDER BY o.created_at, o.message_id
+                ORDER BY o.created_at, o.event_id
                 LIMIT ? FOR UPDATE OF o SKIP LOCKED
-                """, (rs, row) -> new PendingMessage(mapMessage(rs), rs.getInt("attempts")), limit);
+                """, (rs, row) -> new PendingEvent(mapMessage(rs),
+                rs.getObject("event_id", UUID.class), rs.getLong("event_sequence"),
+                rs.getString("payload"), rs.getInt("attempts")), limit);
     }
 
     @Override
-    public void markPublished(UUID messageId) {
-        jdbc.update("UPDATE trip_group_chat_outbox SET published_at = now() WHERE message_id = ?", messageId);
+    public void markPublished(UUID eventId) {
+        jdbc.update("UPDATE trip_group_chat_outbox SET published_at = now() WHERE event_id = ?", eventId);
     }
 
     @Override
-    public void defer(UUID messageId, Instant nextAttemptAt) {
+    public void defer(UUID eventId, Instant nextAttemptAt) {
         jdbc.update("""
                 UPDATE trip_group_chat_outbox
                 SET attempts = attempts + 1, next_attempt_at = ?
-                WHERE message_id = ?
-                """, OffsetDateTime.ofInstant(nextAttemptAt, ZoneOffset.UTC), messageId);
+                WHERE event_id = ?
+                """, OffsetDateTime.ofInstant(nextAttemptAt, ZoneOffset.UTC), eventId);
     }
 
     private static GroupChatMessage mapMessage(ResultSet rs) throws SQLException {
@@ -146,6 +205,7 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
                 rs.getObject("sender_id", UUID.class),
                 rs.getString("sender_name"),
                 rs.getString("body"),
+                rs.getString("message_type"),
                 rs.getObject("created_at", OffsetDateTime.class).toInstant()
         );
     }

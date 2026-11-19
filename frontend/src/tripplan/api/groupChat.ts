@@ -9,6 +9,20 @@ export interface GroupChatMessage {
   senderName: string;
   body: string;
   createdAt: string;
+  messageType: 'TEXT' | 'POLL';
+  poll: GroupChatPoll | null;
+}
+
+export interface GroupChatPoll {
+  revision: number;
+  closedAt: string | null;
+  selectedOptionId: string | null;
+  options: { id: string; label: string; votes: number }[];
+}
+
+export interface GroupChatEvent {
+  eventSequence: number;
+  message: GroupChatMessage;
 }
 
 export interface GroupChatSocketTicket {
@@ -46,10 +60,35 @@ export function getGroupChatMessages(groupId: string, options: {
 }
 
 export function sendGroupChatMessage(groupId: string, messageId: string,
-                                     body: string): Promise<GroupChatMessage> {
+                                     body: string, messageType: 'TEXT' | 'POLL' = 'TEXT',
+                                     options?: string[]): Promise<GroupChatMessage> {
   return chatRequest(`${chatPath(groupId)}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messageId, body }),
+    body: JSON.stringify({ messageId, body, messageType, options }),
   });
+}
+
+export function voteInGroupChatPoll(groupId: string, messageId: string,
+                                    optionId: string): Promise<GroupChatMessage> {
+  return chatRequest(`${chatPath(groupId)}/messages/${encodeURIComponent(messageId)}/votes`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ optionId }),
+  });
+}
+
+export function closeGroupChatPoll(groupId: string, messageId: string): Promise<GroupChatMessage> {
+  return chatRequest(`${chatPath(groupId)}/messages/${encodeURIComponent(messageId)}/poll/closure`, {
+    method: 'PUT',
+  });
+}
+
+export function getGroupChatEventCursor(groupId: string): Promise<{ eventSequence: number }> {
+  return chatRequest(`${chatPath(groupId)}/events/cursor`);
+}
+
+export function getGroupChatEvents(groupId: string, afterEventSequence: number,
+                                   limit: number): Promise<GroupChatEvent[]> {
+  const query = new URLSearchParams({ afterEventSequence: String(afterEventSequence), limit: String(limit) });
+  return chatRequest(`${chatPath(groupId)}/events?${query.toString()}`);
 }

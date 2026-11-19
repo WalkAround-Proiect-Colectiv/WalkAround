@@ -26,7 +26,7 @@ public class GroupChatSocketHandler extends TextWebSocketHandler {
 
     private final Map<UUID, Set<WebSocketSession>> sessionsByConversation = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> decorated = new ConcurrentHashMap<>();
-    private final Map<String, Long> lastSequenceBySession = new ConcurrentHashMap<>();
+    private final Map<String, Long> lastEventSequenceBySession = new ConcurrentHashMap<>();
     private final ObjectMapper mapper;
 
     public GroupChatSocketHandler(ObjectMapper mapper) {
@@ -73,17 +73,17 @@ public class GroupChatSocketHandler extends TextWebSocketHandler {
             if (!"GROUP_CHAT_MESSAGE".equals(event.path("type").asString())) return;
             UUID conversationId = UUID.fromString(event.path("conversationId").asString());
             UUID.fromString(event.path("messageId").asString());
-            long sequence = event.path("sequence").asLong(0);
-            if (sequence < 1 || !event.path("body").isTextual()) return;
-            int delivered = deliver(conversationId, sequence, payload);
-            log.info("Received group chat event for conversation {} at sequence {}; delivered to {} connections",
-                    conversationId, sequence, delivered);
+            long eventSequence = event.path("eventSequence").asLong(0);
+            if (eventSequence < 1 || !event.path("body").isTextual()) return;
+            int delivered = deliver(conversationId, eventSequence, payload);
+            log.info("Received group chat event for conversation {} at event sequence {}; delivered to {} connections",
+                    conversationId, eventSequence, delivered);
         } catch (JacksonException | IllegalArgumentException exception) {
             log.warn("Ignoring malformed group chat event");
         }
     }
 
-    private int deliver(UUID conversationId, long sequence, String payload) {
+    private int deliver(UUID conversationId, long eventSequence, String payload) {
         Set<WebSocketSession> sessions = sessionsByConversation.get(conversationId);
         if (sessions == null) return 0;
         int delivered = 0;
@@ -93,11 +93,11 @@ public class GroupChatSocketHandler extends TextWebSocketHandler {
                 closeQuietly(session, CloseStatus.POLICY_VIOLATION);
                 continue;
             }
-            Long last = lastSequenceBySession.get(session.getId());
-            if (last != null && sequence <= last) continue;
+            Long last = lastEventSequenceBySession.get(session.getId());
+            if (last != null && eventSequence <= last) continue;
             try {
                 session.sendMessage(new TextMessage(payload));
-                lastSequenceBySession.put(session.getId(), sequence);
+                lastEventSequenceBySession.put(session.getId(), eventSequence);
                 delivered++;
             } catch (IOException | RuntimeException exception) {
                 log.warn("Could not deliver group chat message to connection {}", session.getId());
@@ -110,7 +110,7 @@ public class GroupChatSocketHandler extends TextWebSocketHandler {
 
     private void remove(WebSocketSession session) {
         WebSocketSession safe = decorated.remove(session.getId());
-        lastSequenceBySession.remove(session.getId());
+        lastEventSequenceBySession.remove(session.getId());
         UUID conversationId = conversationId(session);
         if (safe == null || conversationId == null) return;
         sessionsByConversation.computeIfPresent(conversationId, (key, sessions) -> {

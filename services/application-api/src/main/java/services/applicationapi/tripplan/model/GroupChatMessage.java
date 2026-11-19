@@ -10,6 +10,7 @@ public record GroupChatMessage(
         UUID senderId,
         String senderName,
         String body,
+        String messageType,
         Instant createdAt
 ) {
 }

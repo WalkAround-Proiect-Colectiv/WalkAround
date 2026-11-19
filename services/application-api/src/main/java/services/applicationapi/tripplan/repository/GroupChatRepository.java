@@ -10,7 +10,8 @@ public interface GroupChatRepository {
 
     Optional<GroupChatMessage> findById(UUID messageId);
 
-    GroupChatMessage insert(UUID messageId, UUID conversationId, UUID senderId, String body, Instant createdAt);
+    GroupChatMessage insert(UUID messageId, UUID conversationId, UUID senderId,
+                            String body, String messageType, Instant createdAt);
 
     List<GroupChatMessage> latest(UUID conversationId, int limit);
 
@@ -18,12 +19,29 @@ public interface GroupChatRepository {
 
     List<GroupChatMessage> before(UUID conversationId, long sequence, int limit);
 
-    List<PendingMessage> lockPending(int limit);
+    long eventCursor(UUID conversationId);
 
-    void markPublished(UUID messageId);
+    long eventSequence(UUID eventId);
 
-    void defer(UUID messageId, Instant nextAttemptAt);
+    List<EventReference> eventsAfter(UUID conversationId, long eventSequence, int limit);
 
-    record PendingMessage(GroupChatMessage message, int attempts) {
+    long nextEventSequence(UUID conversationId);
+
+    void enqueueEvent(UUID eventId, UUID messageId, UUID conversationId, long sequence,
+                      long eventSequence, String payload, Instant createdAt);
+
+    void setPayload(UUID eventId, String payload);
+
+    List<PendingEvent> lockPending(int limit);
+
+    void markPublished(UUID eventId);
+
+    void defer(UUID eventId, Instant nextAttemptAt);
+
+    record EventReference(long eventSequence, UUID messageId) {
+    }
+
+    record PendingEvent(GroupChatMessage message, UUID eventId, long eventSequence,
+                        String payload, int attempts) {
     }
 }
