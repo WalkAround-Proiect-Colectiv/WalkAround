@@ -7,12 +7,15 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import services.applicationapi.tripplan.controllers.GroupChatController;
 import services.applicationapi.tripplan.service.exceptions.GroupChatConflictException;
+import services.applicationapi.tripplan.service.exceptions.GroupChatForbiddenException;
 import services.applicationapi.tripplan.service.exceptions.GroupChatInvalidMessageException;
+import services.applicationapi.tripplan.service.exceptions.GroupChatPollNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripGroupNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripPlanAuthenticationException;
 
@@ -22,7 +25,7 @@ public class GroupChatExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GroupChatExceptionHandler.class);
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class,
-            MethodArgumentTypeMismatchException.class})
+            MethodArgumentTypeMismatchException.class, MissingServletRequestParameterException.class})
     ResponseEntity<ProblemDetail> malformed() {
         return problem(HttpStatus.BAD_REQUEST, "Valid chat details are required");
     }
@@ -37,9 +40,19 @@ public class GroupChatExceptionHandler {
         return problem(HttpStatus.CONFLICT, exception.getMessage());
     }
 
+    @ExceptionHandler(GroupChatForbiddenException.class)
+    ResponseEntity<ProblemDetail> forbidden(GroupChatForbiddenException exception) {
+        return problem(HttpStatus.FORBIDDEN, exception.getMessage());
+    }
+
     @ExceptionHandler(TripGroupNotFoundException.class)
     ResponseEntity<ProblemDetail> inaccessible() {
         return problem(HttpStatus.NOT_FOUND, "Trip group was not found");
+    }
+
+    @ExceptionHandler(GroupChatPollNotFoundException.class)
+    ResponseEntity<ProblemDetail> pollNotFound(GroupChatPollNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
     @ExceptionHandler(TripPlanAuthenticationException.class)

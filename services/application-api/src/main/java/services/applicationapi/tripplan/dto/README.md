@@ -50,3 +50,5 @@ Saved plans persist the parameters needed to repeat a Plane, Bus, or Train searc
 # Group chat DTOs
 
 `GroupChatMessageRequest` requires a client-generated UUID `messageId` and a nonblank body of at most 2,000 characters. `GroupChatMessageResponse` includes that ID, conversation ID, server-assigned sequence, sender ID and display name, body, and creation time. `GroupChatSocketTicket` contains the short-lived group-scoped WebSocket token and its expiry. The token is returned only to an authenticated current group member and is never part of a message response.
+
+For a poll, `GroupChatMessageRequest` adds `messageType: "POLL"` and an `options` list. The response includes `GroupChatPollResponse` with option IDs, labels, vote counts, revision, optional close time, and the current viewer's selected option. `GroupChatPollVoteRequest` selects one option ID. `GroupChatEventResponse` pairs an event sequence with the current message state for reconnect catch-up; `GroupChatCursorResponse` supplies the starting cursor. Text messages omit options and return a null poll.

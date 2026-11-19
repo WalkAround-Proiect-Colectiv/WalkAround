@@ -2,12 +2,14 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, MessageCircle, Send, Smile } from 'lucide-react-native';
+import { ArrowLeft, ListChecks, MessageCircle, Plus, Send, Smile, X } from 'lucide-react-native';
 import * as Crypto from 'expo-crypto';
 import { useSession } from '../../login/components/SessionProvider';
 import GroupPicture from '../components/GroupPicture';
 import EmojiPicker from '../components/EmojiPicker';
-import { getGroupChatMessages, getGroupChatTicket, sendGroupChatMessage,
+import GroupChatPollCard from '../components/GroupChatPollCard';
+import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
+  getGroupChatMessages, getGroupChatTicket, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
 import type { CreatedTripGroup } from '../api/tripGroups';
 
@@ -16,13 +18,24 @@ const PAGE_SIZE = 50;
 const RECONNECT_DELAY_MS = 3000;
 const CATCH_UP_INTERVAL_MS = 3000;
 
-type PendingMessage = { id: string; body: string };
+type PendingMessage = { id: string; body: string; messageType: 'TEXT' | 'POLL'; options?: string[] };
 type SocketEvent = { type: 'SUBSCRIBED'; conversationId: string }
-  | ({ type: 'GROUP_CHAT_MESSAGE' } & GroupChatMessage);
+  | ({ type: 'GROUP_CHAT_MESSAGE'; eventSequence: number } & GroupChatMessage);
 
 function mergeMessages(current: GroupChatMessage[], incoming: GroupChatMessage[]): GroupChatMessage[] {
   const byId = new Map(current.map((message) => [message.id, message]));
-  incoming.forEach((message) => byId.set(message.id, message));
+  incoming.forEach((message) => {
+    const previous = byId.get(message.id);
+    if (previous?.poll && message.poll) {
+      if (message.poll.revision < previous.poll.revision) return;
+      byId.set(message.id, { ...message, poll: {
+        ...message.poll,
+        selectedOptionId: message.poll.selectedOptionId ?? previous.poll.selectedOptionId,
+      } });
+    } else {
+      byId.set(message.id, message);
+    }
+  });
   return [...byId.values()].sort((left, right) => left.sequence - right.sequence);
 }
 
@@ -37,10 +50,19 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
         || typeof event.messageId !== 'string'
         || typeof event.conversationId !== 'string'
         || !Number.isSafeInteger(event.sequence) || event.sequence < 1
+        || !Number.isSafeInteger(event.eventSequence) || event.eventSequence < 1
         || typeof event.body !== 'string' || typeof event.createdAt !== 'string'
         || typeof event.senderName !== 'string') return null;
+    const poll = event.messageType === 'POLL' ? event.poll : null;
+    if (event.messageType === 'POLL' && (!poll || !Number.isSafeInteger(poll.revision)
+        || !Array.isArray(poll.options) || poll.options.some((option: unknown) => {
+          const item = option as { id?: unknown; label?: unknown; votes?: unknown };
+          return typeof item.id !== 'string' || typeof item.label !== 'string'
+            || !Number.isSafeInteger(item.votes);
+        }))) return null;
     return {
       type: 'GROUP_CHAT_MESSAGE',
+      eventSequence: event.eventSequence,
       id: event.messageId,
       conversationId: event.conversationId,
       sequence: event.sequence,
@@ -48,6 +70,8 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
       senderName: event.senderName,
       body: event.body,
       createdAt: event.createdAt,
+      messageType: event.messageType === 'POLL' ? 'POLL' : 'TEXT',
+      poll,
     };
   } catch {
     return null;
@@ -65,6 +89,10 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const { session } = useSession();
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [pollOpen, setPollOpen] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['', '']);
+  const [busyPollId, setBusyPollId] = useState<string | null>(null);
   const [showEmojis, setShowEmojis] = useState(false);
   const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [pending, setPending] = useState<PendingMessage | null>(null);
@@ -75,14 +103,19 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const syncedSequence = useRef(0);
+  const syncedEventSequence = useRef(0);
   const historyLoaded = useRef(false);
   const pendingRef = useRef<PendingMessage | null>(null);
   const listRef = useRef<ScrollView>(null);
   const loadingOlderRef = useRef(false);
+  const scrollOnNextChange = useRef(true);
 
   function acceptMessages(incoming: GroupChatMessage[]) {
-    setMessages((current) => mergeMessages(current, incoming));
+    setMessages((current) => {
+      const merged = mergeMessages(current, incoming);
+      if (merged.at(-1)?.id !== current.at(-1)?.id) scrollOnNextChange.current = true;
+      return merged;
+    });
     if (pendingRef.current && incoming.some((message) => message.id === pendingRef.current?.id)) {
       pendingRef.current = null;
       setPending(null);
@@ -105,23 +138,24 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       catchingUp = true;
       try {
         if (!historyLoaded.current) {
+          const cursor = await getGroupChatEventCursor(group.id);
+          if (!active || generation !== connectionId) return;
           const page = await getGroupChatMessages(group.id, { limit: PAGE_SIZE });
           if (!active || generation !== connectionId) return;
           acceptMessages(page);
           historyLoaded.current = true;
           setHasOlder(page.length === PAGE_SIZE);
-          syncedSequence.current = page.at(-1)?.sequence ?? 0;
-        } else {
-          let cursor = syncedSequence.current;
-          while (active && generation === connectionId) {
-            const page = await getGroupChatMessages(group.id, { afterSequence: cursor, limit: PAGE_SIZE });
-            if (!active || generation !== connectionId) return;
-            if (page.length === 0) break;
-            acceptMessages(page);
-            cursor = page[page.length - 1].sequence;
-            syncedSequence.current = cursor;
-            if (page.length < PAGE_SIZE) break;
-          }
+          syncedEventSequence.current = cursor.eventSequence;
+        }
+        let cursor = syncedEventSequence.current;
+        while (active && generation === connectionId) {
+          const page = await getGroupChatEvents(group.id, cursor, PAGE_SIZE);
+          if (!active || generation !== connectionId) return;
+          if (page.length === 0) break;
+          acceptMessages(page.map((item) => item.message));
+          cursor = page[page.length - 1].eventSequence;
+          syncedEventSequence.current = cursor;
+          if (page.length < PAGE_SIZE) break;
         }
         if (active && generation === connectionId) {
           setLoading(false);
@@ -158,7 +192,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
             expiry = setTimeout(() => socket?.close(), Math.max(1000, remaining));
             return;
           }
-          const { type: ignored, ...message } = event;
+          const { type: ignored, eventSequence: ignoredSequence, ...message } = event;
           acceptMessages([message]);
         };
         socket.onclose = () => {
@@ -192,7 +226,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     setSending(true);
     setSendError(null);
     try {
-      const saved = await sendGroupChatMessage(group.id, item.id, item.body);
+      const saved = await sendGroupChatMessage(group.id, item.id, item.body,
+        item.messageType, item.options);
       acceptMessages([saved]);
       if (pendingRef.current?.id === item.id) {
         pendingRef.current = null;
@@ -214,13 +249,62 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       setSendError('Enter a message of up to 2,000 characters.');
       return;
     }
-    const item = { id: Crypto.randomUUID(), body };
+    const item: PendingMessage = { id: Crypto.randomUUID(), body, messageType: 'TEXT' };
     pendingRef.current = item;
     setPending(item);
+    scrollOnNextChange.current = true;
     setDraft('');
     setSelection({ start: 0, end: 0 });
     setShowEmojis(false);
     void send(item);
+  }
+
+  function createPoll() {
+    if (sending || pendingRef.current) return;
+    const question = pollQuestion.trim();
+    const options = pollOptions.map((option) => option.trim());
+    if (!question || question.length > 2000 || options.length < 2
+        || options.some((option) => !option || option.length > 100)
+        || new Set(options.map((option) => option.toLocaleLowerCase())).size !== options.length) {
+      setSendError('Add a question and at least two distinct choices of up to 100 characters.');
+      return;
+    }
+    const item: PendingMessage = { id: Crypto.randomUUID(), body: question,
+      messageType: 'POLL', options };
+    pendingRef.current = item;
+    setPending(item);
+    scrollOnNextChange.current = true;
+    setPollOpen(false);
+    setPollQuestion('');
+    setPollOptions(['', '']);
+    setSendError(null);
+    void send(item);
+  }
+
+  async function vote(messageId: string, optionId: string) {
+    if (busyPollId) return;
+    setBusyPollId(messageId);
+    setError(null);
+    try {
+      acceptMessages([await voteInGroupChatPoll(group.id, messageId, optionId)]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save your vote.');
+    } finally {
+      setBusyPollId(null);
+    }
+  }
+
+  async function closePoll(messageId: string) {
+    if (busyPollId) return;
+    setBusyPollId(messageId);
+    setError(null);
+    try {
+      acceptMessages([await closeGroupChatPoll(group.id, messageId)]);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not close the poll.');
+    } finally {
+      setBusyPollId(null);
+    }
   }
 
   function insertEmoji(emoji: string) {
@@ -241,6 +325,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     const first = messages[0];
     if (!first || loadingOlder) return;
     loadingOlderRef.current = true;
+    scrollOnNextChange.current = false;
     setLoadingOlder(true);
     try {
       const page = await getGroupChatMessages(group.id, { beforeSequence: first.sequence, limit: PAGE_SIZE });
@@ -283,7 +368,12 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
 
     {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
     <ScrollView ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent}
-      onContentSizeChange={() => { if (!loadingOlderRef.current) listRef.current?.scrollToEnd({ animated: true }); }}>
+      onContentSizeChange={() => {
+        if (!loadingOlderRef.current && scrollOnNextChange.current) {
+          listRef.current?.scrollToEnd({ animated: true });
+          scrollOnNextChange.current = false;
+        }
+      }}>
       {hasOlder && <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => { void loadOlder(); }}
         style={styles.older}><Text style={styles.olderText}>{loadingOlder ? 'Loading…' : 'Load earlier messages'}</Text></Pressable>}
       {loading && <ActivityIndicator color={BLUE} />}
@@ -304,21 +394,60 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
             </Text>
             <View style={styles.dayLine} />
           </View>}
-          <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
-            {!own && <Text style={styles.sender}>{message.senderName}</Text>}
-            <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
-            <Text style={own ? styles.ownTime : styles.time}>
-              {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
+          {message.messageType === 'POLL' && message.poll
+            ? <GroupChatPollCard message={message} own={own} busy={busyPollId === message.id}
+              onVote={(optionId) => { void vote(message.id, optionId); }}
+              onClose={() => { void closePoll(message.id); }} />
+            : <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
+              {!own && <Text style={styles.sender}>{message.senderName}</Text>}
+              <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
+              <Text style={own ? styles.ownTime : styles.time}>
+                {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>}
         </Fragment>;
       })}
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
+        {pending.messageType === 'POLL' && <Text style={styles.pendingType}>POLL · {pending.options?.length} choices</Text>}
         <Text style={styles.ownText}>{pending.body}</Text>
         <Text style={styles.ownTime}>{sending ? 'Sending…' : 'Not confirmed'}</Text>
       </View>}
     </ScrollView>
 
+    {pollOpen && <View style={styles.pollComposer}>
+      <View style={styles.pollHeading}><ListChecks size={19} color={BLUE} />
+        <Text style={styles.pollHeadingText}>Create a poll</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Cancel poll"
+          onPress={() => setPollOpen(false)}><X size={19} color="#78869A" /></Pressable>
+      </View>
+      <TextInput accessibilityLabel="Poll question" placeholder="What should the group decide?"
+        placeholderTextColor="#8A96A6" maxLength={2000} value={pollQuestion}
+        onChangeText={setPollQuestion} style={styles.pollInput} />
+      <ScrollView style={styles.pollChoiceList} keyboardShouldPersistTaps="always">
+        {pollOptions.map((option, index) => <View key={index} style={styles.pollOptionRow}>
+          <TextInput accessibilityLabel={`Poll choice ${index + 1}`} placeholder={`Choice ${index + 1}`}
+            placeholderTextColor="#8A96A6" maxLength={100} value={option}
+            onChangeText={(value) => setPollOptions((current) =>
+              current.map((item, position) => position === index ? value : item))}
+            style={styles.pollOptionInput} />
+          {pollOptions.length > 2 && <Pressable accessibilityRole="button"
+            accessibilityLabel={`Remove choice ${index + 1}`}
+            onPress={() => setPollOptions((current) => current.filter((_, position) => position !== index))}>
+            <X size={17} color="#8A96A6" />
+          </Pressable>}
+        </View>)}
+      </ScrollView>
+      <View style={styles.pollActions}>
+        {pollOptions.length < 10 && <Pressable accessibilityRole="button"
+          onPress={() => setPollOptions((current) => [...current, ''])} style={styles.addChoice}>
+          <Plus size={15} color={BLUE} /><Text style={styles.addChoiceText}>Add choice</Text>
+        </Pressable>}
+        <Pressable accessibilityRole="button" disabled={sending || Boolean(pending)}
+          onPress={createPoll} style={styles.createPollButton}>
+          <Text style={styles.createPollText}>Post poll</Text>
+        </Pressable>
+      </View>
+    </View>}
     {showEmojis && <EmojiPicker onClose={() => setShowEmojis(false)} onSelect={insertEmoji} />}
     {sendError && <Text accessibilityRole="alert" style={styles.error}>{sendError}</Text>}
     {pending && !sending && <View style={styles.retryRow}>
@@ -332,9 +461,15 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       }}><Text style={styles.discardText}>Discard</Text></Pressable>
     </View>}
     <View style={styles.composer}>
+      <Pressable accessibilityRole="button" accessibilityLabel={pollOpen ? 'Hide poll form' : 'Create poll'}
+        onPress={() => { Keyboard.dismiss(); setShowEmojis(false); setPollOpen((open) => !open); }}
+        style={[styles.emojiToggle, pollOpen && styles.emojiToggleActive]}>
+        <ListChecks size={21} color={pollOpen ? BLUE : '#7D8B9E'} />
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={showEmojis ? 'Close emoji palette' : 'Open emoji palette'}
         accessibilityState={{ expanded: showEmojis }} onPress={() => {
           Keyboard.dismiss();
+          setPollOpen(false);
           setShowEmojis((open) => !open);
         }} style={[styles.emojiToggle, showEmojis && styles.emojiToggleActive]}>
         <Smile size={21} color={showEmojis ? BLUE : '#7D8B9E'} />
@@ -407,6 +542,23 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E3EAF3',
     shadowColor: '#253043', shadowOpacity: 0.08, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  pollComposer: { marginHorizontal: 12, marginBottom: 8, padding: 14, borderRadius: 20,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#DDE8F7', gap: 9 },
+  pollHeading: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  pollHeadingText: { flex: 1, color: '#253043', fontSize: 15, fontWeight: '800' },
+  pollInput: { minHeight: 44, borderRadius: 12, backgroundColor: '#F5F7FB',
+    paddingHorizontal: 12, color: '#253043', fontSize: 13, outlineWidth: 0 },
+  pollChoiceList: { flexGrow: 0, maxHeight: 160 },
+  pollOptionRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 7 },
+  pollOptionInput: { flex: 1, minHeight: 39, borderRadius: 11, backgroundColor: '#F5F7FB',
+    paddingHorizontal: 12, color: '#253043', fontSize: 13, outlineWidth: 0 },
+  pollActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  addChoice: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 8 },
+  addChoiceText: { color: BLUE, fontSize: 12, fontWeight: '700' },
+  createPollButton: { minHeight: 38, borderRadius: 12, backgroundColor: BLUE,
+    paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' },
+  createPollText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  pendingType: { color: '#D9E9FF', fontSize: 10, fontWeight: '800' },
   emojiToggle: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
   emojiToggleActive: { backgroundColor: '#E5F0FF' },
   input: { flex: 1, maxHeight: 110, minHeight: 43, borderRadius: 15, backgroundColor: '#F5F7FB',

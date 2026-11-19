@@ -11,11 +11,13 @@ public record GroupChatMessageResponse(
         UUID senderId,
         String senderName,
         String body,
-        Instant createdAt
+        Instant createdAt,
+        String messageType,
+        GroupChatPollResponse poll
 ) {
-    public static GroupChatMessageResponse from(GroupChatMessage message) {
+    public static GroupChatMessageResponse from(GroupChatMessage message, GroupChatPollResponse poll) {
         return new GroupChatMessageResponse(
                 message.id(), message.conversationId(), message.sequence(), message.senderId(),
-                message.senderName(), message.body(), message.createdAt());
+                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll);
     }
 }

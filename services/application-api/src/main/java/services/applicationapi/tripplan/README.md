@@ -18,7 +18,7 @@ This feature supports city suggestions, local city-to-airports lookup, flight, b
 | Destination news | [`service/newsfeed`](service/newsfeed/README.md) | Validate a destination and retrieve one Currents Search page of English-language city news. |
 | Destination weather | [`service/weather`](service/weather/README.md) | Validate a European city and retrieve destination-local daily forecasts and optional historical stay comparisons from Open-Meteo. |
 | Saved plans | [`service/savedplan`](service/savedplan/README.md) | Create personal and group-owned search presets, select the current group plan, and notify members after a group save commits. |
-| Group chat | [`service/groupchat`](service/groupchat/README.md) | Authorize group members, store ordered chat messages over HTTP, issue socket tickets, and relay a transactional outbox to Kafka. |
+| Group chat and polls | [`service/groupchat`](service/groupchat/README.md) | Authorize group members, store ordered chat messages and one-current-choice polls over HTTP, issue socket tickets, and relay a transactional outbox to Kafka. |
 | Trip groups | [`service/tripgroup`](service/tripgroup/README.md) | Create, list, and edit groups, protect pictures, and manage one-use invitations. |
 | Saved-plan model | [`model`](model/README.md) and [`repository`](repository/README.md) | Persist plans and scope reads by owner. |
 | Provider settings | [`configurations`](configurations/README.md) | Bind settings and create HTTP clients with timeouts. |

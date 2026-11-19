@@ -43,10 +43,16 @@ Controllers delegate to service interfaces. The `exceptionhandlers` package cont
 | `POST /api/trip-plan-groups/{id}/chat/messages` | Group member and JSON `{"messageId":"<client UUID>","body":"Hello"}` | `201 Created` and the saved message; retry with the same UUID and body returns the same message. |
 | `GET /api/trip-plan-groups/{id}/chat/messages` | Group member; optional `afterSequence`, `beforeSequence`, and `limit` | Messages ordered by conversation sequence. Use one cursor at a time. |
 | `GET /api/trip-plan-groups/{id}/chat/socket-ticket` | Group member | Short-lived, conversation-scoped WebSocket ticket and expiry. |
+| `POST /api/trip-plan-groups/{id}/chat/messages/{messageId}/votes` | Group member and `{"optionId":"<UUID>"}` | Updated poll message; one current choice per user. Another choice replaces it while the poll is open. Repeating the same vote is idempotent. |
+| `PUT /api/trip-plan-groups/{id}/chat/messages/{messageId}/poll/closure` | Poll creator and group member | Updated closed poll message. Repeating the close is idempotent. |
+| `GET /api/trip-plan-groups/{id}/chat/events/cursor` | Group member | Current conversation event sequence, used before initial message loading. |
+| `GET /api/trip-plan-groups/{id}/chat/events?afterEventSequence=0&limit=50` | Group member and nonnegative event cursor | Ordered message creation and poll update references with current message state. |
 
 `TripGroupController` handles group creation and editing, member-protected listing, detail and picture reads, group-owned saved presets, and invitation management. Editing, current-plan selection, and invite creation/listing/revocation require the `ADMIN` role. Any group member can create and read group presets. Preview, invitation picture, and acceptance require sign-in; the token is sent in a JSON body, not an API URL. The preview reports whether a picture exists, so the client requests the photo only when needed. Expired, used, revoked, and unknown invitations all return a generic `404`. Pictures are optional; JPEG and PNG inputs are normalized to JPEG. All responses use `Cache-Control: no-store`.
 
-`GroupChatController` owns member-only chat writes, sequence-cursor history reads, and socket tickets. A client subscribes to `/ws/group-chats` with the ticket, waits for `SUBSCRIBED`, then fetches missed messages with `afterSequence`. Messages are saved over HTTP only; see `service/groupchat/README.md` for ordering, retries, and outbox delivery.
+`GroupChatController` owns member-only chat writes, message history, event-cursor catch-up, and socket tickets. A client subscribes to `/ws/group-chats` with the ticket, waits for `SUBSCRIBED`, and then fetches missed events with `afterEventSequence`. Messages are saved over HTTP only; see `service/groupchat/README.md` for ordering, retries, and outbox delivery.
+
+Poll creation uses the same message POST with `messageType: "POLL"`, question in `body`, and an `options` array. Vote and close operations return the updated original message. The event cursor endpoints cover both new chat messages and revisions of existing polls; message sequence alone cannot catch poll changes.
 
 Transport and accommodation search requests accept `adults` from 1 to 9 and default omitted values to 1. The EUR budgets are checked against returned prices for that party size. Group and personal saved presets retain the adult count; neither stores live ticket or stay offers.
 

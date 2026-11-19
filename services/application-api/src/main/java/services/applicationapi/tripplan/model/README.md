@@ -17,3 +17,5 @@ Group editing mutates the existing `TripPlanGroup` name and description and can 
 # Chat data
 
 `GroupChatMessage` is the immutable row projection for stored group chat messages. V15 creates `trip_group_chat_conversations` (one row per group, allocated lazily), `trip_group_chat_messages` (UUID ID and unique per-conversation sequence), and `trip_group_chat_outbox` (one pending Kafka publication per saved message). A deleted account does not erase historical chat text; the sender ID becomes null and reads label it Former member. Deleting a group cascades to its conversation and messages.
+
+V16 adds a `message_type` to chat messages and poll, option, and vote tables. The message row still owns the poll's question, identity, sender, and original chat sequence. Each poll has a revision and optional close time; options have stable UUIDs and display positions. Votes are unique per poll and user, and an option foreign key ensures the selected choice belongs to the poll. The outbox uses an event UUID and a separate per-conversation event sequence, allowing multiple immutable update events for one poll message.
