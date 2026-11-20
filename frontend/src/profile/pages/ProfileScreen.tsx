@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { Redirect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -29,6 +29,9 @@ export default function ProfileScreen() {
 function ProfileContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width, fontScale } = useWindowDimensions();
+  const wide = width >= 900 && fontScale < 1.5;
+  const compact = width < 380 || fontScale >= 1.5;
   const [profile, setProfile] = useState<RegisteredUser | null>(null);
   const [form, setForm] = useState<ProfileFields>({ username: '', firstName: '', lastName: '', description: '' });
   const [editing, setEditing] = useState(false);
@@ -107,20 +110,28 @@ function ProfileContent() {
     finally { setPhotoBusy(false); }
   }
 
-  return <View style={[styles.screen, { paddingTop: insets.top }]}>
+  return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    style={[styles.screen, {
+      paddingTop: Math.max(insets.top, wide ? 24 : 0),
+      paddingLeft: Math.max(insets.left, wide ? 32 : 0),
+      paddingRight: Math.max(insets.right, wide ? 32 : 0),
+      paddingBottom: wide ? 24 : 0,
+    }]}>
     <StatusBar style="dark" />
-    <View style={styles.panel}>
+    <View style={[styles.panel, wide && styles.panelWide]}>
       <View style={styles.header}>
         <Pressable accessibilityRole="button" accessibilityLabel="Back to map" disabled={disabled} onPress={() => requestLeave('map')} style={styles.iconButton}><ArrowLeft color={colors.text} size={24} /></Pressable>
         <Text accessibilityRole="header" style={styles.heading}>{editing ? 'Edit profile' : 'Account'}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Close account" disabled={disabled} onPress={() => requestLeave('map')} style={styles.iconButton}><X color={colors.text} size={24} /></Pressable>
       </View>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.content, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+      <ScrollView style={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+        contentContainerStyle={[styles.content, compact && styles.contentCompact, { paddingBottom: Math.max(insets.bottom, 24) }]}>
         {loading ? <ActivityIndicator color={colors.primary} accessibilityLabel="Loading profile" /> : !profile ? <>
           <Text accessibilityRole="alert" style={styles.error}>{error}</Text>
           <Pressable accessibilityRole="button" onPress={() => { setLoading(true); setError(null); setAttempt(value => value + 1); }} style={styles.primaryButton}><Text style={styles.primaryText}>Retry</Text></Pressable>
         </> : <>
-          <View style={styles.identity}>
+          <View style={[styles.profileLayout, wide && styles.profileLayoutWide]}>
+          <View style={[styles.identity, wide && styles.identityWide]}>
             <View style={styles.avatarWrap}>
               <View style={styles.avatar}>{photo ? <Image source={{ uri: photo }} accessibilityLabel="Profile photo" style={styles.photo} onError={() => { setPhoto(null); setPhotoError('Could not load your photo.'); }} /> : <UserRound size={60} color={colors.muted} />}</View>
               <Pressable accessibilityRole="button" accessibilityLabel="Change profile photo" accessibilityState={{ disabled, busy: photoBusy }} disabled={disabled} onPress={() => void changePhoto()} style={styles.editPhoto}>
@@ -132,6 +143,7 @@ function ProfileContent() {
             <Text style={styles.hint}>Choose a JPEG or PNG photo. Photo changes save immediately.</Text>
             {photoError && <Text accessibilityRole="alert" style={styles.error}>{photoError}</Text>}
           </View>
+          <View style={styles.details}>
           {notice && <View accessibilityLiveRegion="polite" style={styles.success}><Check size={18} color={colors.primary} /><Text style={styles.successText}>{notice}</Text></View>}
           {fields.map(field => <View key={field.name} style={styles.field}>
             <Text nativeID={'label-' + field.name} style={styles.label}>{field.label}</Text>
@@ -146,9 +158,9 @@ function ProfileContent() {
             </> : <Text style={[styles.value, !profile[field.name] && styles.empty]}>{profile[field.name] || 'Not set'}</Text>}
           </View>)}
           {error && <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.error}>{error}</Text>}
-          {editing ? <View style={styles.actions}>
-            <Pressable accessibilityRole="button" disabled={disabled} onPress={() => { setForm(profileFields(profile)); setEditing(false); setError(null); }} style={[styles.secondaryButton, disabled && styles.disabled]}><Text style={styles.link}>Cancel</Text></Pressable>
-            <Pressable accessibilityRole="button" disabled={disabled || !dirty} onPress={() => void save()} style={[styles.primaryButton, (disabled || !dirty) && styles.disabled]}><Text style={styles.primaryText}>{busy ? 'Saving…' : 'Save changes'}</Text></Pressable>
+          {editing ? <View style={[styles.actions, compact && styles.actionsCompact]}>
+            <Pressable accessibilityRole="button" disabled={disabled} onPress={() => { setForm(profileFields(profile)); setEditing(false); setError(null); }} style={[styles.secondaryButton, styles.actionButton, disabled && styles.disabled]}><Text style={styles.link}>Cancel</Text></Pressable>
+            <Pressable accessibilityRole="button" disabled={disabled || !dirty} onPress={() => void save()} style={[styles.primaryButton, styles.actionButton, (disabled || !dirty) && styles.disabled]}><Text style={styles.primaryText}>{busy ? 'Saving…' : 'Save changes'}</Text></Pressable>
           </View> : <Pressable accessibilityRole="button" disabled={disabled} onPress={() => { setEditing(true); setNotice(null); setError(null); }} style={[styles.primaryButton, disabled && styles.disabled]}><Pencil size={18} color="#fff" /><Text style={styles.primaryText}>Edit profile</Text></Pressable>}
           {!editing && <Pressable accessibilityRole="button" accessibilityLabel="Preferences" disabled={disabled}
             onPress={() => router.push('/preferences')} style={[styles.preferences, disabled && styles.disabled]}>
@@ -156,49 +168,62 @@ function ProfileContent() {
           </Pressable>}
           <View style={styles.divider} />
           <Pressable accessibilityRole="button" accessibilityLabel="Sign out" disabled={disabled} onPress={() => requestLeave('logout')} style={[styles.logout, disabled && styles.disabled]}><LogOut size={20} color={colors.danger} /><Text style={styles.logoutText}>{busy && !editing ? 'Signing out…' : 'Sign out'}</Text></Pressable>
+          </View>
+          </View>
         </>}
       </ScrollView>
     </View>
     <Modal transparent visible={leaveAction !== null} animationType="fade" onRequestClose={() => setLeaveAction(null)}>
-      <View style={styles.modalBackdrop}><View style={styles.dialog}>
+      <View style={[styles.modalBackdrop, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 16) }]}><ScrollView style={styles.dialog} contentContainerStyle={styles.dialogContent}>
         <Text accessibilityRole="header" style={styles.heading}>Discard your changes?</Text>
         <Text style={styles.value}>Your unsaved profile details will be lost.</Text>
         <Pressable accessibilityRole="button" onPress={() => setLeaveAction(null)} style={styles.primaryButton}><Text style={styles.primaryText}>Keep editing</Text></Pressable>
         <Pressable accessibilityRole="button" onPress={() => { if (leaveAction) void leave(leaveAction); }} style={styles.textButton}><Text style={styles.logoutText}>Discard changes</Text></Pressable>
-      </View></View>
+      </ScrollView></View>
     </Modal>
-  </View>;
+  </KeyboardAvoidingView>;
 }
+
+const webTextWrap = Platform.OS === 'web' ? { overflowWrap: 'anywhere' as const } : {};
 
 const styles = StyleSheet.create({
   preferences: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 52, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 14 },
   screen: { flex: 1, backgroundColor: colors.background, alignItems: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
-  panel: { flex: 1, width: '100%', maxWidth: 560, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
+  panel: { flex: 1, minHeight: 0, width: '100%', maxWidth: 680, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: 'hidden' },
+  panelWide: { maxWidth: 1040, borderRadius: 24, borderWidth: 1, borderColor: colors.border },
+  scroll: { flex: 1, minHeight: 0 },
+  profileLayout: { gap: 24, minWidth: 0 },
+  profileLayoutWide: { flexDirection: 'row', alignItems: 'flex-start', gap: 40 },
+  details: { flex: 1, minWidth: 0, gap: 18 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 1, borderColor: '#eef0f3' },
   heading: { fontSize: 20, fontWeight: '700', color: colors.text },
   iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   content: { padding: 20, gap: 18 },
+  contentCompact: { padding: 16 },
   identity: { alignItems: 'center', gap: 8, paddingTop: 8, paddingBottom: 12 },
+  identityWide: { width: 260, flexShrink: 0, paddingHorizontal: 12 },
   avatarWrap: { width: 112, height: 112, marginBottom: 8 },
   avatar: { width: 112, height: 112, borderRadius: 56, borderWidth: 4, borderColor: '#e7e9ed', backgroundColor: '#f3f4f6', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   photo: { width: '100%', height: '100%' },
   editPhoto: { position: 'absolute', right: -8, top: 0, width: 44, height: 44, borderRadius: 22, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
-  displayName: { fontSize: 22, lineHeight: 30, fontWeight: '700', color: colors.text, textAlign: 'center' },
+  displayName: { maxWidth: '100%', fontSize: 22, lineHeight: 30, fontWeight: '700', color: colors.text, textAlign: 'center', ...webTextWrap },
   field: { gap: 8 },
   label: { fontSize: 14, fontWeight: '600', color: colors.muted },
-  value: { fontSize: 16, lineHeight: 24, color: colors.text, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 14 },
+  value: { fontSize: 16, lineHeight: 24, color: colors.text, padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 14, ...webTextWrap },
   empty: { color: colors.muted },
-  input: { minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: '#f8f9fb', fontSize: 16, lineHeight: 24, color: colors.text },
+  input: { minWidth: 0, width: '100%', minHeight: 48, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 14, backgroundColor: '#f8f9fb', fontSize: 16, lineHeight: 24, color: colors.text },
   descriptionInput: { minHeight: 128, textAlignVertical: 'top' },
   hint: { fontSize: 12, lineHeight: 18, color: colors.muted },
   counter: { fontSize: 12, color: colors.muted, textAlign: 'right' },
   primaryButton: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, backgroundColor: colors.primary },
-  primaryText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  primaryText: { color: '#fff', fontSize: 16, fontWeight: '600', flexShrink: 1, textAlign: 'center' },
   secondaryButton: { minHeight: 48, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 14, borderWidth: 1, borderColor: colors.border, justifyContent: 'center', alignItems: 'center' },
   textButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   link: { color: colors.primary, fontSize: 15, fontWeight: '600' },
   actions: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 },
+  actionsCompact: { flexDirection: 'column' },
+  actionButton: { flexGrow: 1, flexBasis: 0 },
   divider: { height: 1, backgroundColor: '#eef0f3', marginTop: 6 },
   logout: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderWidth: 1, borderColor: colors.danger, borderRadius: 14 },
   logoutText: { color: '#a60000', fontSize: 15, fontWeight: '600' },
@@ -207,5 +232,6 @@ const styles = StyleSheet.create({
   success: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.blueTint, padding: 12, borderRadius: 12 },
   successText: { color: colors.primary, fontSize: 14, flexShrink: 1 },
   modalBackdrop: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, backgroundColor: 'rgba(0,0,0,0.35)' },
-  dialog: { width: '100%', maxWidth: 380, padding: 24, gap: 20, backgroundColor: '#fff', borderRadius: 24 },
+  dialog: { width: '100%', maxWidth: 380, maxHeight: '100%', flexGrow: 0, backgroundColor: '#fff', borderRadius: 24 },
+  dialogContent: { padding: 24, gap: 20 },
 });
