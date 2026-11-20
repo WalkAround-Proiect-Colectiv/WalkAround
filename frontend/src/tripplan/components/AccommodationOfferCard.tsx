@@ -19,7 +19,9 @@ function dateLabel(value: string): string {
     : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export default function AccommodationOfferCard({ offer, index }: { offer: AccommodationOffer; index: number }) {
+export default function AccommodationOfferCard({ offer, index, adults }: {
+  offer: AccommodationOffer; index: number; adults: number;
+}) {
   const [linkError, setLinkError] = useState<string | null>(null);
   const bookingOptions = offer.bookingOptions ?? [];
   const amenities = offer.amenities ?? [];
@@ -51,7 +53,7 @@ export default function AccommodationOfferCard({ offer, index }: { offer: Accomm
     <View style={styles.priceRow}>
       <View>
         <Text style={styles.price}>{priceLabel(offer.totalPrice, offer.currency)}</Text>
-        <Text style={styles.priceHelp}>Total for the stay, including taxes and fees · 1 adult</Text>
+        <Text style={styles.priceHelp}>Total for the stay, including taxes and fees · {adults} adult{adults === 1 ? '' : 's'}</Text>
       </View>
     </View>
 

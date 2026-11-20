@@ -62,7 +62,8 @@ public class AccommodationSearchServiceImpl implements AccommodationSearchServic
         AccommodationCityValidator.ValidatedCity validatedCity = cityValidator.validate(city, countryCode);
         String destination = validatedCity.name() + ", " + validatedCity.countryName();
 
-        List<AccommodationOffer> candidates = provider.search(destination, checkInDate, checkOutDate)
+        List<AccommodationOffer> candidates = provider.search(destination, checkInDate, checkOutDate,
+                        request.adults())
                 .stream()
                 .filter(offer -> offer.totalPrice().compareTo(request.budget()) <= 0)
                 .filter(offer -> offer.propertyToken() != null && !offer.propertyToken().isBlank())
@@ -72,7 +73,8 @@ public class AccommodationSearchServiceImpl implements AccommodationSearchServic
 
         List<AccommodationOfferResponse> offers = new ArrayList<>();
         for (AccommodationOffer offer : candidates) {
-            AccommodationDetails details = provider.details(offer.propertyToken(), checkInDate, checkOutDate);
+            AccommodationDetails details = provider.details(offer.propertyToken(), checkInDate,
+                    checkOutDate, request.adults());
             List<AccommodationBookingOptionResponse> bookingOptions = details.bookingOptions().stream()
                     .filter(option -> option.totalPrice().compareTo(request.budget()) <= 0)
                     .sorted(Comparator.comparing(AccommodationSearchProvider.BookingOption::totalPrice))

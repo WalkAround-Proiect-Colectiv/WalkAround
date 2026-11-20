@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -6,25 +6,29 @@ import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ArrowLeft, ArrowRight, BedDouble, BookmarkCheck, BookmarkPlus, CalendarDays, Check, Compass, ExternalLink, MapPin,
-  Plane, Search, Sparkles, Ticket, Wallet,
+  BusFront, Plane, Search, Sparkles, Ticket, TrainFront, UsersRound, Wallet,
 } from 'lucide-react-native';
 import { useSession } from '../../login/components/SessionProvider';
+import { type CreatedTripGroup } from '../api/tripGroups';
 import CalendarPicker from '../components/CalendarPicker';
+import GroupPicture from '../components/GroupPicture';
 import AccommodationOfferCard from '../components/AccommodationOfferCard';
 import PlaceRecommendationCard from '../components/PlaceRecommendationCard';
 import SafetyInformationCard from '../components/SafetyInformationCard';
 import CountryHotlinesCard from '../components/CountryHotlinesCard';
 import DestinationNewsCard from '../components/DestinationNewsCard';
 import DestinationWeatherCard from '../components/DestinationWeatherCard';
+import TrainTicketCard from '../components/TrainTicketCard';
+import BusTicketCard from '../components/BusTicketCard';
 import {
   getCityAirports, getCityNews, getCountryHotlines, getDestinationSafety, getDestinationWeather,
   getHistoricalWeather, getPlaceRecommendations, saveTripPlan,
-  searchAccommodations, searchCities, searchFlights,
-  type AccommodationOffer, type Airport, type CitySuggestion, type FlightItinerary, type FlightSegment,
+  searchAccommodations, searchBuses, searchCities, searchFlights, searchTrains,
+  type AccommodationOffer, type Airport, type BusItinerary, type CitySuggestion, type FlightItinerary, type FlightSegment,
   type CountryHotlines, type DestinationSafety, type DestinationWeather, type HistoricalWeather,
   type NewsArticle,
   type PlaceCategory, type PlaceRecommendationPage,
-  type SavedTripPlan, type TicketOption,
+  type SavedTripPlan, type TicketOption, type TrainItinerary,
 } from '../api/tripPlanning';
 
 const BLUE = '#0065EB';
@@ -245,6 +249,16 @@ function ticketArrivalDate(ticket: FlightItinerary | undefined): string | null {
   return date && validDateTime(date, '12:00') ? date : null;
 }
 
+function trainArrivalDate(ticket: TrainItinerary | undefined): string | null {
+  const date = ticket?.outbound.arrivalTime.slice(0, 10);
+  return date && validDateTime(date, '12:00') ? date : null;
+}
+
+function busArrivalDate(ticket: BusItinerary | undefined): string | null {
+  const date = ticket?.outbound.arrivalTime.slice(0, 10);
+  return date && validDateTime(date, '12:00') ? date : null;
+}
+
 function timeLabel(value: string): string {
   return value ? value.replace('T', ' · ') : 'Time unavailable';
 }
@@ -322,7 +336,11 @@ function TicketCard({ ticket, index, selected, onSelect }: {
   </View>;
 }
 
-export default function TripPlanningScreen() {
+export default function TripPlanningScreen({ group, initialPlan, onGroupPlanSaved }: {
+  group?: CreatedTripGroup;
+  initialPlan?: SavedTripPlan;
+  onGroupPlanSaved?: (plan: SavedTripPlan) => void;
+}) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { session, ready } = useSession();
@@ -354,9 +372,15 @@ export default function TripPlanningScreen() {
   const [untilDate, setUntilDate] = useState('');
   const [untilTime, setUntilTime] = useState('');
   const [nights, setNights] = useState('');
+  const [adults, setAdults] = useState('1');
   const [ticketOption, setTicketOption] = useState<TicketOption>('ROUND_TRIP');
+  const [transport, setTransport] = useState<'PLANE' | 'BUS' | 'TRAIN'>('PLANE');
   const [tickets, setTickets] = useState<FlightItinerary[] | null>(null);
+  const [trainTickets, setTrainTickets] = useState<TrainItinerary[] | null>(null);
+  const [busTickets, setBusTickets] = useState<BusItinerary[] | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<number | null>(null);
+  const [selectedTrainTicket, setSelectedTrainTicket] = useState<number | null>(null);
+  const [selectedBusTicket, setSelectedBusTicket] = useState<number | null>(null);
   const [searchBusy, setSearchBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [checkInDate, setCheckInDate] = useState('');
@@ -394,6 +418,66 @@ export default function TripPlanningScreen() {
   const [history, setHistory] = useState<HistoricalWeather | null>(null);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!initialPlan) return;
+
+    const origin: CitySuggestion = {
+      name: initialPlan.departureCity,
+      lookupName: initialPlan.departureCity,
+      country: initialPlan.departureCountryCode,
+      countryCode: initialPlan.departureCountryCode,
+      latitude: null,
+      longitude: null,
+    };
+    const destination: CitySuggestion = {
+      name: initialPlan.destinationCity,
+      lookupName: initialPlan.destinationCity,
+      country: initialPlan.countryCode,
+      countryCode: initialPlan.countryCode,
+      latitude: null,
+      longitude: null,
+    };
+
+    setDepartureCity(origin);
+    setDestinationCity(destination);
+    setTransport(initialPlan.transportMode);
+    setBudget(String(initialPlan.transportBudget));
+    setAccommodationBudget(String(initialPlan.accommodationBudget));
+    setFromDate(initialPlan.departureFrom.slice(0, 10));
+    setFromTime(initialPlan.departureFrom.slice(11, 16));
+    setUntilDate(initialPlan.departureUntil.slice(0, 10));
+    setUntilTime(initialPlan.departureUntil.slice(11, 16));
+    setNights(String(initialPlan.stayingNights));
+    setAdults(String(initialPlan.adults));
+    setTicketOption(initialPlan.ticketOption);
+    setPlanTitle(initialPlan.title);
+    setPlanDescription(initialPlan.description ?? '');
+    setHasSavedBefore(true);
+    setSavedPlan(null);
+    setAirports([]);
+    setAirport(null);
+
+    if (initialPlan.transportMode !== 'PLANE' || !initialPlan.originAirport) return;
+
+    const requestId = ++airportRequestId.current;
+    setAirportsBusy(true);
+    setAirportsError(null);
+    void getCityAirports(origin)
+      .then((results) => {
+        if (airportRequestId.current !== requestId) return;
+        setAirports(results);
+        setAirport(results.find((candidate) => candidate.iataCode === initialPlan.originAirport) ?? null);
+      })
+      .catch((reason) => {
+        if (airportRequestId.current === requestId) setAirportsError(message(reason));
+      })
+      .finally(() => {
+        if (airportRequestId.current === requestId) setAirportsBusy(false);
+      });
+
+    return () => { airportRequestId.current += 1; };
+  }, [initialPlan?.id]);
 
   function clearHistory() {
     historyRequestId.current += 1;
@@ -633,7 +717,11 @@ export default function TripPlanningScreen() {
     if (presetChanged) clearSavedPlan();
     flightRequestId.current += 1;
     setTickets(null);
+    setTrainTickets(null);
+    setBusTickets(null);
     setSelectedTicket(null);
+    setSelectedTrainTicket(null);
+    setSelectedBusTicket(null);
     setFormError(null);
     if (checkInSource === 'ticket') {
       clearHistory();
@@ -665,6 +753,40 @@ export default function TripPlanningScreen() {
     }
   }
 
+  function chooseTrainTicket(index: number) {
+    if (selectedTrainTicket === index) {
+      setSelectedTrainTicket(null);
+      if (checkInSource === 'ticket') setCheckInSource('calendar');
+      return;
+    }
+
+    setSelectedTrainTicket(index);
+    const date = trainArrivalDate(trainTickets?.[index]);
+    if (date) {
+      if (date !== checkInDate) clearHistory();
+      setCheckInDate(date);
+      setCheckInSource('ticket');
+      clearAccommodations();
+    }
+  }
+
+  function chooseBusTicket(index: number) {
+    if (selectedBusTicket === index) {
+      setSelectedBusTicket(null);
+      if (checkInSource === 'ticket') setCheckInSource('calendar');
+      return;
+    }
+
+    setSelectedBusTicket(index);
+    const date = busArrivalDate(busTickets?.[index]);
+    if (date) {
+      if (date !== checkInDate) clearHistory();
+      setCheckInDate(date);
+      setCheckInSource('ticket');
+      clearAccommodations();
+    }
+  }
+
   async function submitAccommodations() {
     if (accommodationBusy) return;
     setAccommodationError(null);
@@ -673,10 +795,15 @@ export default function TripPlanningScreen() {
       return;
     }
     if (!validDateTime(checkInDate, '12:00')) {
-      setAccommodationError('Choose a check-in date from the calendar or a flight.');
+      setAccommodationError('Choose a check-in date from the calendar or a travel option.');
       return;
     }
     const stay = Number(nights);
+    const people = Number(adults);
+    if (!/^[1-9]$/.test(adults) || people < 1 || people > 9) {
+      setAccommodationError('Choose 1 to 9 adults.');
+      return;
+    }
     if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
       setAccommodationError('Enter a stay of 1 to 365 nights.');
       return;
@@ -697,6 +824,7 @@ export default function TripPlanningScreen() {
         checkInDate,
         stayingNights: stay,
         budget: amount,
+        adults: people,
       });
       if (accommodationRequestId.current === id) setAccommodations(results);
     } catch (reason) {
@@ -720,12 +848,14 @@ export default function TripPlanningScreen() {
       setSaveError('The description contains invalid characters.');
       return;
     }
-    if (!departureCity || !airport?.iataCode || !destinationCity) {
-      setSaveError('Choose departure and destination cities, plus a departure airport.');
+    if (!departureCity || !destinationCity || (transport === 'PLANE' && !airport?.iataCode)) {
+      setSaveError(transport === 'PLANE'
+        ? 'Choose departure and destination cities, plus a departure airport.'
+        : 'Choose departure and destination cities.');
       return;
     }
     if (!validDateTime(fromDate, fromTime) || !validDateTime(untilDate, untilTime)) {
-      setSaveError('Choose a valid flight departure period above.');
+      setSaveError('Choose a valid departure period above.');
       return;
     }
     const from = `${fromDate}T${fromTime}:00`;
@@ -735,15 +865,20 @@ export default function TripPlanningScreen() {
       return;
     }
     const stay = Number(nights);
+    const people = Number(adults);
+    if (!/^[1-9]$/.test(adults) || people < 1 || people > 9) {
+      setSaveError('Choose 1 to 9 adults.');
+      return;
+    }
     if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
       setSaveError('Enter a stay of 1 to 365 nights.');
       return;
     }
-    const flightAmount = Number(budget);
+    const transportAmount = Number(budget);
     const stayAmount = Number(accommodationBudget);
-    if (!/^\d+(\.\d{1,2})?$/.test(budget) || flightAmount <= 0 || flightAmount > 999_999_999.99 ||
+    if (!/^\d+(\.\d{1,2})?$/.test(budget) || transportAmount <= 0 || transportAmount > 999_999_999.99 ||
         !/^\d+(\.\d{1,2})?$/.test(accommodationBudget) || stayAmount <= 0 || stayAmount > 999_999_999.99) {
-      setSaveError('Enter valid flight and accommodation budgets in EUR.');
+      setSaveError('Enter valid transport and accommodation budgets in EUR.');
       return;
     }
 
@@ -754,7 +889,8 @@ export default function TripPlanningScreen() {
       const result = await saveTripPlan({
         title,
         description: description || null,
-        originAirport: airport.iataCode,
+        transportMode: transport,
+        originAirport: transport === 'PLANE' ? airport!.iataCode : null,
         departureCity: departureCity.lookupName || departureCity.name,
         departureCountryCode: departureCity.countryCode,
         destinationCity: destinationCity.lookupName || destinationCity.name,
@@ -763,10 +899,12 @@ export default function TripPlanningScreen() {
         departureUntil: until,
         stayingNights: stay,
         ticketOption,
-        flightBudget: flightAmount,
+        transportBudget: transportAmount,
         accommodationBudget: stayAmount,
-      });
+        adults: people,
+      }, group?.id);
       setHasSavedBefore(true);
+      if (group) onGroupPlanSaved?.(result);
       if (saveRequestId.current === id) {
         setSavedPlan(result);
       } else {
@@ -811,14 +949,21 @@ export default function TripPlanningScreen() {
   async function submit() {
     if (searchBusy) return;
     setFormError(null);
-    if (!airport?.iataCode || !destinationCity) {
-      setFormError('Choose a departure airport and destination city first.');
+    if (!departureCity || !destinationCity || (transport === 'PLANE' && !airport?.iataCode)) {
+      setFormError(transport === 'PLANE'
+        ? 'Choose a departure airport and destination city first.'
+        : 'Choose departure and destination cities first.');
       return;
     }
     const amount = Number(budget);
     const stay = Number(nights);
+    const people = Number(adults);
+    if (!/^[1-9]$/.test(adults) || people < 1 || people > 9) {
+      setFormError('Choose 1 to 9 adults.');
+      return;
+    }
     if (!/^\d+(\.\d{1,2})?$/.test(budget) || amount <= 0 || amount > 999_999_999.99) {
-      setFormError('Enter a flight budget greater than zero, in EUR.');
+      setFormError('Enter a travel budget greater than zero, in EUR.');
       return;
     }
     if (!/^\d+$/.test(nights) || stay < 1 || stay > 365) {
@@ -840,17 +985,48 @@ export default function TripPlanningScreen() {
     const id = ++flightRequestId.current;
     setSearchBusy(true);
     try {
-      const results = await searchFlights({
-        originAirport: airport.iataCode,
-        destinationCity: destinationCity.lookupName || destinationCity.name,
-        countryCode: destinationCity.countryCode,
-        budget: amount,
-        departureFrom: from,
-        departureUntil: until,
-        stayingNights: stay,
-        ticketOption,
-      });
-      if (flightRequestId.current === id) setTickets(results);
+      if (transport === 'PLANE') {
+        const results = await searchFlights({
+          originAirport: airport!.iataCode!,
+          destinationCity: destinationCity.lookupName || destinationCity.name,
+          countryCode: destinationCity.countryCode,
+          budget: amount,
+          departureFrom: from,
+          departureUntil: until,
+          stayingNights: stay,
+          ticketOption,
+          adults: people,
+        });
+        if (flightRequestId.current === id) setTickets(results);
+      } else if (transport === 'TRAIN') {
+        const results = await searchTrains({
+          originCity: departureCity.lookupName || departureCity.name,
+          originCountryCode: departureCity.countryCode,
+          destinationCity: destinationCity.lookupName || destinationCity.name,
+          countryCode: destinationCity.countryCode,
+          budget: amount,
+          departureFrom: from,
+          departureUntil: until,
+          stayingNights: stay,
+          ticketOption,
+          adults: people,
+        });
+        if (flightRequestId.current === id) setTrainTickets(results);
+      } else {
+        const results = await searchBuses({
+          originCity: departureCity.lookupName || departureCity.name,
+          originCountryCode: departureCity.countryCode,
+          destinationCity: destinationCity.lookupName || destinationCity.name,
+          countryCode: destinationCity.countryCode,
+          budget: amount,
+          departureFrom: from,
+          departureUntil: until,
+          stayingNights: stay,
+          ticketOption,
+          adults: people,
+        });
+        if (flightRequestId.current === id) setBusTickets(results);
+      }
     } catch (reason) {
       if (flightRequestId.current === id) setFormError(message(reason));
     } finally {
@@ -865,8 +1041,9 @@ export default function TripPlanningScreen() {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={[styles.scroll, { paddingTop: Math.max(insets.top, 16), paddingBottom: Math.max(insets.bottom, 24) + 28 }]}>
       <View style={styles.content}>
         <View style={styles.topBar}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Back to map"
-            onPress={() => router.push('/map')} style={styles.backButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel={group ? 'Back to group' : 'Back to map'}
+            onPress={() => group ? router.replace({ pathname: '/trip-groups', params: { groupId: group.id } })
+              : router.push('/map')} style={styles.backButton}>
             <ArrowLeft size={21} color={INK} />
           </Pressable>
           <Text style={styles.brand}>WalkAround</Text>
@@ -878,15 +1055,42 @@ export default function TripPlanningScreen() {
           <View style={styles.heroBadge}><Sparkles size={15} color="#fff" /><Text style={styles.heroBadgeText}>YOUR NEXT ADVENTURE</Text></View>
           <Text accessibilityRole="header" style={styles.heroTitle}>Where to next?</Text>
           <Text style={styles.heroSubtitle}>A few choices, and your trip starts taking shape.</Text>
-          <View style={styles.heroRoute}><View style={styles.routeDot} /><View style={styles.routeLine} /><Plane size={22} color="#fff" /></View>
+          <View style={styles.heroRoute}><View style={styles.routeDot} /><View style={styles.routeLine} />
+            {transport === 'PLANE' ? <Plane size={22} color="#fff" />
+              : transport === 'BUS' ? <BusFront size={22} color="#fff" />
+                : <TrainFront size={22} color="#fff" />}
+          </View>
         </View>
+
+        {group ? <View style={styles.groupCard}>
+          {group.pictureUrl ? <GroupPicture groupId={group.id} size={42} />
+            : <View style={styles.groupIcon}><UsersRound size={22} color={BLUE} /></View>}
+          <View style={styles.groupCopy}>
+            <Text style={styles.sectionTitle}>{group.name}</Text>
+            <Text style={styles.helper}>{initialPlan
+              ? `${initialPlan.current ? 'Current group plan' : 'Group plan'}: ${initialPlan.title}. Search again for live offers.`
+              : 'Search together and save a preset for this group.'}</Text>
+          </View>
+        </View> : <View style={styles.groupCard}>
+          <View style={styles.groupIcon}><UsersRound size={22} color={BLUE} /></View>
+          <View style={styles.groupCopy}>
+            <Text style={styles.sectionTitle}>Planning with others?</Text>
+            <Text style={styles.helper}>Create a space for your trip group.</Text>
+          </View>
+          <View style={styles.groupActions}>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/trip-group-create')}
+              style={styles.groupButton}><Text style={styles.groupButtonText}>Create a group</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => router.push('/trip-groups')}
+              style={styles.groupSecondaryButton}><Text style={styles.groupSecondaryText}>Your groups</Text></Pressable>
+          </View>
+        </View>}
 
         <View style={styles.card}>
           <View style={styles.stepRow}><Text style={styles.stepNumber}>01</Text><Text style={styles.stepLabel}>START YOUR ROUTE</Text></View>
           <CityPicker label="Leaving from" hint="Choose your departure city"
             selected={departureCity} onSelect={selectDeparture} onChange={changeDeparture} />
 
-          {departureCity && <View style={styles.airportSection}>
+          {departureCity && transport === 'PLANE' && <View style={styles.airportSection}>
             <Text style={styles.fieldLabel}>Choose your airport</Text>
             {airportsBusy ? <View style={styles.loadingRow}><ActivityIndicator color={BLUE} /><Text style={styles.helper}>Finding nearby airports…</Text></View> : null}
             {airportsError && <Text accessibilityRole="alert" style={styles.errorText}>{airportsError}</Text>}
@@ -911,7 +1115,12 @@ export default function TripPlanningScreen() {
             </Pressable>)}
           </View>}
 
-          <View style={styles.routeDivider}><View style={styles.dividerLine} /><Plane size={17} color={PURPLE} /><View style={styles.dividerLine} /></View>
+          <View style={styles.routeDivider}><View style={styles.dividerLine} />
+            {transport === 'PLANE' ? <Plane size={17} color={PURPLE} />
+              : transport === 'BUS' ? <BusFront size={17} color={PURPLE} />
+                : <TrainFront size={17} color={PURPLE} />}
+            <View style={styles.dividerLine} />
+          </View>
           <CityPicker label="Going to" hint="Choose your destination city"
             selected={destinationCity} onSelect={selectDestination} onChange={changeDestination} />
         </View>
@@ -933,10 +1142,32 @@ export default function TripPlanningScreen() {
         <View style={styles.card}>
           <View style={styles.stepRow}><Text style={styles.stepNumber}>02</Text><Text style={styles.stepLabel}>MAKE IT YOURS</Text></View>
           <View style={styles.sectionHeading}><View style={styles.iconBubble}><Wallet size={20} color={BLUE} /></View><View style={styles.headingCopy}><Text style={styles.sectionTitle}>Your travel details</Text><Text style={styles.helper}>Set your budget and dates</Text></View></View>
-          <NumberField label="Flight budget" value={budget} suffix="EUR" placeholder="e.g. 300"
+          <Text style={styles.fieldLabel}>Travel by</Text>
+          <View style={styles.optionRow}>
+            <Pressable accessibilityRole="radio" accessibilityState={{ selected: transport === 'PLANE' }}
+              onPress={() => { setTransport('PLANE'); clearTickets(); }} style={[styles.option, transport === 'PLANE' && styles.optionSelected]}>
+              <Plane size={19} color={transport === 'PLANE' ? BLUE : INK} />
+              <Text style={[styles.optionTitle, transport === 'PLANE' && styles.optionTitleSelected]}>Plane</Text>
+            </Pressable>
+            <Pressable accessibilityRole="radio" accessibilityState={{ selected: transport === 'BUS' }}
+              onPress={() => { setTransport('BUS'); clearTickets(); }} style={[styles.option, transport === 'BUS' && styles.optionSelected]}>
+              <BusFront size={19} color={transport === 'BUS' ? BLUE : INK} />
+              <Text style={[styles.optionTitle, transport === 'BUS' && styles.optionTitleSelected]}>Bus</Text>
+            </Pressable>
+            <Pressable accessibilityRole="radio" accessibilityState={{ selected: transport === 'TRAIN' }}
+              onPress={() => { setTransport('TRAIN'); clearTickets(); }} style={[styles.option, transport === 'TRAIN' && styles.optionSelected]}>
+              <TrainFront size={19} color={transport === 'TRAIN' ? BLUE : INK} />
+              <Text style={[styles.optionTitle, transport === 'TRAIN' && styles.optionTitleSelected]}>Train</Text>
+            </Pressable>
+          </View>
+          <NumberField label="Adults" value={adults} placeholder="1 to 9"
+            onChange={(value) => { setAdults(value); clearTickets(); clearAccommodations(); }} />
+          <Text style={styles.helper}>Budgets cover the full trip for {adults || 'your'} adult{adults === '1' ? '' : 's'}.</Text>
+          <NumberField label={`${transport === 'PLANE' ? 'Flight' : transport === 'BUS' ? 'Bus' : 'Train'} budget`}
+            value={budget} suffix="EUR" placeholder="e.g. 300"
             onChange={(value) => { setBudget(value); clearTickets(); }} />
           <Text style={styles.fieldLabel}>Departure period</Text>
-          <Text style={styles.helper}>We’ll look for flights leaving within this window. A shorter window searches faster.</Text>
+          <Text style={styles.helper}>We’ll look for {transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'} leaving within this window. A shorter window searches faster.</Text>
           <DateTimeFields label="From" date={fromDate} time={fromTime}
             onDate={(value) => { setFromDate(value); clearTickets(); }} onTime={(value) => { setFromTime(value); clearTickets(); }} />
           <DateTimeFields label="Until" date={untilDate} time={untilTime} minimumDate={fromDate}
@@ -960,19 +1191,25 @@ export default function TripPlanningScreen() {
           <Pressable accessibilityRole="button" disabled={searchBusy} onPress={submit}
             style={[styles.primaryButton, searchBusy && styles.disabled]}>
             {searchBusy ? <ActivityIndicator color="#fff" /> : <Search size={20} color="#fff" />}
-            <Text style={styles.primaryButtonText}>{searchBusy ? 'Finding your flights…' : 'Find flights'}</Text>
+            <Text style={styles.primaryButtonText}>{searchBusy ? `Finding ${transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}…` : `Find ${transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}`}</Text>
             {!searchBusy && <ArrowRight size={19} color="#fff" />}
           </Pressable>
         </View>
 
-        {(searchBusy || tickets) && <View style={styles.results}>
-          <Text style={styles.stepLabel}>FLIGHT OPTIONS</Text>
-          <Text style={styles.resultsTitle}>Flights for your trip</Text>
-          <Text style={styles.helper}>{airport?.iataCode} to {destinationCity?.name} · {nights} night{nights === '1' ? '' : 's'}</Text>
-          {searchBusy && <View style={styles.searchingPanel}><ActivityIndicator color={BLUE} /><Text style={styles.searchingText}>Searching available flights…</Text><Text style={styles.helper}>This can take a little while.</Text></View>}
+        {(searchBusy || tickets || trainTickets || busTickets) && <View style={styles.results}>
+          <Text style={styles.stepLabel}>{transport === 'PLANE' ? 'FLIGHT' : transport === 'BUS' ? 'BUS' : 'TRAIN'} OPTIONS</Text>
+          <Text style={styles.resultsTitle}>{transport === 'PLANE' ? 'Flights' : transport === 'BUS' ? 'Buses' : 'Trains'} for your trip</Text>
+          <Text style={styles.helper}>{transport === 'PLANE' ? airport?.iataCode : departureCity?.name} to {destinationCity?.name} · {nights} night{nights === '1' ? '' : 's'} · {adults} adult{adults === '1' ? '' : 's'}</Text>
+          {searchBusy && <View style={styles.searchingPanel}><ActivityIndicator color={BLUE} /><Text style={styles.searchingText}>Searching available {transport === 'PLANE' ? 'flights' : transport === 'BUS' ? 'buses' : 'trains'}…</Text><Text style={styles.helper}>This can take a little while.</Text></View>}
           {tickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No flights found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
+          {trainTickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No trains found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
+          {busTickets?.length === 0 && <View style={styles.searchingPanel}><Text style={styles.emptyTitle}>No buses found just yet</Text><Text style={styles.helper}>Try a wider departure period or a larger budget.</Text></View>}
           {tickets?.map((ticket, index) => <TicketCard key={`${ticket.totalPrice}-${index}`} ticket={ticket} index={index}
             selected={selectedTicket === index} onSelect={() => chooseTicket(index)} />)}
+          {trainTickets?.map((ticket, index) => <TrainTicketCard key={`${ticket.totalPrice}-${index}`} itinerary={ticket} index={index}
+            selected={selectedTrainTicket === index} onSelect={() => chooseTrainTicket(index)} />)}
+          {busTickets?.map((ticket, index) => <BusTicketCard key={`${ticket.totalPrice}-${index}`} itinerary={ticket} index={index}
+            selected={selectedBusTicket === index} onSelect={() => chooseBusTicket(index)} />)}
         </View>}
 
         <View style={styles.card}>
@@ -984,7 +1221,7 @@ export default function TripPlanningScreen() {
               <Text style={styles.helper}>{destinationCity ? `In ${destinationCity.name}, ${destinationCity.country}` : 'Choose a destination city above'}</Text>
             </View>
           </View>
-          <Text style={styles.helper}>Select a flight to use its final arrival date, or choose your first night directly.</Text>
+          <Text style={styles.helper}>Select a travel option to use its final arrival date, or choose your first night directly.</Text>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Check-in date · first night</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Choose accommodation check-in date"
@@ -993,7 +1230,7 @@ export default function TripPlanningScreen() {
               <Text style={[styles.dateValue, !checkInDate && styles.datePlaceholder]}>{checkInDate || 'Choose a date'}</Text>
               <Text style={styles.dateAction}>Change</Text>
             </Pressable>
-            {checkInSource === 'ticket' && <Text style={styles.sourceHint}>Suggested from the selected flight’s final arrival date. You can change it.</Text>}
+            {checkInSource === 'ticket' && <Text style={styles.sourceHint}>Suggested from the selected journey’s final arrival date. You can change it.</Text>}
             {checkInSource === 'calendar' && checkInDate && <Text style={styles.sourceHint}>Date chosen from the calendar.</Text>}
             <CalendarPicker label="Check-in" description="Select the first night of your stay" value={checkInDate}
               visible={checkInCalendarOpen} onSelect={(date) => {
@@ -1005,7 +1242,7 @@ export default function TripPlanningScreen() {
           </View>
           <NumberField label="Accommodation budget" value={accommodationBudget} suffix="EUR" placeholder="e.g. 450"
             onChange={(value) => { setAccommodationBudget(value); clearAccommodations(); clearSavedPlan(); }} />
-          <Text style={styles.helper}>Total budget for {nights || 'your'} night{nights === '1' ? '' : 's'}, including taxes and fees, for one adult.</Text>
+          <Text style={styles.helper}>Total budget for {nights || 'your'} night{nights === '1' ? '' : 's'}, including taxes and fees, for {adults || 'your'} adult{adults === '1' ? '' : 's'}.</Text>
           {accommodationError && <Text accessibilityRole="alert" style={styles.errorText}>{accommodationError}</Text>}
           <Pressable accessibilityRole="button" disabled={accommodationBusy} onPress={submitAccommodations}
             style={[styles.primaryButton, accommodationBusy && styles.disabled]}>
@@ -1018,7 +1255,7 @@ export default function TripPlanningScreen() {
         {(accommodationBusy || accommodations) && <View style={styles.results}>
           <Text style={styles.stepLabel}>STAY OPTIONS</Text>
           <Text style={styles.resultsTitle}>Stays in {destinationCity?.name}</Text>
-          <Text style={styles.helper}>{checkInDate} · {nights} night{nights === '1' ? '' : 's'} · one adult</Text>
+          <Text style={styles.helper}>{checkInDate} · {nights} night{nights === '1' ? '' : 's'} · {adults} adult{adults === '1' ? '' : 's'}</Text>
           {accommodationBusy && <View style={styles.searchingPanel}>
             <ActivityIndicator color={BLUE} />
             <Text style={styles.searchingText}>Finding places to stay…</Text>
@@ -1029,7 +1266,7 @@ export default function TripPlanningScreen() {
             <Text style={styles.helper}>Try another check-in date or a larger accommodation budget.</Text>
           </View>}
           {accommodations?.map((offer, index) => <AccommodationOfferCard
-            key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} />)}
+            key={`${offer.name}-${offer.checkInDate}-${index}`} offer={offer} index={index} adults={Number(adults)} />)}
         </View>}
 
         <View style={styles.card}>
@@ -1037,11 +1274,11 @@ export default function TripPlanningScreen() {
           <View style={styles.sectionHeading}>
             <View style={styles.iconBubble}><BookmarkPlus size={20} color={BLUE} /></View>
             <View style={styles.headingCopy}>
-              <Text style={styles.sectionTitle}>Save this trip</Text>
+              <Text style={styles.sectionTitle}>{group ? 'Save a group plan' : 'Save this trip'}</Text>
               <Text style={styles.helper}>Keep your search choices for another day</Text>
             </View>
           </View>
-          <Text style={styles.helper}>Your cities, departure airport, dates, nights, ticket style, and budgets will be saved. Flight and stay offers can change, so search again when you return.</Text>
+          <Text style={styles.helper}>Your transport choice, cities{transport === 'PLANE' ? ', departure airport' : ''}, dates, nights, adult count, ticket style, and budgets will be saved{group ? ' for group members' : ''}. Tickets and stay offers can change, so search again when you return.</Text>
           <View style={styles.field}>
             <Text style={styles.fieldLabel}>Plan title</Text>
             <TextInput accessibilityLabel="Plan title" autoCapitalize="sentences" maxLength={120}
@@ -1055,7 +1292,7 @@ export default function TripPlanningScreen() {
             <TextInput accessibilityLabel="Plan description" maxLength={2000} multiline
               onFocus={() => setDescriptionFocused(true)} onBlur={() => setDescriptionFocused(false)}
               onChangeText={(value) => { setPlanDescription(value); clearSavedPlan(); }}
-              placeholder="Add a note for your future self"
+              placeholder={group ? 'Add a note for your group' : 'Add a note for your future self'}
               placeholderTextColor="#8892A2" style={[styles.saveInput, styles.saveDescription, descriptionFocused && styles.saveInputFocused]}
               textAlignVertical="top" value={planDescription} />
           </View>
@@ -1092,6 +1329,12 @@ export default function TripPlanningScreen() {
                 <Text style={[styles.placeCategoryText, placeCategory === category.id && styles.placeCategoryTextSelected]}>{category.label}</Text>
               </Pressable>)}
             </View>
+            {!placesBusy && !placesError && !placesByCategory[placeCategory] &&
+              <Pressable accessibilityRole="button" onPress={() => { void loadPlaces(destinationCity, placeCategory); }}
+                style={styles.placeLoadMore}>
+                <Search size={17} color={BLUE} />
+                <Text style={styles.placeLoadMoreText}>Find {PLACE_CATEGORIES.find((item) => item.id === placeCategory)?.label.toLowerCase()}</Text>
+              </Pressable>}
             {placesBusy && loadingPlacePage === 0 && <View accessibilityLiveRegion="polite" style={styles.placeStatus}>
               <ActivityIndicator color={BLUE} />
               <Text style={styles.helper}>Finding places around {destinationCity.name}…</Text>
@@ -1145,6 +1388,17 @@ const styles = StyleSheet.create({
   heroTitle: { color: '#fff', fontSize: 34, fontWeight: '800', letterSpacing: -1.2, marginTop: 22 },
   heroSubtitle: { color: '#E8F2FF', fontSize: 15, lineHeight: 21, marginTop: 6, maxWidth: 270 },
   heroRoute: { position: 'absolute', right: 25, bottom: 30, width: 105, flexDirection: 'row', alignItems: 'center' },
+  groupCard: { backgroundColor: '#fff', borderRadius: 22, borderWidth: 1, borderColor: '#E9EEF4', padding: 16,
+    flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+  groupIcon: { width: 42, height: 42, borderRadius: 14, backgroundColor: '#EAF3FF', alignItems: 'center', justifyContent: 'center' },
+  groupCopy: { flex: 1, minWidth: 160 },
+  groupActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  groupButton: { minHeight: 42, borderRadius: 13, backgroundColor: BLUE, paddingHorizontal: 15,
+    alignItems: 'center', justifyContent: 'center' },
+  groupButtonText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  groupSecondaryButton: { minHeight: 42, borderRadius: 13, borderWidth: 1, borderColor: '#B5D1FA',
+    paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center' },
+  groupSecondaryText: { color: BLUE, fontWeight: '800', fontSize: 13 },
   routeDot: { width: 12, height: 12, borderWidth: 3, borderColor: '#fff', borderRadius: 6 },
   routeLine: { flex: 1, borderTopWidth: 2, borderStyle: 'dashed', borderColor: '#fff', marginHorizontal: 8 },
   card: { backgroundColor: '#fff', borderRadius: 26, padding: 20, gap: 17, borderWidth: 1, borderColor: '#E9EEF4' },

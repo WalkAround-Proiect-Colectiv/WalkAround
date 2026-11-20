@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
-import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Keyboard, PanResponder, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
 import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
+import PoiFilters from './PoiFilters';
+import type { PoiFilter, EventTypeFilter } from './filters';
+import { SlidersHorizontal } from 'lucide-react-native';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
@@ -23,8 +26,9 @@ import { jsonPost } from '../login/api/http';
 import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
 import type { RouteInstruction } from '../audio-directions/phrases';
 import { useAudioDirections } from '../hooks/useAudioDirections';
+import { reversePlaceName } from './placeName';
 
-type LatLng = { lat: number; lng: number };
+type LatLng = { lat: number; lng: number; name?: string };
 type RouteStop = { id: string; point: LatLng };
 
 type PoiSearchResult = {
@@ -32,6 +36,8 @@ type PoiSearchResult = {
   detail: string;
   coordinates: [longitude: number, latitude: number];
 };
+
+const SEARCH_HANDLE_HEIGHT = 34;
 
 async function lookupPlaces(query: string, camera: { center: [number, number]; zoom: number }, signal: AbortSignal) {
   const params = new URLSearchParams({
@@ -200,23 +206,90 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [selectedPoi, setSelectedPoi] = useState<MapPoi | null>(null);
+  const [poiCandidates, setPoiCandidates] = useState<MapPoi[]>([]);
+  const [poiCandidateIndex, setPoiCandidateIndex] = useState(0);
+  const poiCandidatesRef = useRef<MapPoi[]>([]);
+  const poiCandidateSignatureRef = useRef('');
+  const poiCandidateIndexRef = useRef(0);
   const [selectedPinScreenPoint, setSelectedPinScreenPoint] = useState<ScreenPoint | null>(null);
   const [mapLayout, setMapLayout] = useState<{ width: number; height: number } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [poiFilter, setPoiFilter] = useState<PoiFilter>('all');
+  const [eventType, setEventType] = useState<EventTypeFilter>('all');
+  const [poiDetailsHeight, setPoiDetailsHeight] = useState(0);
 
   const mapEvents = useMapEvents({
+    poiFilter,
+    eventType,
     center: camera.center,
     signedIn: Boolean(session),
     mapReady,
   });
 
   const [routeMode, setRouteMode] = useState(false);
-  const [routeStart, setRouteStart] = useState<{lat: number, lng: number} | null>(null);
-  const [routeEnd, setRouteEnd] = useState<{lat: number, lng: number} | null>(null);
+  const [routeStart, setRouteStart] = useState<LatLng | null>(null);
+  const [routeEnd, setRouteEnd] = useState<LatLng | null>(null);
   const [avoidDanger, setAvoidDanger] = useState(false);
   const [routeError, setRouteError] = useState<RouteError | null>(null);
   const [activeRouteField, setActiveRouteField] = useState<string | null>(null);
   const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  useEffect(() => {
+    if (!routeStart || routeStart.name) return;
+    const controller = new AbortController();
+    void reversePlaceName(routeStart.lat, routeStart.lng, controller.signal)
+      .then(place => {
+        if (place) setRouteStart(current => current?.lat === routeStart.lat && current.lng === routeStart.lng
+          ? { ...current, name: place.name }
+          : current);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [routeStart]);
+
+  useEffect(() => {
+    if (!routeEnd || routeEnd.name) return;
+    const controller = new AbortController();
+    void reversePlaceName(routeEnd.lat, routeEnd.lng, controller.signal)
+      .then(place => {
+        if (place) setRouteEnd(current => current?.lat === routeEnd.lat && current.lng === routeEnd.lng
+          ? { ...current, name: place.name }
+          : current);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [routeEnd]);
+
+  useEffect(() => {
+    if (routeStops.length === 0) return;
+    const controller = new AbortController();
+    void Promise.all(routeStops.map(async stop => {
+      if (stop.point.name) return { id: stop.id, name: stop.point.name };
+      const place = await reversePlaceName(stop.point.lat, stop.point.lng, controller.signal);
+      return { id: stop.id, name: place?.name ?? null };
+    })).then(results => {
+        setRouteStops(current => {
+            let changed = false;
+
+            const next = current.map(stop => {
+                const resolved = results.find(result => result.id === stop.id);
+
+                if (resolved?.name && !stop.point.name) {
+                    changed = true;
+                    return {
+                        ...stop,
+                        point: { ...stop.point, name: resolved.name },
+                    };
+                }
+
+                return stop;
+            });
+
+            return changed ? next : current;
+        });
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [routeStops]);
   const stopIdCounter = useRef(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
   const [routeInstructions, setRouteInstructions] = useState<RouteInstruction[]>([]);
@@ -257,8 +330,7 @@ export default function MapScreen() {
         setCoordinateError('That location is outside the downloaded map coverage (Romania).');
         return;
       }
-      setSearchedLocation([longitude, latitude]);
-      setSelectedZoneInfo(null);
+      handleMapCoordinateSelect([longitude, latitude]);
       map.current?.goTo({ center: [longitude, latitude], zoom: 14 });
       return;
     }
@@ -335,6 +407,13 @@ export default function MapScreen() {
   }
 
   function handleMapCoordinateSelect([longitude, latitude]: [number, number]) {
+    if (!isInCoverage(longitude, latitude)) {
+      setCoordinateError('That location is outside the downloaded map coverage (Romania).');
+      return;
+    }
+
+    setMobileSearchExpanded(false);
+    Keyboard.dismiss();
     poiSearchRequest.current += 1;
     setSearchingPoi(false);
     setPoiResults([]);
@@ -342,6 +421,21 @@ export default function MapScreen() {
     setCoordinateQuery(`${latitude.toFixed(6)}, ${longitude.toFixed(6)}`);
     setCoordinateError(null);
     setSelectedZoneInfo(null);
+    setPoiCandidates([]);
+    poiCandidatesRef.current = [];
+    poiCandidateSignatureRef.current = '';
+    poiCandidateIndexRef.current = 0;
+    setPoiCandidateIndex(0);
+    mapEvents.clearSelection();
+    setSelectedPoi({
+      id: 'selected-coordinate',
+      name: 'Selected location',
+      category: `Latitude ${latitude.toFixed(6)}, longitude ${longitude.toFixed(6)}`,
+      sources: '',
+      attribution: '',
+      licenses: '',
+      coordinates: [longitude, latitude],
+    });
   }
 
   function selectPoiResult(result: PoiSearchResult) {
@@ -353,7 +447,7 @@ export default function MapScreen() {
       name: result.name,
       category: result.detail || 'Search Result',
       coordinates: result.coordinates
-    } as any);
+    } as MapPoi);
   }
 
   useEffect(() => {
@@ -670,24 +764,67 @@ export default function MapScreen() {
 
   function handleEventPinPress(pinId: string) {
     setSelectedPoi(null);
+    setPoiCandidates([]);
+    poiCandidatesRef.current = [];
+    poiCandidateSignatureRef.current = '';
+    poiCandidateIndexRef.current = 0;
+    setPoiCandidateIndex(0);
+    setSearchedLocation(null);
     setSelectedZoneInfo(null);
     mapEvents.selectPin(pinId);
   }
 
-  function handlePoiSelect(poi: MapPoi | null) {
+  function applyPoiCandidate(poi: MapPoi, coordinates?: [number, number]) {
+    const coordsToUse = poi.coordinates || coordinates || lastClickedCoords.current || camera.center;
+    setSearchedLocation(coordsToUse);
+    setSelectedPoi({
+      ...poi,
+      coordinates: coordsToUse,
+    });
+    mapEvents.clearSelection();
+  }
+
+  function selectPoiCandidate(delta: number) {
+    const candidates = poiCandidatesRef.current;
+    if (candidates.length < 2) return;
+    const nextIndex = (poiCandidateIndexRef.current + delta + candidates.length) % candidates.length;
+    poiCandidateIndexRef.current = nextIndex;
+    setPoiCandidateIndex(nextIndex);
+    applyPoiCandidate(candidates[nextIndex]);
+  }
+
+  function handlePoiSelect(poi: MapPoi | null, coordinates?: [number, number], candidates: MapPoi[] = []) {
     if (poi) {
-      setTimeout(() => {
-        const coordsToUse = lastClickedCoords.current || camera.center;
-        setSelectedPoi({
-          ...poi,
-          coordinates: coordsToUse
-        } as any);
-        mapEvents.clearSelection();
-      }, 0);
+      setMobileSearchExpanded(false);
+      Keyboard.dismiss();
+      const uniqueCandidates = candidates.length ? candidates : [poi];
+      const signature = uniqueCandidates.map(candidate => candidate.id).sort().join('|');
+      let targetIndex = uniqueCandidates.findIndex(candidate => candidate.id === poi.id);
+      if (targetIndex < 0) targetIndex = 0;
+
+      if (uniqueCandidates.length > 1 && poiCandidateSignatureRef.current === signature) {
+        const selectedIndex = uniqueCandidates.findIndex(candidate => candidate.id === selectedPoi?.id);
+        targetIndex = selectedIndex >= 0
+          ? (selectedIndex + 1) % uniqueCandidates.length
+          : targetIndex;
+      }
+
+      poiCandidatesRef.current = uniqueCandidates;
+      poiCandidateSignatureRef.current = uniqueCandidates.length > 1 ? signature : '';
+      poiCandidateIndexRef.current = targetIndex;
+      setPoiCandidates(uniqueCandidates);
+      setPoiCandidateIndex(targetIndex);
+      applyPoiCandidate(uniqueCandidates[targetIndex], coordinates);
     }
     else
     {
       setSelectedPoi(null);
+      setPoiCandidates([]);
+      poiCandidatesRef.current = [];
+      poiCandidateSignatureRef.current = '';
+      poiCandidateIndexRef.current = 0;
+      setPoiCandidateIndex(0);
+      setSearchedLocation(null);
     }
   }
 
@@ -746,6 +883,12 @@ export default function MapScreen() {
     setZoneModalVisible(true);
   }
 
+  const searchPanelOffset = compactSearchLayout && mobileSearchExpanded
+    ? mobileSearchHeight + 12
+    : Math.max(insets.bottom, 12) + 64;
+
+  const screenBottomOffset = (selectedPoi ? poiDetailsHeight : 0) + searchPanelOffset;
+
   return <View style={styles.screen}>
     <View
         style={styles.map}
@@ -763,6 +906,7 @@ export default function MapScreen() {
               key={attempt}
               ref={map}
               style={style}
+              poiFilter={poiFilter}
               userLocation={userLocation}
               searchedLocation={searchedLocation}
               zoomLevel={camera.zoom}
@@ -824,7 +968,7 @@ export default function MapScreen() {
 
             <Pressable onPress={() => setActiveRouteField('start')} style={[styles.routeInput, activeRouteField === 'start' && styles.routeInputActive]}>
               <View style={[styles.routeDot, { backgroundColor: '#0065EB' }]} />
-              <Text style={styles.routeInputText}>{routeStart ? `Start: ${routeStart.lat.toFixed(4)}, ${routeStart.lng.toFixed(4)}` : 'Tap map to select start point'}</Text>
+              <Text style={styles.routeInputText}>{routeStart ? `Start: ${routeStart.name || 'Selected starting location'}` : 'Tap map to select start point'}</Text>
             </Pressable>
 
             {routeStops.map((stop, index) => (
@@ -834,7 +978,7 @@ export default function MapScreen() {
                       style={[styles.routeInput, styles.routeStopInput, activeRouteField === stop.id && styles.routeInputActive]}>
                     <View style={[styles.routeDot, { backgroundColor: '#9157a2' }]} />
                     <Text style={styles.routeInputText}>
-                      {`Stop ${index + 1}: ${stop.point.lat.toFixed(4)}, ${stop.point.lng.toFixed(4)}`}
+                      {`Stop ${index + 1}: ${stop.point.name || 'Selected stop location'}`}
                     </Text>
                   </Pressable>
                   <Pressable
@@ -854,7 +998,7 @@ export default function MapScreen() {
 
             <Pressable onPress={() => setActiveRouteField('end')} style={[styles.routeInput, activeRouteField === 'end' && styles.routeInputActive]}>
               <View style={[styles.routeDot, { backgroundColor: '#d93838' }]} />
-              <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.lat.toFixed(4)}, ${routeEnd.lng.toFixed(4)}` : 'Tap map to select destination'}</Text>
+              <Text style={styles.routeInputText}>{routeEnd ? `Dest: ${routeEnd.name || 'Selected destination'}` : 'Tap map to select destination'}</Text>
             </Pressable>
 
             <View style={styles.avoidDangerRow}>
@@ -933,9 +1077,7 @@ export default function MapScreen() {
           </Pressable>
       )}
 
-        <View style={[styles.leftControlsOverlay, { bottom: compactSearchLayout && mobileSearchExpanded
-                ? mobileSearchHeight + 12
-                : Math.max(insets.bottom, 12) + 64 }]}>
+        <View style={[styles.leftControlsOverlay, { bottom: searchPanelOffset }]}>
             {isNavigating && session && (
                 <Pressable
                     accessibilityRole="button"
@@ -981,12 +1123,19 @@ export default function MapScreen() {
             </Pressable>
         </View>
 
+      <PoiFilters visible={filtersOpen} poiFilter={poiFilter} eventType={eventType} signedIn={Boolean(session)}
+        onClose={() => setFiltersOpen(false)} onChange={(poi, type) => {
+          setPoiFilter(poi); setEventType(type); setSelectedPoi(null); mapEvents.clearSelection();
+        }} />
       <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
                    accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
           {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
         </Pressable>
         {menuOpen && <View style={styles.menuPanel}>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); setFiltersOpen(true); }} style={styles.menuItem}>
+            <SlidersHorizontal size={20} color="#0065EB" /><Text style={styles.menuItemText}>Map filters{poiFilter !== 'all' || eventType !== 'all' ? ' • Active' : ''}</Text>
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={() => setMenuOpen(false)} style={styles.menuItem}>
             <Compass size={20} color="#0065EB" /><Text style={styles.menuItemText}>Explore map</Text>
           </Pressable>
@@ -1046,16 +1195,52 @@ export default function MapScreen() {
         {error && <Tool label="Retry map" icon={RotateCcw} onPress={retryMap} />}
       </View>}
     </View>
-    {selectedPoi && <View style={styles.poiDetails}>
+    {selectedPoi && <View
+      onLayout={event => {
+        const h = event.nativeEvent.layout.height;
+        setPoiDetailsHeight(prev => (prev === h ? prev : h));
+      }}
+      style={[
+        styles.poiDetails,
+        compactSearchLayout && !mobileSearchExpanded && {
+          paddingBottom: Math.max(insets.bottom, 4) + SEARCH_HANDLE_HEIGHT + 4,
+        },
+      ]}>
       <View style={styles.poiHeading}>
         <Text accessibilityRole="header" style={styles.poiName}>{selectedPoi.name}</Text>
+        {poiCandidates.length > 1 && (
+          <View style={styles.poiPager} accessibilityRole="group" accessibilityLabel="Nearby POIs">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Previous nearby POI"
+              onPress={() => selectPoiCandidate(-1)}
+              style={styles.poiPagerButton}
+            >
+              <Text style={styles.poiPagerArrow}>‹</Text>
+            </Pressable>
+            <Text style={styles.poiPagerCount}>{poiCandidateIndex + 1}/{poiCandidates.length}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Next nearby POI"
+              onPress={() => selectPoiCandidate(1)}
+              style={styles.poiPagerButton}
+            >
+              <Text style={styles.poiPagerArrow}>›</Text>
+            </Pressable>
+          </View>
+        )}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Tool
               label="Calculate Route"
               icon={Route}
               onPress={() => {
-                const destCoords = (selectedPoi as any).coordinates || searchedLocation || camera.center;
+                const destCoords = selectedPoi.coordinates || searchedLocation || camera.center;
                 setSelectedPoi(null);
+                setPoiCandidates([]);
+                poiCandidatesRef.current = [];
+                poiCandidateSignatureRef.current = '';
+                poiCandidateIndexRef.current = 0;
+                setPoiCandidateIndex(0);
                 setCoordinateQuery('');
                 setPoiResults([]);
                 setSearchedLocation(null);
@@ -1069,7 +1254,7 @@ export default function MapScreen() {
                 {
                   setRouteStart({ lat: camera.center[1], lng: camera.center[0] });
                 }
-                setRouteEnd({ lat: destCoords[1], lng: destCoords[0] });
+                setRouteEnd({ lat: destCoords[1], lng: destCoords[0], name: selectedPoi.name });
                 setActiveRouteField(null);
               }}
           />
@@ -1078,6 +1263,11 @@ export default function MapScreen() {
               icon={X}
               onPress={() => {
                 setSelectedPoi(null);
+                setPoiCandidates([]);
+                poiCandidatesRef.current = [];
+                poiCandidateSignatureRef.current = '';
+                poiCandidateIndexRef.current = 0;
+                setPoiCandidateIndex(0);
                 setCoordinateQuery('');
                 setPoiResults([]);
                 setSearchedLocation(null);
@@ -1198,9 +1388,7 @@ export default function MapScreen() {
         </View>
     )}
 
-    <View style={[styles.bottomOverlayArea, { bottom: compactSearchLayout && mobileSearchExpanded
-          ? mobileSearchHeight + 12
-          : Math.max(insets.bottom, 12) + 64 }]}>
+    <View style={[styles.bottomOverlayArea, { bottom: screenBottomOffset }]}>
       {isSelectingLocation ? (
           <View style={styles.actionButtonsRow}>
             <Pressable style={styles.cancelButton} onPress={() => setIsSelectingLocation(false)}><Text style={styles.cancelText}>Cancel</Text></Pressable>
@@ -1222,11 +1410,13 @@ export default function MapScreen() {
             }}
         />
     )}
-    <View pointerEvents="none" style={[styles.coordinateBadge, { bottom: Math.max(insets.bottom, 12) + 10 }]}>
-      <MapPin size={13} color="#0065EB" />
-      <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
-      {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
-    </View>
+    {!selectedPoi && (
+      <View pointerEvents="none" style={[styles.coordinateBadge, { bottom: Math.max(insets.bottom, 12) + 10 }]}>
+        <MapPin size={13} color="#0065EB" />
+        <Text style={styles.coordinates}>{camera.center[1].toFixed(4)}, {camera.center[0].toFixed(4)} · z{camera.zoom.toFixed(1)}</Text>
+        {locating && <ActivityIndicator size="small" color="#0065EB" accessibilityLabel="Finding your location" />}
+      </View>
+    )}
     {session && (
         <SavedRoutesModal
             visible={showSavedRoutes}
@@ -1255,6 +1445,10 @@ const styles = StyleSheet.create({
   poiDetails: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
   poiHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   poiName: { flex: 1, fontSize: 18, fontWeight: '600', color: '#363d47' },
+  poiPager: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  poiPagerButton: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: '#dce2e9', alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff' },
+  poiPagerArrow: { color: '#0065EB', fontSize: 24, lineHeight: 26, marginTop: -2 },
+  poiPagerCount: { minWidth: 38, textAlign: 'center', color: '#626b78', fontSize: 12, fontWeight: '600' },
   poiDescription: { maxHeight: 110 },
   poiCategory: { color: '#0065EB', fontSize: 14, marginBottom: 6, textTransform: 'capitalize' },
   poiMetadata: { color: '#626b78', fontSize: 12, lineHeight: 18 },
@@ -1279,9 +1473,9 @@ const styles = StyleSheet.create({
   searchAreaCompact: { left: 12, right: 12 },
   searchAreaExpanded: { left: 0, right: 0, paddingHorizontal: 16, paddingBottom: 8, borderTopLeftRadius: 20, borderTopRightRadius: 20, backgroundColor: '#ffffff', borderWidth: 1, borderColor: '#d8e0ea', elevation: 8, shadowColor: '#14243f', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
   desktopSearchGroup: { borderRadius: 16, borderWidth: 1, borderColor: '#d8e0ea', backgroundColor: '#ffffff', overflow: 'hidden' },
-  mobileSearchHandle: { height: 34, alignItems: 'center', justifyContent: 'center' },
+  mobileSearchHandle: { height: SEARCH_HANDLE_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   mobileSearchHandleExpanded: { height: 20 },
-  mobileSearchHandleTarget: { width: 90, height: 34, alignItems: 'center', justifyContent: 'center' },
+  mobileSearchHandleTarget: { width: 90, height: SEARCH_HANDLE_HEIGHT, alignItems: 'center', justifyContent: 'center' },
   mobileSearchHandleTargetExpanded: { height: 20 },
   mobileSearchHandleCollapsed: { justifyContent: 'flex-end', paddingBottom: 1 },
   mobileSearchGrip: { width: 78, height: 5, borderRadius: 3, backgroundColor: '#aab5c2' },

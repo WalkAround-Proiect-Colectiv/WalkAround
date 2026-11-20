@@ -50,11 +50,12 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
             List<String> arrivalAirports,
             LocalDate date,
             BigDecimal maxPrice,
+            int adults,
             LocalTime earliestDeparture,
             LocalTime latestDeparture
     ) {
         return search(2, departureAirports, arrivalAirports, date, null,
-                maxPrice, null, earliestDeparture, latestDeparture);
+                maxPrice, adults, null, earliestDeparture, latestDeparture);
     }
 
     @Override
@@ -64,11 +65,12 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
             LocalDate outboundDate,
             LocalDate returnDate,
             BigDecimal maxPrice,
+            int adults,
             LocalTime earliestDeparture,
             LocalTime latestDeparture
     ) {
         return search(1, List.of(departureAirport), arrivalAirports,
-                outboundDate, returnDate, maxPrice, null, earliestDeparture, latestDeparture);
+                outboundDate, returnDate, maxPrice, adults, null, earliestDeparture, latestDeparture);
     }
 
     @Override
@@ -78,10 +80,11 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
             LocalDate outboundDate,
             LocalDate returnDate,
             BigDecimal maxPrice,
+            int adults,
             String departureToken
     ) {
         return search(1, List.of(departureAirport), arrivalAirports,
-                outboundDate, returnDate, maxPrice, departureToken, null, null);
+                outboundDate, returnDate, maxPrice, adults, departureToken, null, null);
     }
 
     private List<FlightOffer> search(
@@ -91,6 +94,7 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
             LocalDate outboundDate,
             LocalDate returnDate,
             BigDecimal maxPrice,
+            int adults,
             String departureToken,
             LocalTime earliestDeparture,
             LocalTime latestDeparture
@@ -107,6 +111,7 @@ public class SerpApiFlightSearchProvider implements FlightSearchProvider {
                                 .queryParam("arrival_id", String.join(",", arrivalAirports))
                                 .queryParam("outbound_date", outboundDate)
                                 .queryParam("currency", CURRENCY)
+                                .queryParam("adults", adults)
                                 .queryParam("max_price", maxPrice.toBigInteger())
                                 .queryParam("api_key", "{apiKey}");
 

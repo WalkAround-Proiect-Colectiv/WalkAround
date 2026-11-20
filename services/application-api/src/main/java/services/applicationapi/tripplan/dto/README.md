@@ -1,6 +1,20 @@
 # Trip planning request and response records
 
+`TrainSearchRequest` carries two city/country pairs, total EUR budget, local departure interval, staying nights, and ticket option. `TrainItineraryResponse` contains the combined fare and outbound/return `TrainJourneyResponse`. Journeys contain `TrainLegResponse` and `TrainTransferResponse` lists. `TrainStopResponse` holds transfer position IDs and optional resolved station, city and country. Missing provider details remain null or empty.
+
+Train itineraries identify `source` (`OMIO` or `BILO`). Bilo offers include the original total fare and currency, estimated-fare and partial-catalog flags, and optional outbound/return HTTPS links. `totalPrice` stays in EUR for sorting and budget comparison; for RON Bilo fares it is an approximation based on the Frankfurter rate fetched for that search. Bilo pairs are returned only for `TWO_ONE_WAY` requests because its search API has no round-trip fare.
+
+`BusSearchRequest` carries the two city/country pairs, total EUR budget, local departure datetime interval, staying nights, and ticket option. Bean Validation checks shape and bounds before `BusSearchServiceImpl` validates real cities and dates. `BusItineraryResponse` contains the combined fare and outbound/return `BusJourneyResponse` values, each with a list of `BusLegResponse` values.
+
+Bus journey responses also carry optional provider logo, stop city/country, tickets-left and split-ticket fields. Legs include time zones and duration. `BusTransferResponse` identifies the preceding leg and optional wait duration so the frontend can place connections correctly. These are additive fields; missing Scrappa values stay null or empty.
+
+Each transfer has optional `fromStop` and `toStop` values of type `BusStopResponse`. Position IDs come from the search result; names, cities and country codes are resolved through Omio Places after result selection. Unresolved positions retain their ID and leave descriptive fields null.
+
 These records form the JSON contract for the trip-planning controllers. Keep their field names and meanings stable when changing a provider or service implementation.
+
+Chat message responses include `messageType` and an `image` object only for `IMAGE` messages. `GroupChatImageResponse` supplies a short-lived signed URL and dimensions; the ImageKit file ID and private key are never sent to clients. An image's optional caption remains in the message `body`.
+
+Flight, Bus, Train, accommodation, and saved-plan requests accept `adults` from 1 to 9. Omitted `adults` defaults to 1 so earlier clients keep their behavior. Budgets are totals for the requested party, and each provider receives that party size for every priced leg or property-details request.
 
 | Record | Meaning |
 | --- | --- |
@@ -12,19 +26,31 @@ These records form the JSON contract for the trip-planning controllers. Keep the
 | `CountryHotlineResponse` | EU country code and hotlines grouped by source record ID. Each hotline has typed numbers, organization, category, service details, verification context, source hostname, and evidence links. |
 | `NewsArticleResponse` | Currents article title, description, publisher URL, optional image/author/language/categories, publication string, and provider ID. Only safe HTTPS article URLs are returned. |
 | `DestinationWeatherResponse` | Validated city/country, destination timezone, and daily local dates with WMO weather codes, Celsius high/low, precipitation chance/amount, and maximum wind speed. |
-| `FlightSearchRequest` | Origin IATA code, destination city/country, EUR budget, inclusive local departure interval, nights, and ticket option. Bean Validation covers individual fields; the service validates relationships between fields and database/provider existence. |
+| `FlightSearchRequest` | Origin IATA code, destination city/country, total EUR budget, inclusive local departure interval, nights, ticket option, and 1 to 9 adults. Bean Validation covers individual fields; the service validates relationships between fields and database/provider existence. |
 | `FlightItineraryResponse` | Ticket option, EUR total price, outbound and return segment lists, and Google Flights `viewUrls`. |
 | `FlightSegmentResponse` | One flight segment, including airport codes, local provider time strings, flight number, and airline. Multiple segments represent connections. |
 | `TicketOption` | `ROUND_TRIP` or `TWO_ONE_WAY`. |
-| `AccommodationSearchRequest` | Selected GeoNames city name and country code, first booked night, staying nights, and total EUR budget. |
+| `TransportMode` | Saved-plan transport choice: `PLANE`, `BUS`, or `TRAIN`. |
+| `AccommodationSearchRequest` | Selected GeoNames city name and country code, first booked night, staying nights, total EUR budget, and 1 to 9 adults. |
 | `AccommodationOfferResponse` | Property name and type, full-stay EUR price, dates, optional property website, description, address, rating, review count, amenities, room type names, and booking options. |
 | `AccommodationBookingOptionResponse` | Booking source, tax-and-fee-inclusive full-stay EUR price, and HTTPS booking-site URL. |
-| `SaveTripPlanRequest` | Title, optional description, origin airport, GeoNames departure city and country code, destination city and country code, flight search inputs, EUR flight budget, and EUR accommodation budget. It has no accommodation check-in date or selected provider offer. |
-| `TripPlanResponse` | Saved plan ID, departure city/country code and other stored preset fields, and creation time. The owner ID is not exposed or accepted from the client. |
+| `SaveTripPlanRequest` | Title, optional description, transport mode, Plane-only origin airport, GeoNames departure and destination cities/country codes, departure interval, nights, 1 to 9 adults, ticket option, EUR transport and accommodation budgets. It has no accommodation check-in date or selected provider offer. |
+| `TripPlanResponse` | Saved plan ID, nullable group ID, transport mode, optional origin airport, adult count, current-group-plan marker, other stored preset fields, and creation time. The owner user ID is not exposed or accepted from the client. |
+| `TripGroupResponse` | Group ID, name, optional description, the requesting member's role, optional member-protected picture URL, and creation time. |
+| `TripGroupInviteResponse` | New invitation ID, raw one-use token, and expiry. Returned only at creation. |
+| `TripGroupInviteSummary` | Admin-only invitation metadata without the token. |
+| `TripGroupInviteTokenRequest` | Validated token in a JSON body for preview and acceptance. |
+| `TripGroupInvitePreview` | Group name, expiry, and photo availability for an active invitation. The photo itself is fetched through a token-protected request. |
 
 For `ROUND_TRIP`, `viewUrls` contains one search-page URL. For `TWO_ONE_WAY`, the first URL is for the outbound search and the second is for the return search. These URLs can point to a search page rather than the exact displayed offer. No DTO contains a booking token or a purchased-ticket record.
 
 Accommodation offers are filtered using SerpApi's tax-and-fee-inclusive total for the entire stay. The provider retrieves details for selected properties. `bookingOptions` contain source-specific prices and booking links within the budget; they may be empty when SerpApi supplies no comparable rate. `propertyWebsiteUrl` is a property website when SerpApi supplies a safe HTTPS link; it may not display the same rate or support direct booking.
 
-Saved plans persist the parameters needed to repeat the search later. `departureCity` and `departureCountryCode` let the user request airports in the same departure city. The selected `originAirport` must appear in that city's local airport results. `flightBudget` and `accommodationBudget` are separate total EUR limits. `departureFrom` and `departureUntil` are local datetimes, matching `FlightSearchRequest`. The accommodation check-in date is derived later from the selected flight and is not saved.
+Saved plans persist the parameters needed to repeat a Plane, Bus, or Train search later. `departureCity` and `departureCountryCode` are present for every mode. For Plane, `originAirport` must appear in that city's local airport results; for Bus and Train it must be absent. `transportBudget` and `accommodationBudget` are separate total EUR limits. `departureFrom` and `departureUntil` are local datetimes. The accommodation check-in date is derived later from a selected itinerary and is not saved.
 `HistoricalWeatherResponse` contains the selected check-in date and night count, destination timezone, and one inclusive date range with daily temperature, weather code, precipitation, and wind values for each compared year. Historical precipitation probability is unavailable.
+
+# Group chat DTOs
+
+`GroupChatMessageRequest` requires a client-generated UUID `messageId` and a nonblank body of at most 2,000 characters. `GroupChatMessageResponse` includes that ID, conversation ID, server-assigned sequence, sender ID and display name, body, and creation time. `GroupChatSocketTicket` contains the short-lived group-scoped WebSocket token and its expiry. The token is returned only to an authenticated current group member and is never part of a message response.
+
+For a poll, `GroupChatMessageRequest` adds `messageType: "POLL"` and an `options` list. The response includes `GroupChatPollResponse` with option IDs, labels, vote counts, revision, optional close time, and the current viewer's selected option. `GroupChatPollVoteRequest` selects one option ID. `GroupChatEventResponse` pairs an event sequence with the current message state for reconnect catch-up; `GroupChatCursorResponse` supplies the starting cursor. Text messages omit options and return a null poll.

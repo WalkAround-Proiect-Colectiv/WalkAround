@@ -1,19 +1,34 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Text, View } from 'react-native';
 import { LogIn } from 'lucide-react-native';
 import AuthLayout, { authColors, authStyles as styles } from '../../auth/components/AuthLayout';
-import { Link, Redirect } from 'expo-router';
+import { Link, useRouter } from 'expo-router';
 import GoogleAuthButton from '../../auth/components/GoogleAuthButton';
 import { environment } from '../../config/environment';
 import { signIn } from '../api/session';
 import { useSession } from '../components/SessionProvider';
+import { readPendingGroupInvite } from '../../tripplan/api/pendingGroupInvite';
 
 export default function LoginScreen() {
   const { session, ready } = useSession();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
   const configured = Boolean(environment.googleWebClientId && environment.apiBaseUrl);
+
+  useEffect(() => {
+    if (!ready || !session) return;
+    let active = true;
+    void readPendingGroupInvite()
+      .then((token) => {
+        if (active) router.replace(token ? '/trip-group-invite' : '/map');
+      })
+      .catch(() => {
+        if (active) router.replace('/map');
+      });
+    return () => { active = false; };
+  }, [ready, session, router]);
 
   async function login(idToken: string) {
     if (pending.current) return;
@@ -26,7 +41,7 @@ export default function LoginScreen() {
   }
 
   if (!ready) return <AuthLayout><ActivityIndicator color={authColors.primary} accessibilityLabel="Restoring session" /><Text style={styles.description}>Getting your account ready…</Text></AuthLayout>;
-  if (session) return <Redirect href="/map" />;
+  if (session) return <AuthLayout><ActivityIndicator color={authColors.primary} /></AuthLayout>;
   return (
     <AuthLayout>
       <View style={styles.intro}>

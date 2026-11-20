@@ -1,6 +1,7 @@
 package services.realtimeservice.notifications;
 
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
@@ -23,7 +24,7 @@ public class NotificationHandshakeInterceptor implements HandshakeInterceptor {
 
     private final JwtDecoder jwtDecoder;
 
-    public NotificationHandshakeInterceptor(JwtDecoder notificationJwtDecoder) {
+    public NotificationHandshakeInterceptor(@Qualifier("notificationJwtDecoder") JwtDecoder notificationJwtDecoder) {
         this.jwtDecoder = notificationJwtDecoder;
     }
 
