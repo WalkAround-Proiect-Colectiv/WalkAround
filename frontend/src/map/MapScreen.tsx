@@ -1179,7 +1179,7 @@ export default function MapScreen() {
             <CalendarDays size={20} color="#0065EB" /><Text style={styles.menuItemText}>Upcoming events</Text>
           </Pressable>
           <Pressable accessibilityRole="button" accessibilityLabel={session ? 'Account' : 'Sign in'}
-                     onPress={() => { setMenuOpen(false); router.push(session ? '/home' : '/login'); }} style={styles.menuItem}>
+                     onPress={() => { setMenuOpen(false); router.push(session ? '/account' : '/login'); }} style={styles.menuItem}>
             <UserRound size={20} color="#0065EB" />
             <Text style={styles.menuItemText}>{session ? 'Account' : 'Sign in'}</Text>
           </Pressable>

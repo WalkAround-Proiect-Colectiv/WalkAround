@@ -43,7 +43,7 @@ function PreferencesContent() {
   function leave() {
     if (saving.current) return;
     if (dirty) setConfirmLeave(true);
-    else router.replace('/home');
+    else router.replace('/account');
   }
 
   function toggle(id: string) {
@@ -126,7 +126,7 @@ function PreferencesContent() {
         <Text accessibilityRole="header" style={styles.heading}>Discard your changes?</Text>
         <Text style={styles.description}>Your unsaved selections will be lost.</Text>
         <Pressable accessibilityRole="button" onPress={() => setConfirmLeave(false)} style={styles.primary}><Text style={styles.primaryText}>Keep editing</Text></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => { setConfirmLeave(false); router.replace('/home'); }} style={styles.clearButton}><Text style={styles.discard}>Discard changes</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setConfirmLeave(false); router.replace('/account'); }} style={styles.clearButton}><Text style={styles.discard}>Discard changes</Text></Pressable>
       </View></View>
     </Modal>
   </View>;
