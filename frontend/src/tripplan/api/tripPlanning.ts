@@ -6,8 +6,8 @@ export interface CitySuggestion {
   country: string;
   countryCode: string;
   lookupName: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface Airport {
@@ -209,6 +209,146 @@ export interface FlightSearchInput {
   departureUntil: string;
   stayingNights: number;
   ticketOption: TicketOption;
+  adults: number;
+}
+
+export interface TrainSearchInput {
+  originCity: string;
+  originCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  budget: number;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  ticketOption: TicketOption;
+  adults: number;
+}
+
+export interface TrainStop {
+  positionId: number;
+  name: string | null;
+  city: string | null;
+  countryCode: string | null;
+}
+
+export interface TrainTransfer {
+  type: string | null;
+  afterLeg: number | null;
+  durationMinutes: number | null;
+  fromStop: TrainStop | null;
+  toStop: TrainStop | null;
+}
+
+export interface TrainLeg {
+  mode: string | null;
+  company: string | null;
+  lineNumber: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  departureZone: string | null;
+  arrivalZone: string | null;
+  durationMinutes: number | null;
+}
+
+export interface TrainJourney {
+  departureStation: string | null;
+  arrivalStation: string | null;
+  departureCity: string | null;
+  arrivalCity: string | null;
+  departureCountryCode: string | null;
+  arrivalCountryCode: string | null;
+  departureTime: string;
+  arrivalTime: string;
+  carrier: string | null;
+  carrierLogoUrl: string | null;
+  durationMinutes: number | null;
+  stops: number | null;
+  ticketsLeft: number | null;
+  splitTicket: boolean | null;
+  legs: TrainLeg[];
+  transfers: TrainTransfer[];
+}
+
+export interface TrainItinerary {
+  ticketOption: TicketOption;
+  currency: string;
+  totalPrice: number;
+  outbound: TrainJourney;
+  returning: TrainJourney;
+  source: 'OMIO' | 'BILO';
+  originalTotalPrice: number | null;
+  originalCurrency: string | null;
+  estimatedFare: boolean | null;
+  partialCatalog: boolean | null;
+  outboundUrl: string | null;
+  returnUrl: string | null;
+}
+
+export interface BusSearchInput {
+  originCity: string;
+  originCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  budget: number;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  ticketOption: TicketOption;
+  adults: number;
+}
+
+export interface BusLeg {
+  mode: string | null;
+  company: string | null;
+  lineNumber: string | null;
+  departureTime: string | null;
+  arrivalTime: string | null;
+  departureZone: string | null;
+  arrivalZone: string | null;
+  durationMinutes: number | null;
+}
+
+export interface BusTransfer {
+  type: string | null;
+  afterLeg: number | null;
+  durationMinutes: number | null;
+  fromStop: BusStop | null;
+  toStop: BusStop | null;
+}
+
+export interface BusStop {
+  positionId: number;
+  name: string | null;
+  city: string | null;
+  countryCode: string | null;
+}
+
+export interface BusJourney {
+  departureStation: string | null;
+  arrivalStation: string | null;
+  departureCity: string | null;
+  arrivalCity: string | null;
+  departureCountryCode: string | null;
+  arrivalCountryCode: string | null;
+  departureTime: string;
+  arrivalTime: string;
+  carrier: string | null;
+  carrierLogoUrl: string | null;
+  durationMinutes: number | null;
+  stops: number | null;
+  ticketsLeft: number | null;
+  splitTicket: boolean | null;
+  legs: BusLeg[];
+  transfers: BusTransfer[];
+}
+
+export interface BusItinerary {
+  ticketOption: TicketOption;
+  currency: string;
+  totalPrice: number;
+  outbound: BusJourney;
+  returning: BusJourney;
 }
 
 export interface AccommodationSearchInput {
@@ -217,6 +357,7 @@ export interface AccommodationSearchInput {
   checkInDate: string;
   stayingNights: number;
   budget: number;
+  adults: number;
 }
 
 export interface AccommodationBookingOption {
@@ -246,7 +387,8 @@ export interface AccommodationOffer {
 export interface SaveTripPlanInput {
   title: string;
   description: string | null;
-  originAirport: string;
+  transportMode: 'PLANE' | 'BUS' | 'TRAIN';
+  originAirport: string | null;
   departureCity: string;
   departureCountryCode: string;
   destinationCity: string;
@@ -255,13 +397,30 @@ export interface SaveTripPlanInput {
   departureUntil: string;
   stayingNights: number;
   ticketOption: TicketOption;
-  flightBudget: number;
+  transportBudget: number;
   accommodationBudget: number;
+  adults: number;
 }
 
 export interface SavedTripPlan {
   id: string;
+  groupId: string | null;
   title: string;
+  description: string | null;
+  transportMode: 'PLANE' | 'BUS' | 'TRAIN';
+  originAirport: string | null;
+  departureCity: string;
+  departureCountryCode: string;
+  destinationCity: string;
+  countryCode: string;
+  departureFrom: string;
+  departureUntil: string;
+  stayingNights: number;
+  adults: number;
+  ticketOption: TicketOption;
+  transportBudget: number;
+  accommodationBudget: number;
+  current: boolean;
   createdAt: string;
 }
 
@@ -370,6 +529,22 @@ export function searchFlights(input: FlightSearchInput): Promise<FlightItinerary
   });
 }
 
+export function searchTrains(input: TrainSearchInput): Promise<TrainItinerary[]> {
+  return send('/api/trip-plans/train-searches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
+export function searchBuses(input: BusSearchInput): Promise<BusItinerary[]> {
+  return send('/api/trip-plans/bus-searches', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+}
+
 export function searchAccommodations(input: AccommodationSearchInput): Promise<AccommodationOffer[]> {
   return send('/api/trip-plans/accommodation-searches', {
     method: 'POST',
@@ -378,8 +553,9 @@ export function searchAccommodations(input: AccommodationSearchInput): Promise<A
   });
 }
 
-export function saveTripPlan(input: SaveTripPlanInput): Promise<SavedTripPlan> {
-  return send('/api/trip-plans', {
+export function saveTripPlan(input: SaveTripPlanInput, groupId?: string): Promise<SavedTripPlan> {
+  const path = groupId ? `/api/trip-plan-groups/${encodeURIComponent(groupId)}/plans` : '/api/trip-plans';
+  return send(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),

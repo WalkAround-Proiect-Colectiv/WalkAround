@@ -2,6 +2,23 @@ export const MAP_STYLE_URL = process.env.EXPO_PUBLIC_MAP_STYLE_URL || 'https://t
 export const MIN_ZOOM = 4;
 export const MAX_ZOOM = 18;
 export const ROMANIA_BOUNDS: [[number, number], [number, number]] = [[19.5, 43.4], [30, 48.5]];
+export const POI_HIT_RADIUS_METERS = 15;
+export const MIN_POI_HIT_RADIUS_PIXELS = 8;
+export const MAX_POI_HIT_RADIUS_PIXELS = 24;
+
+export function getPoiHitRadiusPixels(
+  zoom: number,
+  latitude: number,
+  radiusMeters = POI_HIT_RADIUS_METERS,
+): number {
+  const safeZoom = Number.isFinite(zoom) ? Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) : PLACES[0].zoom;
+  const safeLatitude = Number.isFinite(latitude) ? Math.max(-90, Math.min(90, latitude)) : PLACES[0].center[1];
+  const metersPerPixel =
+    (156543.03392 * Math.cos((safeLatitude * Math.PI) / 180)) / 2 ** safeZoom;
+  const radius = radiusMeters / metersPerPixel;
+  return Math.max(MIN_POI_HIT_RADIUS_PIXELS, Math.min(MAX_POI_HIT_RADIUS_PIXELS, radius));
+}
+
 export const PLACES = [
   { name: 'Romania', center: [24.9, 45.9] as [number, number], zoom: 6 },
   { name: 'Bucharest', center: [26.1025, 44.4268] as [number, number], zoom: 14 },

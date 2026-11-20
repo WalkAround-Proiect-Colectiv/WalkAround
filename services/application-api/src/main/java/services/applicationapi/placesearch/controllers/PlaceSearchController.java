@@ -27,4 +27,12 @@ public class PlaceSearchController {
     ) {
         return service.search(q, lat, lon, zoom);
     }
+
+    @GetMapping("/reverse")
+    public PlaceSearchResult reverse(
+            @RequestParam double lat,
+            @RequestParam double lon
+    ) {
+        return service.reverse(lat, lon);
+    }
 }

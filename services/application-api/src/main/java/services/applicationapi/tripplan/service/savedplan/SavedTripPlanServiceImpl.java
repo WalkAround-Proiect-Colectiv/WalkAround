@@ -1,23 +1,35 @@
 package services.applicationapi.tripplan.service.savedplan;
 
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import services.applicationapi.country.repository.CountryRepository;
+import services.applicationapi.tripplan.configurations.BusSearchProperties;
 import services.applicationapi.tripplan.configurations.FlightSearchProperties;
+import services.applicationapi.tripplan.configurations.TrainSearchProperties;
 import services.applicationapi.tripplan.dto.SaveTripPlanRequest;
 import services.applicationapi.tripplan.dto.TicketOption;
+import services.applicationapi.tripplan.dto.TransportMode;
 import services.applicationapi.tripplan.dto.TripPlanResponse;
 import services.applicationapi.tripplan.model.TripPlan;
+import services.applicationapi.tripplan.model.TripPlanGroup;
+import services.applicationapi.tripplan.model.TripPlanGroupMember;
+import services.applicationapi.tripplan.repository.TripPlanGroupMemberRepository;
+import services.applicationapi.tripplan.repository.TripPlanGroupRepository;
 import services.applicationapi.tripplan.repository.TripPlanRepository;
 import services.applicationapi.tripplan.service.cityairport.CityAirportService;
 import services.applicationapi.tripplan.service.exceptions.InvalidFlightSearchException;
 import services.applicationapi.tripplan.service.exceptions.InvalidTripPlanException;
 import services.applicationapi.tripplan.service.exceptions.TripPlanAuthenticationException;
 import services.applicationapi.tripplan.service.exceptions.TripPlanNotFoundException;
+import services.applicationapi.tripplan.service.exceptions.TripGroupForbiddenException;
+import services.applicationapi.tripplan.service.exceptions.TripGroupNotFoundException;
 import services.applicationapi.tripplan.service.flightsearch.DestinationCityValidator;
 import services.applicationapi.tripplan.service.utils.CityNameNormalizer;
 import services.applicationapi.user.model.User;
@@ -29,30 +41,57 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
     private static final Logger log = LoggerFactory.getLogger(SavedTripPlanServiceImpl.class);
 
     private final TripPlanRepository tripPlans;
+    private final TripPlanGroupRepository groups;
+    private final TripPlanGroupMemberRepository members;
     private final UserRepository users;
     private final CityAirportService cityAirports;
     private final CountryRepository countries;
     private final DestinationCityValidator cityValidator;
     private final FlightSearchProperties flightProperties;
+    private final BusSearchProperties busProperties;
+    private final TrainSearchProperties trainProperties;
+    private final ApplicationEventPublisher events;
 
     public SavedTripPlanServiceImpl(
             TripPlanRepository tripPlans,
+            TripPlanGroupRepository groups,
+            TripPlanGroupMemberRepository members,
             UserRepository users,
             CityAirportService cityAirports,
             CountryRepository countries,
             DestinationCityValidator cityValidator,
-            FlightSearchProperties flightProperties
+            FlightSearchProperties flightProperties,
+            BusSearchProperties busProperties,
+            TrainSearchProperties trainProperties,
+            ApplicationEventPublisher events
     ) {
         this.tripPlans = tripPlans;
+        this.groups = groups;
+        this.members = members;
         this.users = users;
         this.cityAirports = cityAirports;
         this.countries = countries;
         this.cityValidator = cityValidator;
         this.flightProperties = flightProperties;
+        this.busProperties = busProperties;
+        this.trainProperties = trainProperties;
+        this.events = events;
     }
 
     @Override
+    @Transactional
     public TripPlanResponse create(UUID userId, SaveTripPlanRequest request) {
+        return createPlan(userId, null, request);
+    }
+
+    @Override
+    @Transactional
+    public TripPlanResponse createForGroup(UUID groupId, UUID userId, SaveTripPlanRequest request) {
+        requireMember(groupId, userId);
+        return createPlan(userId, groupId, request);
+    }
+
+    private TripPlanResponse createPlan(UUID userId, UUID groupId, SaveTripPlanRequest request) {
         User user = users.findById(userId)
                 .orElseThrow(TripPlanAuthenticationException::new);
 
@@ -69,7 +108,8 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         }
 
         String description = normalizeDescription(request.description());
-        String originAirport = request.originAirport().toUpperCase(Locale.ROOT);
+        String originAirport = request.originAirport() == null
+                ? null : request.originAirport().toUpperCase(Locale.ROOT);
 
         String departureCountryCode = request.departureCountryCode().toUpperCase(Locale.ROOT);
         if (countries.findByCode(departureCountryCode).isEmpty()) {
@@ -77,12 +117,20 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         }
 
         String departureCity = validateCity(request.departureCity(), departureCountryCode, "Departure");
-        boolean airportBelongsToCity = cityAirports.findAirports(departureCity, departureCountryCode)
-                .stream()
-                .anyMatch(airport -> originAirport.equalsIgnoreCase(airport.iataCode()));
-        if (!airportBelongsToCity) {
-            log.debug("Rejected origin airport {} outside selected departure city", originAirport);
-            throw new InvalidTripPlanException("Origin airport was not found in the selected departure city");
+        if (request.transportMode() == TransportMode.PLANE) {
+            if (originAirport == null) {
+                throw new InvalidTripPlanException("Origin airport is required for a plane trip");
+            }
+            String selectedAirport = originAirport;
+            boolean airportBelongsToCity = cityAirports.findAirports(departureCity, departureCountryCode)
+                    .stream()
+                    .anyMatch(airport -> selectedAirport.equalsIgnoreCase(airport.iataCode()));
+            if (!airportBelongsToCity) {
+                log.debug("Rejected origin airport {} outside selected departure city", originAirport);
+                throw new InvalidTripPlanException("Origin airport was not found in the selected departure city");
+            }
+        } else if (originAirport != null) {
+            throw new InvalidTripPlanException("Origin airport is only valid for a plane trip");
         }
 
         String countryCode = request.countryCode().toUpperCase(Locale.ROOT);
@@ -91,10 +139,16 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
         }
 
         String destinationCity = validateCity(request.destinationCity(), countryCode, "Destination");
+        TripPlanGroup group = groupId == null ? null : groups.findByIdForUpdate(groupId)
+                .orElseThrow(TripGroupNotFoundException::new);
+        boolean current = group != null && !tripPlans.existsByGroup_IdAndCurrentTrue(groupId);
         TripPlan plan = new TripPlan(
-                user,
+                group == null ? user : null,
+                group,
+                group == null ? null : user,
                 title,
                 description,
+                request.transportMode().name(),
                 originAirport,
                 departureCity,
                 departureCountryCode,
@@ -103,22 +157,74 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 request.departureFrom(),
                 request.departureUntil(),
                 request.stayingNights(),
+                request.adults(),
                 request.ticketOption().name(),
-                request.flightBudget(),
-                request.accommodationBudget()
+                request.transportBudget(),
+                request.accommodationBudget(),
+                current
         );
 
         TripPlan saved = tripPlans.save(plan);
-        log.info("Saved trip plan {} for user {}", saved.getId(), userId);
+        if (group != null) {
+            events.publishEvent(new GroupPlanSavedEvent(
+                    groupId,
+                    saved.getId(),
+                    group.getName(),
+                    saved.getTitle(),
+                    saved.getCreatedAt(),
+                    members.findUserIdsByGroupId(groupId)
+            ));
+        }
+        log.info("Saved {} trip plan {} for user {} in group {}", request.transportMode(),
+                saved.getId(), userId, groupId);
         return toResponse(saved);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public TripPlanResponse get(UUID userId, UUID planId) {
-        TripPlan plan = tripPlans.findByIdAndUser_Id(planId, userId)
+        TripPlan plan = tripPlans.findByIdAndUser_IdAndGroupIsNull(planId, userId)
                 .orElseThrow(TripPlanNotFoundException::new);
 
         return toResponse(plan);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TripPlanResponse getForGroup(UUID groupId, UUID userId, UUID planId) {
+        requireMember(groupId, userId);
+        return toResponse(tripPlans.findByIdAndGroup_Id(planId, groupId)
+                .orElseThrow(TripPlanNotFoundException::new));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TripPlanResponse> listForGroup(UUID groupId, UUID userId) {
+        requireMember(groupId, userId);
+        return tripPlans.findByGroup_IdOrderByCreatedAtDesc(groupId).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public TripPlanResponse makeCurrent(UUID groupId, UUID adminId, UUID planId) {
+        groups.findByIdForUpdate(groupId).orElseThrow(TripGroupNotFoundException::new);
+        TripPlanGroupMember member = requireMember(groupId, adminId);
+        if (!"ADMIN".equals(member.getRole())) throw new TripGroupForbiddenException();
+        if (tripPlans.findByIdAndGroup_Id(planId, groupId).isEmpty()) throw new TripPlanNotFoundException();
+
+        tripPlans.clearCurrent(groupId);
+        TripPlan plan = tripPlans.findByIdAndGroup_Id(planId, groupId)
+                .orElseThrow(TripPlanNotFoundException::new);
+        plan.setCurrent(true);
+        log.info("Selected trip plan {} for group {} by admin {}", planId, groupId, adminId);
+        return toResponse(plan);
+    }
+
+    private TripPlanGroupMember requireMember(UUID groupId, UUID userId) {
+        return members.findByGroup_IdAndUser_Id(groupId, userId)
+                .orElseThrow(TripGroupNotFoundException::new);
     }
 
     private String validateCity(String requestedCity, String countryCode, String label) {
@@ -156,7 +262,12 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 request.departureUntil().toLocalDate()
         ) + 1;
 
-        if (days > flightProperties.flightSearchMaxDateRangeDays()) {
+        int maxDays = switch (request.transportMode()) {
+            case PLANE -> flightProperties.flightSearchMaxDateRangeDays();
+            case BUS -> busProperties.busSearchMaxDateRangeDays();
+            case TRAIN -> trainProperties.trainSearchMaxDateRangeDays();
+        };
+        if (days > maxDays) {
             throw new InvalidTripPlanException("Departure interval covers too many dates");
         }
     }
@@ -178,8 +289,10 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
     private TripPlanResponse toResponse(TripPlan plan) {
         return new TripPlanResponse(
                 plan.getId(),
+                plan.getGroup() == null ? null : plan.getGroup().getId(),
                 plan.getTitle(),
                 plan.getDescription(),
+                TransportMode.valueOf(plan.getTransportMode()),
                 plan.getOriginAirport(),
                 plan.getDepartureCity(),
                 plan.getDepartureCountryCode(),
@@ -188,9 +301,11 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
                 plan.getDepartureFrom(),
                 plan.getDepartureUntil(),
                 plan.getStayingNights(),
+                plan.getAdults(),
                 TicketOption.valueOf(plan.getTicketOption()),
-                plan.getFlightBudget(),
+                plan.getTransportBudget(),
                 plan.getAccommodationBudget(),
+                plan.isCurrent(),
                 plan.getCreatedAt()
         );
     }

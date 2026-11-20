@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MapPin, Route, Trash2, X } from 'lucide-react-native';
 import { authenticatedRequest } from '../../login/api/session';
+import { reversePlaceName } from '../../map/placeName';
 
 type SavedRoute = {
     id: number;
@@ -22,12 +23,17 @@ export default function SavedRoutesModal({ visible, onClose, onSelectRoute }: Pr
     const [routes, setRoutes] = useState<SavedRoute[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [destinationNames, setDestinationNames] = useState<Record<number, string>>({});
 
     useEffect(() => {
         if (!visible) return;
         let active = true;
-        setLoading(true);
-        setError(null);
+        queueMicrotask(() => {
+            if (active) {
+                setLoading(true);
+                setError(null);
+            }
+        });
 
         authenticatedRequest<SavedRoute[]>('/api/v1/saved-routes', { method: 'GET' })
             .then(data => {
@@ -46,6 +52,18 @@ export default function SavedRoutesModal({ visible, onClose, onSelectRoute }: Pr
 
         return () => { active = false; };
     }, [visible]);
+
+    useEffect(() => {
+        if (!visible || routes.length === 0) return;
+        const controller = new AbortController();
+        void Promise.all(routes.map(async route => {
+            const place = await reversePlaceName(route.endLat, route.endLng, controller.signal);
+            return [route.id, place?.name ?? 'Selected destination'] as const;
+        })).then(entries => {
+            if (!controller.signal.aborted) setDestinationNames(Object.fromEntries(entries));
+        }).catch(() => {});
+        return () => controller.abort();
+    }, [visible, routes]);
 
     async function handleDelete(id: number) {
         try {
@@ -93,7 +111,7 @@ export default function SavedRoutesModal({ visible, onClose, onSelectRoute }: Pr
                                         <MapPin size={20} color="#d93838" style={styles.icon} />
                                         <View style={styles.textContainer}>
                                             <Text style={styles.destText}>
-                                                Destination: {route.endLat.toFixed(4)}, {route.endLng.toFixed(4)}
+                                                Destination: {destinationNames[route.id] || 'Looking up location...'}
                                             </Text>
                                             <Text style={styles.dateText}>
                                                 Saved: {new Date(route.createdAt).toLocaleDateString()}

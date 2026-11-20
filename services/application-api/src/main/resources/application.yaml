@@ -67,6 +67,35 @@ app:
     picture-max-bytes: ${PROFILE_PICTURE_MAX_BYTES:5242880}
     picture-max-pixels: ${PROFILE_PICTURE_MAX_PIXELS:16000000}
     picture-output-size: ${PROFILE_PICTURE_OUTPUT_SIZE:512}
+  trip-groups:
+    picture-max-bytes: ${GROUP_PICTURE_MAX_BYTES:2097152}
+    picture-max-pixels: ${GROUP_PICTURE_MAX_PIXELS:12000000}
+    picture-output-size: ${GROUP_PICTURE_OUTPUT_SIZE:512}
+    invite-ttl: ${GROUP_INVITE_TTL:P7D}
+    max-active-invites: ${GROUP_MAX_ACTIVE_INVITES:10}
+    plan-notification-topic: ${GROUP_PLAN_NOTIFICATION_TOPIC:trip-group-plan-notifications-topic}
+  group-chat:
+    topic: ${GROUP_CHAT_TOPIC:trip-group-chat-topic}
+    partitions: ${GROUP_CHAT_PARTITIONS:6}
+    page-size: ${GROUP_CHAT_PAGE_SIZE:100}
+    max-message-length: ${GROUP_CHAT_MAX_MESSAGE_LENGTH:2000}
+    max-poll-options: ${GROUP_CHAT_MAX_POLL_OPTIONS:10}
+    max-poll-option-length: ${GROUP_CHAT_MAX_POLL_OPTION_LENGTH:100}
+    image-max-bytes: ${GROUP_CHAT_IMAGE_MAX_BYTES:5242880}
+    image-max-pixels: ${GROUP_CHAT_IMAGE_MAX_PIXELS:16000000}
+    image-output-size: ${GROUP_CHAT_IMAGE_OUTPUT_SIZE:1600}
+    imagekit:
+      private-key: ${IMAGEKIT_PRIVATE_KEY:}
+      url-endpoint: ${IMAGEKIT_URL_ENDPOINT:}
+      upload-url: ${IMAGEKIT_UPLOAD_URL:https://upload.imagekit.io/api/v1/files/upload}
+      files-url: ${IMAGEKIT_FILES_URL:https://api.imagekit.io/v1/files}
+      timeout: ${IMAGEKIT_TIMEOUT:PT10S}
+      signed-url-ttl: ${IMAGEKIT_SIGNED_URL_TTL:PT1H}
+    socket-token-ttl: ${GROUP_CHAT_SOCKET_TOKEN_TTL:PT5M}
+    outbox-poll-ms: ${GROUP_CHAT_OUTBOX_POLL_MS:1000}
+    outbox-batch-size: ${GROUP_CHAT_OUTBOX_BATCH_SIZE:50}
+    publish-timeout: ${GROUP_CHAT_PUBLISH_TIMEOUT:PT5S}
+    retry-max-delay: ${GROUP_CHAT_RETRY_MAX_DELAY:PT1M}
   login:
     signing-secret: ${JWT_SIGNING_SECRET:}
     issuer: ${JWT_ISSUER:walkaround}
@@ -118,6 +147,25 @@ app:
     serp-api-timeout: ${SERP_API_TIMEOUT:PT15S}
     flight-search-max-date-range-days: ${FLIGHT_SEARCH_MAX_DATE_RANGE_DAYS:7}
     flight-search-max-arrival-offset-days: ${FLIGHT_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
+    train-provider: ${TRAIN_PROVIDER:scrappa}
+    scrappa-api-key: ${SCRAPPA_API_KEY:}
+    scrappa-base-url: ${SCRAPPA_BASE_URL:https://scrappa.co}
+    scrappa-timeout: ${SCRAPPA_TIMEOUT:PT30S}
+    train-search-max-results: ${TRAIN_SEARCH_MAX_RESULTS:3}
+    train-search-max-date-range-days: ${TRAIN_SEARCH_MAX_DATE_RANGE_DAYS:7}
+    train-search-max-arrival-offset-days: ${TRAIN_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
+    train-search-max-pages-per-date: ${TRAIN_SEARCH_MAX_PAGES_PER_DATE:1}
+    bilo-api-key: ${BILO_API_KEY:}
+    bilo-base-url: ${BILO_BASE_URL:https://mcp.bilo.ro/api/v1}
+    bilo-timeout: ${BILO_TIMEOUT:PT15S}
+    bilo-search-page-size: ${BILO_SEARCH_PAGE_SIZE:50}
+    frankfurter-base-url: ${FRANKFURTER_BASE_URL:https://api.frankfurter.dev}
+    frankfurter-timeout: ${FRANKFURTER_TIMEOUT:PT5S}
+    bus-provider: ${BUS_PROVIDER:scrappa}
+    bus-search-max-results: ${BUS_SEARCH_MAX_RESULTS:3}
+    bus-search-max-date-range-days: ${BUS_SEARCH_MAX_DATE_RANGE_DAYS:7}
+    bus-search-max-arrival-offset-days: ${BUS_SEARCH_MAX_ARRIVAL_OFFSET_DAYS:2}
+    bus-search-max-pages-per-date: ${BUS_SEARCH_MAX_PAGES_PER_DATE:1}
     accommodation-provider: ${ACCOMMODATION_PROVIDER:serpapi}
     accommodation-search-max-results: ${ACCOMMODATION_SEARCH_MAX_RESULTS:3}
     attraction-provider: ${ATTRACTION_PROVIDER:serpapi}

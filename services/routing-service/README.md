@@ -34,6 +34,8 @@ Example request body:
   "departureTime": "2026-11-09T22:30:00+02:00"
 }
 ```
+
+The map and routing integration keeps coordinate values in `lat`/`lng` fields. A selected POI or manually entered coordinate can provide display names, but those names are presentation metadata only; route requests and saved-route payloads continue to use latitude/longitude rather than names or address text.
 `stops` may be an empty array for a direct route. If `departureTime` is omitted, the service falls back to the local system time (Europe/Bucharest) to determine active danger zones.
 
 ## Local Environment & Valhalla Setup

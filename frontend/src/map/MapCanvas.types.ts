@@ -3,6 +3,7 @@ import type { StyleSpecification } from 'maplibre-gl';
 import type { Feature, FeatureCollection } from 'geojson';
 import type { MapPoi, MapZone } from './poi';
 import type { EventPinsFeatureCollection } from '../events/mapPins';
+import type { PoiFilter } from './filters';
 
 export type CameraPosition = { center: [number, number]; zoom: number };
 export type UserLocation = { coordinates: [longitude: number, latitude: number]; accuracy: number; heading?: number | null; } | null;
@@ -17,6 +18,7 @@ export type MapHandle = {
 export type MapCanvasProps = {
   ref?: Ref<MapHandle>;
   style: StyleSpecification;
+  poiFilter?: PoiFilter;
   userLocation?: UserLocation;
   searchedLocation?: [longitude: number, latitude: number] | null;
   zoomLevel?: number;
@@ -31,7 +33,11 @@ export type MapCanvasProps = {
   onReady(): void;
   onError(): void;
   onMove(position: CameraPosition): void;
-  onPoiSelect(poi: MapPoi | null): void;
+  onPoiSelect(
+    poi: MapPoi | null,
+    coordinates?: [longitude: number, latitude: number],
+    candidates?: MapPoi[],
+  ): void;
   onPress?(zone: MapZone | null, coordinates?: [number, number]): void;
   onCoordinateSelect?(coordinates: [longitude: number, latitude: number]): void;
 };

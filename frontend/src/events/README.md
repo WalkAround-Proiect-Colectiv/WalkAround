@@ -26,6 +26,12 @@ The list asks for foreground location permission and uses the device position. I
 
 `components/ReminderBanner.tsx` is mounted in the root layout, so reminders appear over any screen while the app is open.
 
+The same banner and authenticated WebSocket also handle `GROUP_PLAN_SAVED` messages. A connected group member sees the group name and new plan title; **View plan** opens that group's saved preset. These live group notifications are deduplicated by plan ID. They are not stored as unseen notifications, so a disconnected member can find the plan in the group view but will not see a missed banner on sign-in.
+
+For an already open group page, the banner also publishes the plan's group and plan IDs through the trip-planning feature's in-memory subscription channel. That page reloads its saved-plan list immediately. The banner remains the only WebSocket connection for these notifications.
+
+Each banner automatically disappears after `EXPO_PUBLIC_NOTIFICATION_DISPLAY_SECONDS` (default 8, accepted range 1–60). The timer starts when that notification reaches the front of the queue, so queued messages each get their own display time. Automatic dismissal is visual only: it does not mark an event reminder as seen. **Dismiss** and **View event** keep their existing seen behavior. Group plan notifications are transient and have no seen state.
+
 - It connects to `${EXPO_PUBLIC_WS_URL}/ws/notifications?token=<access token>`. Browsers cannot send headers with WebSockets, so the token goes in the query string. The connection is reopened when the session token is refreshed or the connection drops; an expiring session is refreshed before connecting.
 - On sign-in or app start it loads `GET /api/events/reminders/unseen`, so reminders sent while the app was closed still appear.
 - **Dismiss** and **View event** mark the reminder as seen. **View event** opens the details screen.

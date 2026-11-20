@@ -24,7 +24,6 @@ import services.applicationapi.tripplan.service.exceptions.AccommodationSearchUn
 public class SerpApiAccommodationSearchProvider implements AccommodationSearchProvider {
 
     private static final Logger log = LoggerFactory.getLogger(SerpApiAccommodationSearchProvider.class);
-    private static final int ADULTS = 1;
 
     private final RestClient restClient;
     private final AccommodationSearchProperties properties;
@@ -42,7 +41,8 @@ public class SerpApiAccommodationSearchProvider implements AccommodationSearchPr
     }
 
     @Override
-    public List<AccommodationOffer> search(String destination, LocalDate checkInDate, LocalDate checkOutDate) {
+    public List<AccommodationOffer> search(String destination, LocalDate checkInDate,
+                                            LocalDate checkOutDate, int adults) {
         SerpApiResponse response;
 
         try {
@@ -53,7 +53,7 @@ public class SerpApiAccommodationSearchProvider implements AccommodationSearchPr
                             .queryParam("check_in_date", checkInDate)
                             .queryParam("check_out_date", checkOutDate)
                             .queryParam("currency", "EUR")
-                            .queryParam("adults", ADULTS)
+                            .queryParam("adults", adults)
                             .queryParam("sort_by", 3)
                             .queryParam("api_key", "{apiKey}")
                             .build(Map.of(
@@ -95,7 +95,8 @@ public class SerpApiAccommodationSearchProvider implements AccommodationSearchPr
     }
 
     @Override
-    public AccommodationDetails details(String propertyToken, LocalDate checkInDate, LocalDate checkOutDate) {
+    public AccommodationDetails details(String propertyToken, LocalDate checkInDate,
+                                        LocalDate checkOutDate, int adults) {
         SerpApiDetailsResponse response;
 
         try {
@@ -106,7 +107,7 @@ public class SerpApiAccommodationSearchProvider implements AccommodationSearchPr
                             .queryParam("check_in_date", checkInDate)
                             .queryParam("check_out_date", checkOutDate)
                             .queryParam("currency", "EUR")
-                            .queryParam("adults", ADULTS)
+                            .queryParam("adults", adults)
                             .queryParam("api_key", "{apiKey}")
                             .build(Map.of(
                                     "propertyToken", propertyToken,

@@ -156,7 +156,7 @@ public class FlightSearchServiceImpl implements FlightSearchService {
             LocalDate returnDate = date.plusDays(request.stayingNights() + arrivalOffset);
 
             List<FlightOffer> outboundOffers = provider.searchRoundTrip(
-                    origin, destinations, date, returnDate, request.budget(),
+                    origin, destinations, date, returnDate, request.budget(), request.adults(),
                     earliestDeparture(request, date), latestDeparture(request, date));
 
             for (FlightOffer outbound : outboundOffers) {
@@ -213,7 +213,7 @@ public class FlightSearchServiceImpl implements FlightSearchService {
 
             List<FlightOffer> returningOffers = provider.searchReturns(
                     origin, destinations, candidate.outboundDate(), candidate.returnDate(),
-                    request.budget(), candidate.outbound().departureToken());
+                    request.budget(), request.adults(), candidate.outbound().departureToken());
 
             for (FlightOffer returning : returningOffers) {
                 if (isReturn(returning, origin)
@@ -243,7 +243,7 @@ public class FlightSearchServiceImpl implements FlightSearchService {
             List<FlightItineraryResponse> results
     ) {
         List<FlightOffer> outboundOffers = provider.searchOneWay(
-                List.of(origin), destinations, date, request.budget(),
+                List.of(origin), destinations, date, request.budget(), request.adults(),
                 earliestDeparture(request, date), latestDeparture(request, date))
                 .stream()
                 .filter(offer -> isOutbound(offer, origin, request))
@@ -263,7 +263,7 @@ public class FlightSearchServiceImpl implements FlightSearchService {
             LocalDate returnDate = arrivalDate.get().plusDays(request.stayingNights());
             List<FlightOffer> returningOffers = returnsByDate.computeIfAbsent(returnDate,
                     day -> provider.searchOneWay(
-                            destinations, List.of(origin), day, request.budget(), null, null));
+                            destinations, List.of(origin), day, request.budget(), request.adults(), null, null));
 
             for (FlightOffer returning : returningOffers) {
                 BigDecimal total = outbound.price().add(returning.price());

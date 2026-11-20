@@ -79,6 +79,25 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
         deliver(userId, message);
     }
 
+    @KafkaListener(topics = "${app.notifications.group-plan-topic}",
+            groupId = "${CONSUMER_GROUP_ID}-group-plan-notifications")
+    public void consumeGroupPlan(String message) {
+        try {
+            JsonNode node = objectMapper.readTree(message);
+            String userId = node.path("userId").asString(null);
+            if (!"GROUP_PLAN_SAVED".equals(node.path("type").asString())
+                    || userId == null || userId.isBlank()) {
+                log.warn("Ignoring invalid group plan notification");
+                return;
+            }
+
+            int delivered = deliver(userId, message);
+            log.debug("Delivered group plan notification to {} connections for user {}", delivered, userId);
+        } catch (JacksonException exception) {
+            log.warn("Ignoring malformed group plan notification");
+        }
+    }
+
     /** Sends a message to every open connection of one user. Returns the number of connections reached. */
     int deliver(String userId, String message) {
         Set<WebSocketSession> sessions = sessionsByUser.get(userId);
