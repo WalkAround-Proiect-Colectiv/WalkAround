@@ -100,5 +100,6 @@ The map import and schema/migration jobs run only when needed. Valhalla tile bui
 - [Application API](services/application-api/README.md)
 - [Realtime service](services/realtime-service/README.md)
 - [Upcoming events: backend](services/application-api/src/main/java/services/applicationapi/events/README.md) and [frontend](frontend/src/events/README.md)
+- [POI photos: backend](services/application-api/src/main/java/services/applicationapi/poiimages/README.md) and [frontend](frontend/src/poiimages/README.md)
 - [Audio directions: Piper container](services/tts/README.md) and [Application API TTS](services/application-api/src/main/java/services/applicationapi/tts/README.md)
 - [Map data and self-hosted tiles](services/map-data/README.md)
