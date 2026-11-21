@@ -67,6 +67,19 @@ app:
     picture-max-bytes: ${PROFILE_PICTURE_MAX_BYTES:5242880}
     picture-max-pixels: ${PROFILE_PICTURE_MAX_PIXELS:16000000}
     picture-output-size: ${PROFILE_PICTURE_OUTPUT_SIZE:512}
+  poi-images:
+    max-bytes: ${POI_IMAGE_MAX_BYTES:5242880}
+    max-pixels: ${POI_IMAGE_MAX_PIXELS:25000000}
+    output-size: ${POI_IMAGE_OUTPUT_SIZE:1600}
+    thumbnail-size: ${POI_IMAGE_THUMBNAIL_SIZE:320}
+    max-per-user-per-poi: ${POI_IMAGE_MAX_PER_USER_PER_POI:10}
+    imagekit:
+      private-key: ${POI_IMAGEKIT_PRIVATE_KEY:${IMAGEKIT_PRIVATE_KEY:}}
+      url-endpoint: ${POI_IMAGEKIT_URL_ENDPOINT:${IMAGEKIT_URL_ENDPOINT:}}
+      upload-url: ${POI_IMAGEKIT_UPLOAD_URL:${IMAGEKIT_UPLOAD_URL:https://upload.imagekit.io/api/v1/files/upload}}
+      files-url: ${POI_IMAGEKIT_FILES_URL:${IMAGEKIT_FILES_URL:https://api.imagekit.io/v1/files}}
+      timeout: ${POI_IMAGEKIT_TIMEOUT:PT10S}
+      signed-url-ttl: ${POI_IMAGEKIT_SIGNED_URL_TTL:PT1H}
   trip-groups:
     picture-max-bytes: ${GROUP_PICTURE_MAX_BYTES:2097152}
     picture-max-pixels: ${GROUP_PICTURE_MAX_PIXELS:12000000}
