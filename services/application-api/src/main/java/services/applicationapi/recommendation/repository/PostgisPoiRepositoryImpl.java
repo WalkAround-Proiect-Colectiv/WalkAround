@@ -2,6 +2,7 @@ package services.applicationapi.recommendation.repository;
 
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +63,42 @@ public class PostgisPoiRepositoryImpl implements PoiRepository {
 
     public PostgisPoiRepositoryImpl(NamedParameterJdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    @Override
+    public List<String> findCommentReferences(String reference) {
+        boolean osm = reference.startsWith("osm:");
+        String osmValue = osm ? switch (reference.charAt(4)) {
+            case 'n' -> "node";
+            case 'w' -> "way";
+            default -> "relation";
+        } + reference.substring(5) : "";
+        String sql = """
+                WITH matched AS (
+                    SELECT id AS canonical_id FROM places.published_pois WHERE id = :canonicalId
+                    UNION
+                    SELECT poi_id FROM places.published_osm_references WHERE value = :osmValue
+                ), identities AS (
+                    SELECT canonical_id::text AS reference FROM matched
+                    UNION
+                    SELECT 'osm:' || CASE split_part(value, '/', 1)
+                        WHEN 'node' THEN 'n' WHEN 'way' THEN 'w' WHEN 'relation' THEN 'r' END
+                        || '/' || split_part(value, '/', 2)
+                    FROM places.published_osm_references JOIN matched ON poi_id = canonical_id
+                )
+                SELECT reference FROM identities WHERE reference IS NOT NULL
+                UNION
+                SELECT 'osm:' || lower(osm_type) || '/' || osm_id
+                FROM osm.features
+                WHERE kind = 'poi' AND minzoom <= 18
+                    AND osm_type = :osmType AND osm_id = :osmId
+                ORDER BY 1
+                """;
+        var params = new MapSqlParameterSource("canonicalId", osm ? null : UUID.fromString(reference))
+                .addValue("osmValue", osmValue)
+                .addValue("osmType", osm ? reference.substring(4, 5).toUpperCase(java.util.Locale.ROOT) : "")
+                .addValue("osmId", osm ? Long.parseLong(reference.substring(6)) : 0L);
+        return jdbcTemplate.queryForList(sql, params, String.class);
     }
 
     @Override

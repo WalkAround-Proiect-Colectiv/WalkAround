@@ -35,3 +35,7 @@ The features menu's **Nearby police stations** option requests a fresh foregroun
 The results have their own GeoJSON circle layer on both map adapters, including hosted basemaps and low zoom levels. Markers do not depend on loaded basemap POIs or existing POI filters. Selecting a marker or list entry uses the normal place-detail band and **Calculate Route** action with the station's exact coordinates. Police route starts use the live device position, or the successful search's device position if tracking is unavailable, never the map centre. The existing route is only replaced when the user explicitly calculates a new route.
 
 The panel credits OpenStreetMap/ODbL and describes recorded data rather than promising every real-world police station. Search requires the Application API and its read-only `POI_DATABASE_*` connection to a completed local map import; it needs no sign-in or paid search provider. Tests in `tests/nearbyPolice.test.mjs` cover paging, sorting, cancellation, service failures, malformed responses, and the map-selection coordinate contract.
+
+## POI photos
+
+For POIs from the self-hosted map, the POI details card includes a **Photos** section where signed-in users can view, add and delete photos. See [`src/poiimages`](../poiimages/README.md).
