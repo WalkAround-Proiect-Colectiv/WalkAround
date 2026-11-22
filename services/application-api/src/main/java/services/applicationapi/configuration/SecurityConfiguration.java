@@ -30,6 +30,7 @@ public class SecurityConfiguration {
                         .requestMatchers(HttpMethod.GET,"/actuator/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/dangerous-zones").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/places/search", "/api/places/reverse").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/poi-comments").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/routes/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/recommendations/activities").permitAll()
                         .anyRequest().authenticated()

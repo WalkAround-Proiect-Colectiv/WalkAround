@@ -8,11 +8,12 @@ import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import PoiFilters from './PoiFilters';
 import type { PoiFilter, EventTypeFilter } from './filters';
-import { SlidersHorizontal } from 'lucide-react-native';
+import { MessageSquare, SlidersHorizontal } from 'lucide-react-native';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
-import type { MapPoi } from './poi';
+import { commentablePoiId, type MapPoi } from './poi';
+import PoiCommentsSheet from '../poi-comments/PoiCommentsSheet';
 import { useUserLocalization } from './userLocalization';
 import EventMapPopup from '../events/components/EventMapPopup';
 import { useMapEvents } from '../hooks/useMapEvents';
@@ -206,6 +207,7 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [selectedPoi, setSelectedPoi] = useState<MapPoi | null>(null);
+  const [commentsPoi, setCommentsPoi] = useState<MapPoi | null>(null);
   const [poiCandidates, setPoiCandidates] = useState<MapPoi[]>([]);
   const [poiCandidateIndex, setPoiCandidateIndex] = useState(0);
   const poiCandidatesRef = useRef<MapPoi[]>([]);
@@ -1230,6 +1232,7 @@ export default function MapScreen() {
           </View>
         )}
         <View style={{ flexDirection: 'row', gap: 8 }}>
+          {!!commentablePoiId(selectedPoi) && <Tool label="Comments" icon={MessageSquare} onPress={() => setCommentsPoi(selectedPoi)} />}
           <Tool
               label="Calculate Route"
               icon={Route}
@@ -1283,6 +1286,8 @@ export default function MapScreen() {
         {!!selectedPoi.licenses && <Text style={styles.poiMetadata}>{selectedPoi.licenses}</Text>}
       </ScrollView>
     </View>}
+
+    {commentsPoi && <PoiCommentsSheet key={`${commentsPoi.id}-${session?.user.id ?? 'guest'}`} poi={commentsPoi} onClose={() => setCommentsPoi(null)} />}
 
     <View style={[styles.searchArea, compactSearchLayout ? styles.searchAreaCompact : null,
       compactSearchLayout && mobileSearchExpanded ? styles.searchAreaExpanded : null, compactSearchLayout ? {

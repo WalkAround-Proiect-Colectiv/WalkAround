@@ -6,6 +6,8 @@ import services.applicationapi.recommendation.domain.PoiCandidate;
 
 public interface PoiRepository {
 
+    List<String> findCommentReferences(String reference);
+
     List<PoiCandidate> findNearbyPois(
             double latitude,
             double longitude,

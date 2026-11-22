@@ -9,6 +9,12 @@ export type MapPoi = {
 };
 export type MapZone = { h3Index: string; intensity: number; categories: string[] };
 
+export function commentablePoiId(poi: MapPoi | null): string | null {
+  const identity = poi?.id;
+  if (!identity) return null;
+  return /^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|osm:[nwr]\/[1-9][0-9]{0,18})$/.test(identity) ? identity : null;
+}
+
 export function selectMapHit(poiFeatures: { properties?: unknown }[], zoneFeatures: { properties?: unknown }[]) {
   const poi = selectMapPois(poiFeatures)[0] ?? null;
   if (poi) return { poi, zone: null };

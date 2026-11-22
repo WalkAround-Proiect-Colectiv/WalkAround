@@ -12,7 +12,17 @@ import {
   getPoiHitRadiusPixels,
 } from '../src/map/config.ts';
 import { resolveStyleResources, styleMap } from '../src/map/style.ts';
-import { readPoi, selectMapHit, selectMapPois } from '../src/map/poi.ts';
+import { commentablePoiId, readPoi, selectMapHit, selectMapPois } from '../src/map/poi.ts';
+
+test('comments require a stable canonical or namespaced OSM POI identity', () => {
+  for (const id of ['01234567-89ab-cdef-0123-456789abcdef', 'osm:n/123', 'osm:w/123', 'osm:r/123']) {
+    assert.equal(commentablePoiId({ id }), id);
+  }
+  for (const id of ['selected-coordinate', undefined, 'Cafe', 'osm:n/-1', 'osm:n/0', 'osm:n/123?other=1']) {
+    assert.equal(commentablePoiId({ id }), null);
+  }
+  assert.equal(commentablePoiId(null), null);
+});
 
 test('Romania camera presets use longitude/latitude inside supported bounds', () => {
   for (const place of PLACES) {
