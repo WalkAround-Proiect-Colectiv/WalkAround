@@ -1,6 +1,6 @@
 # POI Comments
 
-Flat, plain-text comments live in the Application API database (Flyway V18), independently of the imported map database. Only public map POIs identified by a canonical UUID or a namespaced OSM type/ID can have a discussion. Names, coordinates, search display labels, and arbitrary client-generated IDs are not comment identities.
+Flat, plain-text comments live in the Application API database (Flyway V19), independently of the imported map database. Only public map POIs identified by a canonical UUID or a namespaced OSM type/ID can have a discussion. Names, coordinates, search display labels, and arbitrary client-generated IDs are not comment identities.
 
 ## Identity And Persistence
 
@@ -29,4 +29,14 @@ Set `POI_COMMENTS_MODERATOR_IDS` to a comma-separated list of existing user UUID
 
 ## Tests
 
-From this service, with Java 25: `./mvnw -Dtest='PoiComment*Test' test` (Windows: `mvnw.cmd`). Unit tests cover identity/body/cursor validation, ownership, moderation, rate-limit responses, and map failure handling. HTTP tests use the real security filter chain and validate public/protected routes and JWT-derived authors. PostgreSQL Testcontainers tests exercise V18, persistence, equal-timestamp pagination, alias merging, report deduplication, deletion cascades, and persistent rate limits; these tests require Docker and skip when it is unavailable.
+From this service, with Java 25: `./mvnw -Dtest='PoiComment*Test' test` (Windows: `mvnw.cmd`). Unit tests cover identity/body/cursor validation, ownership, moderation, rate-limit responses, and map failure handling. HTTP tests use the real security filter chain and validate public/protected routes and JWT-derived authors. PostgreSQL Testcontainers tests exercise V19, persistence, equal-timestamp pagination, alias merging, report deduplication, deletion cascades, and persistent rate limits; these tests require Docker and skip when it is unavailable.
+
+`PoiCommentFlowIntegrationTest` boots the complete Application API, applies photos V18 and comments V19 together, signs test JWTs, and exercises public reading, authenticated posting, ownership, editing, deletion, reporting, and moderation over Spring MVC against real PostgreSQL. Only the unrelated external photo storage is mocked; no Google, ImageKit, or Kafka service is required by these tests.
+
+The database tests default to `postgres:18`. If Docker Hub is unavailable and a compatible PostgreSQL image is already cached, override `poi.comments.test-image`, for example in PowerShell:
+
+```powershell
+.\mvnw.cmd '-Dtest=PoiComment*Test' '-Dpoi.comments.test-image=postgis/postgis:17-3.5' clean test
+```
+
+Run `clean` after updating from the earlier branch migration name so a stale generated V18 comments resource is removed from `target/`. Comments now use V19 because main's photos feature owns V18. If a database already applied the branch-only V18 comments migration, back it up and coordinate its migration-history upgrade before using the merged branch; do not blindly repair Flyway history or delete tables. Databases which applied main's V18 photos migration can apply V19 normally.

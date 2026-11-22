@@ -7,6 +7,8 @@ import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, Rotate
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import PoiFilters from './PoiFilters';
+import PoiPhotos from '../poiimages/components/PoiPhotos';
+import { canHavePhotos } from '../poiimages/limits';
 import type { PoiFilter, EventTypeFilter } from './filters';
 import { MessageSquare, SlidersHorizontal } from 'lucide-react-native';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
@@ -1284,6 +1286,7 @@ export default function MapScreen() {
         {!!selectedPoi.sources && <Text style={styles.poiMetadata}>{selectedPoi.sources}</Text>}
         {!!selectedPoi.attribution && <Text style={styles.poiMetadata}>{selectedPoi.attribution}</Text>}
         {!!selectedPoi.licenses && <Text style={styles.poiMetadata}>{selectedPoi.licenses}</Text>}
+        {canHavePhotos(selectedPoi.id) && <PoiPhotos key={selectedPoi.id} poiId={selectedPoi.id} poiName={selectedPoi.name} />}
       </ScrollView>
     </View>}
 

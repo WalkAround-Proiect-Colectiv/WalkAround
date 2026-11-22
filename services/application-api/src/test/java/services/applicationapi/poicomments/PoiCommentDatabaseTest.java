@@ -20,13 +20,15 @@ import org.springframework.web.server.ResponseStatusException;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 import services.applicationapi.poicomments.repository.PoiCommentRepository;
 import services.applicationapi.poicomments.service.PoiCommentService;
 import services.applicationapi.recommendation.repository.PostgisPoiRepositoryImpl;
 
 @Testcontainers(disabledWithoutDocker = true)
 class PoiCommentDatabaseTest {
-    @Container static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18");
+        @Container static PostgreSQLContainer postgres = new PostgreSQLContainer(DockerImageName.parse(
+            System.getProperty("poi.comments.test-image", "postgres:18")).asCompatibleSubstituteFor("postgres"));
     private static JdbcTemplate jdbc;
     private static TransactionTemplate transaction;
     private static PoiCommentService service;
@@ -39,7 +41,7 @@ class PoiCommentDatabaseTest {
         var dataSource = new DriverManagerDataSource(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
         jdbc = new JdbcTemplate(dataSource);
         jdbc.execute("CREATE TABLE users(id uuid PRIMARY KEY, username varchar(50))");
-        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V18__create_poi_comments.sql")).execute(dataSource);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V19__create_poi_comments.sql")).execute(dataSource);
         jdbc.execute("CREATE SCHEMA places; CREATE SCHEMA osm");
         jdbc.execute("CREATE TABLE places.published_pois(id uuid PRIMARY KEY)");
         jdbc.execute("CREATE TABLE places.published_osm_references(poi_id uuid NOT NULL, value text NOT NULL)");

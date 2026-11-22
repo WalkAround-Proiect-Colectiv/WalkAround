@@ -10,7 +10,7 @@ Anyone can read the newest comments, twenty at a time. Signed-in users can post 
 
 - Configure `EXPO_PUBLIC_API_BASE_URL` as for the other API features.
 - Use the self-hosted map-data POI style, which publishes canonical UUIDs and `osm:n/<id>`, `osm:w/<id>`, or `osm:r/<id>` references. Hosted styles without this POI identity contract cannot expose comments.
-- The Application API needs its main PostgreSQL database with migration V18 and read-only access to the matching map-data database through `POI_DATABASE_URL`, `POI_DATABASE_USERNAME`, and `POI_DATABASE_PASSWORD`. The existing recommendation POI connection is reused.
+- The Application API needs its main PostgreSQL database with migration V19 and read-only access to the matching map-data database through `POI_DATABASE_URL`, `POI_DATABASE_USERNAME`, and `POI_DATABASE_PASSWORD`. The existing recommendation POI connection is reused.
 - Comments are not written into the map database or vector tiles. Approved published OSM-to-canonical aliases are resolved server-side so enrichment preserves discussions.
 
 ## Checks
