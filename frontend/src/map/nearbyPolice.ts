@@ -38,6 +38,10 @@ export async function fetchNearbyPolice(
   radiusMeters: number,
   signal: AbortSignal,
 ): Promise<PoliceStation[]> {
+  if (!apiBaseUrl.trim()) {
+    throw new Error('Application API is not configured. Set EXPO_PUBLIC_API_BASE_URL in frontend/.env.local, then restart Expo.');
+  }
+
   const stations = new Map<string, PoliceStation>();
   let page = 0;
   while (true) {
@@ -46,9 +50,23 @@ export async function fetchNearbyPolice(
       type: 'police', lat: String(origin[1]), lon: String(origin[0]),
       radiusMeters: String(radiusMeters), page: String(page),
     });
-    const response = await fetch(`${apiBaseUrl}/api/places/nearby?${params}`, { signal, cache: 'no-store' });
+    let response: Response;
+    try {
+      response = await fetch(`${apiBaseUrl}/api/places/nearby?${params}`, { signal, cache: 'no-store' });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new Error('Could not reach the Application API. Start it and verify EXPO_PUBLIC_API_BASE_URL in frontend/.env.local.');
+    }
+    if (!response.headers.get('content-type')?.toLowerCase().includes('json')) {
+      throw new Error('The station service returned a non-JSON response. Verify EXPO_PUBLIC_API_BASE_URL points to the Application API.');
+    }
     if (!response.ok) throw new Error('The station service is temporarily unavailable. Please try again.');
-    const result: unknown = await response.json();
+    let result: unknown;
+    try {
+      result = await response.json();
+    } catch {
+      throw new Error('The station service returned invalid JSON. Please try again.');
+    }
     if (!result || typeof result !== 'object' || !('items' in result) || !Array.isArray(result.items)
       || !result.items.every(isStation) || !('nextPage' in result)
       || (result.nextPage !== null && result.nextPage !== page + 1)) {

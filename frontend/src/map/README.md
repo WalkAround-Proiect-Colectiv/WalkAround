@@ -28,7 +28,7 @@ When a route is started (`isNavigating`), `MapScreen` activates foreground turn-
 
 ## Nearby police stations
 
-The features menu's **Nearby police stations** option requests a fresh foreground device position. It never substitutes the map centre or a cached/last-known position. The compact panel starts with a 3 km radius, offers 1/3/5/10 km choices and Refresh/Retry, and explains permission denial, out-of-coverage positions, timeouts, service failures, and genuinely empty results separately.
+The features menu's **Nearby police stations** option requests a fresh foreground device position. It never substitutes the map centre or a cached/last-known position. Set `EXPO_PUBLIC_API_BASE_URL` in `frontend/.env.local` to the Application API origin (normally `http://localhost:8080`) and restart Expo; without it, the browser would send the API request to the Expo server instead. For browser testing, allow the Expo origin (normally `http://localhost:8081`) in the Application API CORS configuration. The compact panel starts with a 3 km radius, offers 1/3/5/10 km choices and Refresh/Retry, and explains permission denial, out-of-coverage positions, timeouts, service failures, and genuinely empty results separately.
 
 `NearbyPolicePanel.tsx` owns the explicit lookup lifecycle. Changing radius or refreshing obtains a new position and cancels the previous request; leaving the map or closing the panel cancels pending work. `nearbyPolice.ts` follows every page of the public `/api/places/nearby?type=police` endpoint before publishing results, deduplicates OSM IDs, and sorts by straight-line distance. A failed later page is an error, not a partial list presented as complete.
 
