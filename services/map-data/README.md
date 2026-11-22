@@ -22,6 +22,14 @@ flowchart LR
 
 This is a first self-hosted basemap implementation, not a production-tuned replacement for a mature global map style. It includes roads, inland water, waterways, land cover, building footprints, place/road/POI labels, administrative boundary lines, and coastline lines. Sea polygon generation, rail/transit styling, detailed bridge/tunnel ordering, and pre-generalized low-zoom layers are not included. Coastline lines alone do not fill the Black Sea; that needs a processed coastline polygon dataset or a separate coastline-build step. Geometry selection uses display-oriented zoom thresholds, not a comprehensive mapping of every OSM tag.
 
+### Nearby police data
+
+The Application API's public `/api/places/nearby?type=police` endpoint reads `kind=poi, class=police` directly from `osm.features` using the existing read-only map role. It uses an indexed projected bounding box followed by `ST_DWithin`/`ST_Distance` on geography, so the radius and distances are real meters rather than Web Mercator map units. It is independent of tile zoom/density limits and returns paginated results without a global station cap.
+
+The flex mapping retains `amenity=police` nodes and area centroids even without a name; the API labels unnamed records `Police station`. It does not import contact/address details or merge separate node/area representations of a physical station. No provider fetch, POI approval bypass, automatic reimport, or schema migration is added.
+
+**Existing imports:** this mapping change does not retroactively restore unnamed stations omitted by an older import. Normal replication applies changed objects only. Named imported police stations are already queryable; complete backfilling of unchanged unnamed objects requires a controlled fresh import in a separate staging stack and cutover, following the recovery guidance below. Do not delete or reset a working database to enable this feature.
+
 ## POI Source Strategy and Model
 
 The POI foundation is separate from the osm2pgsql-owned basemap. V3 defines source/provenance tables, V4 adds explicit record reconciliation and review, and V5 publishes a separate POI tile layer. These migrations do not fetch external APIs or populate a real enriched dataset. Future enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment/reconciliation step in `setup`/`start`.

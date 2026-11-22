@@ -1,8 +1,5 @@
 package services.applicationapi.recommendation.repository;
 
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
-import jakarta.annotation.PreDestroy;
 import java.util.List;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -12,7 +9,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
-import services.applicationapi.recommendation.config.RecommendationProperties;
+import services.applicationapi.configuration.MapPoiDatabase;
 import services.applicationapi.recommendation.domain.PoiCandidate;
 
 @Repository
@@ -58,44 +55,13 @@ public class PostgisPoiRepositoryImpl implements PoiRepository {
             """;
 
     private final NamedParameterJdbcTemplate jdbcTemplate;
-    private final HikariDataSource dedicatedDataSource;
-
     @Autowired
-    public PostgisPoiRepositoryImpl(
-            RecommendationProperties properties,
-            NamedParameterJdbcTemplate defaultJdbcTemplate
-    ) {
-        if (properties.poiDatabaseUrl() != null && !properties.poiDatabaseUrl().isBlank()) {
-            HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(properties.poiDatabaseUrl());
-            if (properties.poiDatabaseUsername() != null && !properties.poiDatabaseUsername().isBlank()) {
-                config.setUsername(properties.poiDatabaseUsername());
-            }
-            if (properties.poiDatabasePassword() != null) {
-                config.setPassword(properties.poiDatabasePassword());
-            }
-            config.setReadOnly(true);
-            config.setMaximumPoolSize(4);
-            config.setConnectionTimeout(5000);
-            config.setInitializationFailTimeout(-1);
-            this.dedicatedDataSource = new HikariDataSource(config);
-            this.jdbcTemplate = new NamedParameterJdbcTemplate(this.dedicatedDataSource);
-        } else {
-            this.dedicatedDataSource = null;
-            this.jdbcTemplate = defaultJdbcTemplate;
-        }
+    public PostgisPoiRepositoryImpl(MapPoiDatabase database) {
+        this.jdbcTemplate = database.jdbcTemplate();
     }
 
     public PostgisPoiRepositoryImpl(NamedParameterJdbcTemplate jdbcTemplate) {
-        this.dedicatedDataSource = null;
         this.jdbcTemplate = jdbcTemplate;
-    }
-
-    @PreDestroy
-    void closeDedicatedDataSource() {
-        if (dedicatedDataSource != null && !dedicatedDataSource.isClosed()) {
-            dedicatedDataSource.close();
-        }
     }
 
     @Override

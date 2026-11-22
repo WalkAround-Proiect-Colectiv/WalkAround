@@ -65,6 +65,7 @@ export default function MapCanvas({
   routeData,
   routePointsData,
   eventPinsData = null,
+  policePinsData = null,
   selectedEventPinId = null,
   selectedEventPinCoordinates = null,
   onEventPinPress,
@@ -113,6 +114,7 @@ export default function MapCanvas({
   const currentEventPins = useEffectEvent(
     () => eventPinsData ?? EMPTY_FEATURE_COLLECTION,
   );
+  const currentPolicePins = useEffectEvent(() => policePinsData ?? EMPTY_FEATURE_COLLECTION);
   const pinPressed = useEffectEvent((pinId: string) => {
     onEventPinPress?.(pinId);
   });
@@ -309,6 +311,12 @@ export default function MapCanvas({
         });
       }
 
+      instance.addSource('nearby-police-source', { type: 'geojson', data: currentPolicePins() });
+      instance.addLayer({
+        id: 'nearby-police-layer', type: 'circle', source: 'nearby-police-source',
+        paint: { 'circle-radius': 9, 'circle-color': '#0065EB', 'circle-stroke-width': 3, 'circle-stroke-color': '#ffffff' },
+      });
+
       instance.on('mouseenter', 'event-pins-layer', () => {
         if (hasPinPressHandler()) {
           instance.getCanvas().style.cursor = 'pointer';
@@ -357,7 +365,7 @@ export default function MapCanvas({
         }
       }
 
-      const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+      const layers = ['nearby-police-layer', 'poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
       const poiHitRadius = getPoiHitRadiusPixels(instance.getZoom(), event.lngLat.lat);
       const poiFeatures = layers.length
         ? instance.queryRenderedFeatures(
@@ -400,7 +408,7 @@ export default function MapCanvas({
         const point = longPressStart;
         const lngLat = instance.unproject([point.x, point.y]);
         suppressLongPressClick = true;
-        const layers = ['poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
+        const layers = ['nearby-police-layer', 'poi-dot', 'poi-label'].filter(id => instance.getLayer(id));
         const poiHitRadius = getPoiHitRadiusPixels(instance.getZoom(), lngLat.lat);
         const poiFeatures = layers.length
           ? instance.queryRenderedFeatures(
@@ -479,8 +487,9 @@ export default function MapCanvas({
       updateSrc('route-source', routeData || EMPTY_FEATURE_COLLECTION);
       updateSrc('route-points-source', routePointsData || EMPTY_FEATURE_COLLECTION);
       updateSrc('event-pins-source', eventPinsData || EMPTY_FEATURE_COLLECTION);
+      updateSrc('nearby-police-source', policePinsData ?? EMPTY_FEATURE_COLLECTION);
     }
-  }, [dangerousZonesData, routeData, routePointsData, eventPinsData, mapLoaded]);
+  }, [dangerousZonesData, routeData, routePointsData, eventPinsData, policePinsData, mapLoaded]);
 
   useEffect(() => {
     if (!mapLoaded || !map.current || !map.current.getLayer('event-pins-layer')) {

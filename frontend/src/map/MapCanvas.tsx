@@ -32,6 +32,7 @@ export default function MapCanvas({
   routeData,
   routePointsData,
   eventPinsData = null,
+  policePinsData = null,
   selectedEventPinId = null,
   selectedEventPinCoordinates = null,
   onEventPinPress,
@@ -167,9 +168,9 @@ export default function MapCanvas({
 
         if (nativeMap.current) {
           try {
-            const poiLayers = style.layers
+            const poiLayers = [...(policePinsData ? ['nearby-police-layer'] : []), ...style.layers
               .filter(layer => ['poi-dot', 'poi-label'].includes(layer.id))
-              .map(layer => layer.id);
+              .map(layer => layer.id)];
             const poiFeatures = poiLayers.length
               ? await nativeMap.current.queryRenderedFeatures(
                   [
@@ -218,9 +219,9 @@ export default function MapCanvas({
         }
 
         try {
-          const poiLayers = style.layers
+          const poiLayers = [...(policePinsData ? ['nearby-police-layer'] : []), ...style.layers
             .filter(layer => ['poi-dot', 'poi-label'].includes(layer.id))
-            .map(layer => layer.id);
+            .map(layer => layer.id)];
           const poiFeatures = poiLayers.length
             ? await nativeMap.current?.queryRenderedFeatures(
                 [
@@ -356,6 +357,14 @@ export default function MapCanvas({
               iconIgnorePlacement: true,
             }}
           />
+        </GeoJSONSource>
+      )}
+
+      {policePinsData && (
+        <GeoJSONSource id="nearby-police-source" data={policePinsData}>
+          <Layer id="nearby-police-layer" type="circle" style={{
+            circleRadius: 9, circleColor: '#0065EB', circleStrokeWidth: 3, circleStrokeColor: '#ffffff',
+          }} />
         </GeoJSONSource>
       )}
 

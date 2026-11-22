@@ -27,6 +27,8 @@ import SavedRoutesModal from '../saved-routes/components/SavedRoutesModal';
 import type { RouteInstruction } from '../audio-directions/phrases';
 import { useAudioDirections } from '../hooks/useAudioDirections';
 import { reversePlaceName } from './placeName';
+import NearbyPolicePanel from './NearbyPolicePanel';
+import { policeDistance, policePins, policePoi, type PoliceSearchResult } from './nearbyPolice';
 
 type LatLng = { lat: number; lng: number; name?: string };
 type RouteStop = { id: string; point: LatLng };
@@ -218,6 +220,18 @@ export default function MapScreen() {
   const [poiFilter, setPoiFilter] = useState<PoiFilter>('all');
   const [eventType, setEventType] = useState<EventTypeFilter>('all');
   const [poiDetailsHeight, setPoiDetailsHeight] = useState(0);
+  const [policeOpen, setPoliceOpen] = useState(false);
+  const [policeResults, setPoliceResults] = useState<PoliceSearchResult | null>(null);
+  const [selectedPoliceOrigin, setSelectedPoliceOrigin] = useState<[number, number] | null>(null);
+  const policePinsData = useMemo(() => policePins(policeOpen ? policeResults?.stations ?? [] : []), [policeOpen, policeResults]);
+  const handlePoliceResults = useCallback((result: PoliceSearchResult | null) => {
+    setPoliceResults(result);
+    if (result) map.current?.goTo({
+      center: result.origin,
+      zoom: result.radiusMeters <= 1000 ? 13 : result.radiusMeters <= 3000 ? 12 : result.radiusMeters <= 5000 ? 11 : 10,
+    });
+  }, []);
+  useFocusEffect(useCallback(() => () => setPoliceOpen(false), []));
 
   const mapEvents = useMapEvents({
     poiFilter,
@@ -742,9 +756,9 @@ export default function MapScreen() {
         const destLng = routeGeoJSON?.geometry?.coordinates?.[1]?.[0] || routeEnd.lng;
         currentBearing = calculateBearing(userLat, userLng, destLat, destLng);
       }
-      map.current?.startNavigation([userLng, userLat], currentBearing);
+      if (!policeOpen) map.current?.startNavigation([userLng, userLat], currentBearing);
     }
-  }, [userLocation, isNavigating, routeEnd, routeGeoJSON, speakArrivalCue]);
+  }, [userLocation, isNavigating, routeEnd, routeGeoJSON, speakArrivalCue, policeOpen]);
 
   function addStop() {
     const id = `stop-${++stopIdCounter.current}`;
@@ -781,6 +795,7 @@ export default function MapScreen() {
       ...poi,
       coordinates: coordsToUse,
     });
+    setSelectedPoliceOrigin(poi.id.startsWith('nearby-police:') ? policeResults?.origin ?? null : null);
     mapEvents.clearSelection();
   }
 
@@ -832,7 +847,7 @@ export default function MapScreen() {
     if (coords) {
       lastClickedCoords.current = coords;
     }
-    if (routeMode && activeRouteField && coords) {
+    if (routeMode && activeRouteField && coords && !policeOpen) {
       const point = { lng: coords[0], lat: coords[1] };
       if (activeRouteField === 'start') {
         setRouteStart(point);
@@ -867,6 +882,7 @@ export default function MapScreen() {
   }
 
   function handleReportPress() {
+    setPoliceOpen(false);
     if (!session) {
       router.push('/login');
       return;
@@ -882,6 +898,9 @@ export default function MapScreen() {
     setIsSelectingLocation(false);
     setZoneModalVisible(true);
   }
+
+  const selectedPoliceDistance = policeResults?.stations
+    .find(station => `nearby-police:${station.id}` === selectedPoi?.id)?.distanceMeters;
 
   const searchPanelOffset = compactSearchLayout && mobileSearchExpanded
     ? mobileSearchHeight + 12
@@ -914,6 +933,7 @@ export default function MapScreen() {
               routeData={routeGeoJSON}
               routePointsData={routePointsData}
               eventPinsData={mapEvents.geoJSON}
+              policePinsData={policePinsData}
               selectedEventPinId={mapEvents.selectedPinId}
               selectedEventPinCoordinates={mapEvents.selectedPin?.coordinates ?? null}
               onEventPinPress={routeMode && activeRouteField ? undefined : handleEventPinPress}
@@ -962,7 +982,7 @@ export default function MapScreen() {
           </View>
       )}
 
-      {routeMode && !isNavigating && (
+      {routeMode && !isNavigating && !policeOpen && (
           <View style={[styles.routeOverlay, { top: Math.max(insets.top, 12) + 64 }]}>
             <Text style={styles.routeOverlayTitle}>Plan your route</Text>
 
@@ -1066,7 +1086,7 @@ export default function MapScreen() {
           </View>
       )}
 
-      {isNavigating && !session && (
+      {isNavigating && !session && !policeOpen && (
           <Pressable
               accessibilityRole="button"
               accessibilityLabel="Sign in to hear audio directions"
@@ -1136,8 +1156,18 @@ export default function MapScreen() {
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); setFiltersOpen(true); }} style={styles.menuItem}>
             <SlidersHorizontal size={20} color="#0065EB" /><Text style={styles.menuItemText}>Map filters{poiFilter !== 'all' || eventType !== 'all' ? ' • Active' : ''}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={() => setMenuOpen(false)} style={styles.menuItem}>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); setPoliceOpen(false); }} style={styles.menuItem}>
             <Compass size={20} color="#0065EB" /><Text style={styles.menuItemText}>Explore map</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => {
+            setMenuOpen(false);
+            setMobileSearchExpanded(false);
+            handlePoiSelect(null);
+            mapEvents.clearSelection();
+            setPoliceResults(null);
+            setPoliceOpen(true);
+          }} style={styles.menuItem}>
+            <ShieldAlert size={20} color="#0065EB" /><Text style={styles.menuItemText}>Nearby police stations</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
@@ -1186,6 +1216,17 @@ export default function MapScreen() {
         </View>}
       </View>
 
+      {policeOpen && <View style={[styles.policePanel, { bottom: searchPanelOffset + 12, display: selectedPoi ? 'none' : 'flex' }]}>
+        <NearbyPolicePanel maxHeight={Math.max(240, Math.min(320, windowHeight * 0.4))}
+          onResults={handlePoliceResults}
+          onSelect={station => {
+            const poi = policePoi(station);
+            handlePoiSelect(poi, poi.coordinates);
+            map.current?.goTo({ center: [station.longitude, station.latitude], zoom: 15 });
+          }}
+          onClose={() => setPoliceOpen(false)} />
+      </View>}
+
       <View style={[styles.tools, { top: Math.max(insets.top, 12) + 4 }]}>
         <Tool label="Zoom in" icon={Plus} disabled={!style || loading} onPress={() => map.current?.zoomBy(1)} />
         <Tool label="Zoom out" icon={Minus} disabled={!style || loading} onPress={() => map.current?.zoomBy(-1)} />
@@ -1233,8 +1274,16 @@ export default function MapScreen() {
           <Tool
               label="Calculate Route"
               icon={Route}
+              disabled={selectedPoi.id.startsWith('nearby-police:') && !selectedPoliceOrigin && !userLocation}
               onPress={() => {
                 const destCoords = selectedPoi.coordinates || searchedLocation || camera.center;
+                const policeStart = selectedPoi.id.startsWith('nearby-police:') ? selectedPoliceOrigin : null;
+                if (selectedPoi.id.startsWith('nearby-police:')) {
+                  setPoliceOpen(false);
+                  setRouteStops([]);
+                  setActiveSavedRouteId(null);
+                  setIsNavigating(false);
+                }
                 setSelectedPoi(null);
                 setPoiCandidates([]);
                 poiCandidatesRef.current = [];
@@ -1249,6 +1298,10 @@ export default function MapScreen() {
                 if (userLocation)
                 {
                   setRouteStart({ lat: userLocation.coordinates[1], lng: userLocation.coordinates[0] });
+                }
+                else if (policeStart)
+                {
+                  setRouteStart({ lat: policeStart[1], lng: policeStart[0] });
                 }
                 else
                 {
@@ -1278,6 +1331,9 @@ export default function MapScreen() {
       </View>
       <ScrollView style={styles.poiDescription}>
         <Text style={styles.poiCategory}>{selectedPoi.category}</Text>
+        {selectedPoliceDistance !== undefined && <Text style={styles.poiMetadata}>
+          {policeDistance(selectedPoliceDistance)} straight-line from your searched position
+        </Text>}
         {!!selectedPoi.sources && <Text style={styles.poiMetadata}>{selectedPoi.sources}</Text>}
         {!!selectedPoi.attribution && <Text style={styles.poiMetadata}>{selectedPoi.attribution}</Text>}
         {!!selectedPoi.licenses && <Text style={styles.poiMetadata}>{selectedPoi.licenses}</Text>}
@@ -1435,6 +1491,7 @@ const styles = StyleSheet.create({
   menuItem: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
   menuItemText: { color: '#263241', fontSize: 15, fontWeight: '700' },
   map: { flex: 1, position: 'relative', backgroundColor: '#edf0f3', overflow: 'hidden' },
+  policePanel: { position: 'absolute', left: 12, right: 64, maxWidth: 400, zIndex: 4 },
   tools: { position: 'absolute', right: 12, top: 16, gap: 8 },
   tool: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 6, borderWidth: 1, borderColor: '#dce2e9', backgroundColor: '#ffffff' },
   dim: { opacity: 0.55 },
