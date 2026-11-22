@@ -45,7 +45,7 @@ local function area(object, geom)
         add(object, 'landcover', tags.landuse or tags.landcover or tags.natural or tags.leisure, minzoom, geom)
     end
     local poi = poi_class(tags)
-    if poi and tags.name then add(object, 'poi', poi, 15, geom:centroid()) end
+    if poi and (tags.name or poi == 'police') then add(object, 'poi', poi, 15, geom:centroid()) end
 end
 
 function osm2pgsql.process_node(object)
@@ -54,7 +54,7 @@ function osm2pgsql.process_node(object)
         add(object, 'place', tags.place, place_zoom[tags.place], object:as_point())
     end
     local poi = poi_class(tags)
-    if poi and tags.name then add(object, 'poi', poi, 15, object:as_point()) end
+    if poi and (tags.name or poi == 'police') then add(object, 'poi', poi, 15, object:as_point()) end
 end
 
 function osm2pgsql.process_way(object)

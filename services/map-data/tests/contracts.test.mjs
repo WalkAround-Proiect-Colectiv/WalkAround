@@ -72,7 +72,7 @@ test('POI tile publication requires confirmed current approved sources and suppr
   assert.match(sql, /ST_Transform\(poi\.geom, 3857\)/);
 });
 
-test('POI density uses a later migration and publishes zoom-aware OSM clusters', async () => {
+test('POI density applies after the established POI migrations and publishes zoom-aware OSM clusters', async () => {
   const sql = await read('../database/migrations/V6__poi_density_tiles.sql');
   assert.match(sql, /z BETWEEN 10 AND 14/);
   assert.match(sql, /'poi_cluster'/);

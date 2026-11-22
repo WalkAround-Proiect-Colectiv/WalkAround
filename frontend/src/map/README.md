@@ -26,6 +26,16 @@ The map connects to realtime dangerous-zone updates using `EXPO_PUBLIC_WS_URL` a
 
 When a route is started (`isNavigating`), `MapScreen` activates foreground turn-by-turn voice prompts through [`src/audio-directions`](../audio-directions/README.md) (`useAudioDirections`). Signed-in users hear start, approach (`<= 50 m`), immediate (`<= 15 m`), and arrival cues synthesized via `GET /api/v1/tts`, and can cycle the speaker button in the active route controls between all directions, **danger-zone alerts only** (warnings about danger zones ahead on the route, entering and leaving them), and off. Unauthenticated users can still navigate visually and see a **Sign in to hear audio directions** action in the navigation header.
 
+## Nearby police stations
+
+The features menu's **Nearby police stations** option requests a fresh foreground device position. It never substitutes the map centre or a cached/last-known position. Set `EXPO_PUBLIC_API_BASE_URL` in `frontend/.env.local` to the Application API origin (normally `http://localhost:8080`) and restart Expo; without it, the browser would send the API request to the Expo server instead. For browser testing, allow the Expo origin (normally `http://localhost:8081`) in the Application API CORS configuration. The compact panel starts with a 3 km radius, offers 1/3/5/10 km choices and Refresh/Retry, and explains permission denial, out-of-coverage positions, timeouts, service failures, and genuinely empty results separately.
+
+`NearbyPolicePanel.tsx` owns the explicit lookup lifecycle. Changing radius or refreshing obtains a new position and cancels the previous request; leaving the map or closing the panel cancels pending work. `nearbyPolice.ts` follows every page of the public `/api/places/nearby?type=police` endpoint before publishing results, deduplicates OSM IDs, and sorts by straight-line distance. A failed later page is an error, not a partial list presented as complete.
+
+The results have their own GeoJSON circle layer on both map adapters, including hosted basemaps and low zoom levels. Markers do not depend on loaded basemap POIs or existing POI filters. Selecting a marker or list entry uses the normal place-detail band and **Calculate Route** action with the station's exact coordinates. Police route starts use the live device position, or the successful search's device position if tracking is unavailable, never the map centre. The existing route is only replaced when the user explicitly calculates a new route.
+
+The panel credits OpenStreetMap/ODbL and describes recorded data rather than promising every real-world police station. Search requires the Application API and its read-only `POI_DATABASE_*` connection to a completed local map import; it needs no sign-in or paid search provider. Tests in `tests/nearbyPolice.test.mjs` cover paging, sorting, cancellation, service failures, malformed responses, and the map-selection coordinate contract.
+
 ## POI photos
 
 For POIs from the self-hosted map, the POI details card includes a **Photos** section where signed-in users can view, add and delete photos. See [`src/poiimages`](../poiimages/README.md).

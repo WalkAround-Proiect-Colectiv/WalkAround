@@ -40,6 +40,13 @@ osm2pgsql.process_relation(object({ type = 'multipolygon', landuse = 'forest' },
 expect_last('landcover', 'forest', 8)
 osm2pgsql.process_node(object({ amenity = 'cafe', name = 'Cafe' }))
 expect_last('poi', 'cafe', 15)
+osm2pgsql.process_node(object({ amenity = 'police' }))
+expect_last('poi', 'police', 15)
+assert(rows[#rows].name == nil)
+osm2pgsql.process_way(object({ amenity = 'police', building = 'yes' }))
+expect_last('poi', 'police', 15)
+osm2pgsql.process_relation(object({ type = 'multipolygon', amenity = 'police' }))
+expect_last('poi', 'police', 15)
 osm2pgsql.process_relation(object({ type = 'boundary', boundary = 'administrative', admin_level = '2' }))
 expect_last('boundary', '2', 4)
 local count = #rows

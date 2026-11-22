@@ -1,6 +1,6 @@
 import type { Ref } from 'react';
 import type { StyleSpecification } from 'maplibre-gl';
-import type { Feature, FeatureCollection } from 'geojson';
+import type { Feature, FeatureCollection, Point } from 'geojson';
 import type { MapPoi, MapZone } from './poi';
 import type { EventPinsFeatureCollection } from '../events/mapPins';
 import type { PoiFilter } from './filters';
@@ -26,6 +26,7 @@ export type MapCanvasProps = {
   routeData?: Feature | FeatureCollection | null;
   routePointsData?: FeatureCollection | null;
   eventPinsData?: EventPinsFeatureCollection | null;
+  policePinsData?: FeatureCollection<Point> | null;
   selectedEventPinId?: string | null;
   selectedEventPinCoordinates?: [longitude: number, latitude: number] | null;
   onEventPinPress?(pinId: string): void;

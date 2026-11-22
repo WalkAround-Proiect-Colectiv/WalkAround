@@ -22,6 +22,10 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import services.applicationapi.configuration.SecurityConfiguration;
+import services.applicationapi.placesearch.controllers.PlaceSearchController;
+import services.applicationapi.placesearch.dto.NearbyPlacePage;
+import services.applicationapi.placesearch.service.NearbyPlaceService;
+import services.applicationapi.placesearch.service.PlaceSearchService;
 import services.applicationapi.poicomments.controllers.PoiCommentController;
 import services.applicationapi.poicomments.service.PoiCommentService;
 
@@ -38,6 +42,11 @@ class PoiCommentSecurityTest {
         @Bean("applicationJwtDecoder") JwtDecoder decoder() { return mock(JwtDecoder.class); }
         @Bean PoiCommentService comments() { return mock(PoiCommentService.class); }
         @Bean PoiCommentController controller(PoiCommentService comments) { return new PoiCommentController(comments); }
+        @Bean PlaceSearchService places() { return mock(PlaceSearchService.class); }
+        @Bean NearbyPlaceService nearby() { return mock(NearbyPlaceService.class); }
+        @Bean PlaceSearchController placesController(PlaceSearchService places, NearbyPlaceService nearby) {
+            return new PlaceSearchController(places, nearby);
+        }
     }
 
     @BeforeEach
@@ -52,6 +61,17 @@ class PoiCommentSecurityTest {
 
     @AfterEach
     void close() { context.close(); }
+
+    @Test
+    void nearbyPoliceLookupRemainsPublicAlongsideComments() throws Exception {
+        NearbyPlaceService nearby = context.getBean(NearbyPlaceService.class);
+        when(nearby.search("police", 46.77, 23.59, 3000, 0))
+                .thenReturn(new NearbyPlacePage(List.of(), null));
+        mvc.perform(get("/api/places/nearby")
+                .param("type", "police").param("lat", "46.77").param("lon", "23.59"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+        verify(nearby).search("police", 46.77, 23.59, 3000, 0);
+    }
 
     @Test
     void readingIsPublicButAllMutationsAndReportsAreProtected() throws Exception {

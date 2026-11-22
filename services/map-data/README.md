@@ -22,6 +22,14 @@ flowchart LR
 
 This is a first self-hosted basemap implementation, not a production-tuned replacement for a mature global map style. It includes roads, inland water, waterways, land cover, building footprints, place/road/POI labels, administrative boundary lines, and coastline lines. Sea polygon generation, rail/transit styling, detailed bridge/tunnel ordering, and pre-generalized low-zoom layers are not included. Coastline lines alone do not fill the Black Sea; that needs a processed coastline polygon dataset or a separate coastline-build step. Geometry selection uses display-oriented zoom thresholds, not a comprehensive mapping of every OSM tag.
 
+### Nearby police data
+
+The Application API's public `/api/places/nearby?type=police` endpoint reads `kind=poi, class=police` directly from `osm.features` using the existing read-only map role. It uses an indexed projected bounding box followed by `ST_DWithin`/`ST_Distance` on geography, so the radius and distances are real meters rather than Web Mercator map units. It is independent of tile zoom/density limits and returns paginated results without a global station cap.
+
+The flex mapping retains `amenity=police` nodes and area centroids even without a name; the API labels unnamed records `Police station`. It does not import contact/address details or merge separate node/area representations of a physical station. No provider fetch, POI approval bypass, automatic reimport, or schema migration is added.
+
+**Existing imports:** this mapping change does not retroactively restore unnamed stations omitted by an older import. Normal replication applies changed objects only. Named imported police stations are already queryable; complete backfilling of unchanged unnamed objects requires a controlled fresh import in a separate staging stack and cutover, following the recovery guidance below. Do not delete or reset a working database to enable this feature.
+
 ## POI Source Strategy and Model
 
 The POI foundation is separate from the osm2pgsql-owned basemap. V3 defines source/provenance tables, V4 adds explicit record reconciliation and review, and V5 publishes a separate POI tile layer. These migrations do not fetch external APIs or populate a real enriched dataset. Future enrichment jobs must be explicitly triggered by an operator and run infrequently. There is no POI scheduler, cron task, automatic polling, or enrichment/reconciliation step in `setup`/`start`.
@@ -58,7 +66,7 @@ The initial normalized categories are `food_drink`, `healthcare`, `shopping`, `t
 
 ### Manual Deduplication
 
-V3 adds normalized source category/subtype, geographic country/address/website fields, and an `identifiers` object to provider records. Identifiers must be trusted normalized strings from an approved source, for example `{"wikidata":"Q123","osm":"node/456"}`. OSM references use exactly `node/<id>`, `way/<id>`, or `relation/<id>`. A private `poi_identifiers` table makes `(namespace,value)` unique across canonical POIs.
+V4 adds normalized source category/subtype, geographic country/address/website fields, and an `identifiers` object to provider records. Identifiers must be trusted normalized strings from an approved source, for example `{"wikidata":"Q123","osm":"node/456"}`. OSM references use exactly `node/<id>`, `way/<id>`, or `relation/<id>`. A private `poi_identifiers` table makes `(namespace,value)` unique across canonical POIs.
 
 Run reconciliation only when intentionally requested, after migrations and after approved source records have been inserted through an authorized manual workflow:
 
@@ -94,7 +102,9 @@ Source attribution remains in the style and TileJSON and is also carried on feat
 
 ### Applying and Testing
 
-A small `map-schema` one-shot Compose service uses the database administrator only to create `places` owned by `map_import`. This supports both fresh and existing map database volumes without granting the import role global database CREATE or superuser rights. Flyway waits for that step and applies pending V3-V6 migrations under the existing `tiles.flyway_schema_history`. V2 remains the original POI density migration so databases that already applied it pass checksum validation. The Application API's migrations are unaffected.
+A small `map-schema` one-shot Compose service uses the database administrator only to create `places` owned by `map_import`. This supports both fresh and existing map database volumes without granting the import role global database CREATE or superuser rights. Flyway waits for that step and applies pending V2-V6 migrations under the existing `tiles.flyway_schema_history`: the original density migration at V2, the POI model/reconciliation/publication migrations at V3-V5, and the later density migration at V6. Published migration filenames, versions, and checksums must remain unchanged; future SQL changes need new versions. The Application API's migrations are unaffected.
+
+If a local database already applied renumbered versions from this branch, restoring these files does not repair that database's Flyway history. Do not edit history or run `repair` automatically; follow the controlled staging/recovery guidance below.
 
 For an existing, completed regional setup, run `node services/map-data/manage.mjs start` to apply pending migrations and restart/verify the map stack. `setup` also includes the migration path. These commands apply schema/source-catalog changes only; they do not call third-party POI APIs. Review any application of migrations to non-local deployments with the team first.
 
@@ -112,7 +122,7 @@ The existing OSM basemap replication workflow below is independent of POI enrich
 
 ### POI Density
 
-The original V2 migration adds POI clustering. `V6__poi_density_tiles.sql` updates its tile function for the enriched POI source. It groups OSM POIs into an 8-by-8 grid per tile at server zooms 10-14. Each cell emits one point: a blue cluster with its POI count when it contains multiple places, or a small dot when it contains one. At zoom 15 the POI tile source contains individual fallback and reviewed POIs; above zoom 15 MapLibre overzooms those tiles. Clusters are shown from zoom 10 through 14. The source tile function reads only POIs within the requested tile and uses a partial GiST index for that lookup, so a city with many POIs is never sent to the client as one result set. Clusters are calculated per tile, so a group can split at a tile boundary.
+`V6__poi_density_tiles.sql` applies zoom-aware POI clustering to the basemap function after the POI migrations. It groups OSM POIs into an 8-by-8 grid per tile at server zooms 10-14. Each cell emits one point: a blue cluster with its POI count when it contains multiple places, or a small dot when it contains one. At zoom 15 the POI tile source contains individual fallback and reviewed POIs; above zoom 15 MapLibre overzooms those tiles. Clusters are shown from zoom 10 through 14. The source tile function reads only POIs within the requested tile and uses a partial GiST index for that lookup, so a city with many POIs is never sent to the client as one result set. Clusters are calculated per tile, so a group can split at a tile boundary.
 
 After updating an existing map stack, run `node services/map-data/manage.mjs start` to apply the Flyway migration and restart the tile service, then reload the map page. A new OSM import is not needed. In a dense city, compare z14 and z15 tile response bytes and duration in the browser Network panel. For database-side generation time, run `EXPLAIN (ANALYZE, BUFFERS) SELECT octet_length(tiles.basemap(14, x, y));` in the map database, replacing `x` and `y` with a tile from the Network panel. The SQL timing excludes HTTP and browser rendering; measure those separately before choosing a performance budget.
 
