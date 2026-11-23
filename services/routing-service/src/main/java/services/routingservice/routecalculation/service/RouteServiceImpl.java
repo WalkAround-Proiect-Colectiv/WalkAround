@@ -60,6 +60,19 @@ public class RouteServiceImpl implements RouteService {
                 "directions_options", Map.of(
                         "units", "kilometers",
                         "language", valhallaLanguage
+                ),
+                "costing_options", Map.of(
+                        "pedestrian", Map.of(
+                                "walkway_factor", 0.1,
+                                "sidewalk_factor", 0.1,
+                                "driveway_factor", 5.0,
+                                "step_penalty", 10.0,
+                                "use_ferry", 0.0,
+                                "use_living_streets", 0.5,
+                                "use_tracks", 0.5,
+                                "transit_transfer_penalty", 500,
+                                "type", "foot"
+                        )
                 )
         ));
 
@@ -172,9 +185,17 @@ public class RouteServiceImpl implements RouteService {
                 : ZonedDateTime.now(ZoneId.of("Europe/Bucharest")).toLocalTime();
     }
 
-    private List<Map<String, Object>> getLocations(RouteRequestDto request) {
+    private List<Map<String, Object>> getLocations(RouteRequestDto request)
+    {
         return request.allPoints().stream()
-                .map(this::location)
+                .map(point -> {
+                    Map<String, Object> location = new HashMap<>();
+                    location.put("lat", point.lat());
+                    location.put("lon", point.lng());
+                    location.put("radius", 200);
+                    location.put("search_filter", Map.of("exclude_tunnel", true));
+                    return location;
+                })
                 .toList();
     }
 
