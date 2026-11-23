@@ -19,7 +19,7 @@ import services.applicationapi.tripplan.model.GroupChatMessage;
 public class JdbcGroupChatRepository implements GroupChatRepository {
 
     private static final String MESSAGE_SELECT = """
-            SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at,
+            SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at, m.reply_to_message_id,
                    COALESCE(NULLIF(u.username, ''), NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
                             'Former member') AS sender_name
             FROM trip_group_chat_messages m
@@ -42,7 +42,7 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
 
     @Override
     public GroupChatMessage insert(UUID messageId, UUID conversationId, UUID senderId,
-                                   String body, String messageType, Instant createdAt) {
+                                   String body, String messageType, Instant createdAt, UUID replyToMessageId) {
         jdbc.update("""
                 INSERT INTO trip_group_chat_conversations (group_id)
                 VALUES (?) ON CONFLICT (group_id) DO NOTHING
@@ -66,10 +66,10 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
                 """, next + 1, eventSequence + 1, conversationId);
         jdbc.update("""
                 INSERT INTO trip_group_chat_messages
-                    (id, conversation_id, sequence, sender_id, body, message_type, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (id, conversation_id, sequence, sender_id, body, message_type, created_at, reply_to_message_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """, messageId, conversationId, next, senderId, body, messageType,
-                OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC));
+                OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC), replyToMessageId);
         enqueueEvent(messageId, messageId, conversationId, next, eventSequence, null, createdAt);
 
         return findById(messageId).orElseThrow();
@@ -163,7 +163,7 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
     @Override
     public List<PendingEvent> lockPending(int limit) {
         return jdbc.query("""
-                SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at,
+                SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at, m.reply_to_message_id,
                        COALESCE(NULLIF(u.username, ''), NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
                                 'Former member') AS sender_name,
                        o.event_id, o.event_sequence, o.payload, o.attempts
@@ -206,7 +206,8 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
                 rs.getString("sender_name"),
                 rs.getString("body"),
                 rs.getString("message_type"),
-                rs.getObject("created_at", OffsetDateTime.class).toInstant()
+                rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+                rs.getObject("reply_to_message_id", UUID.class)
         );
     }
 }

@@ -10,6 +10,10 @@ public record GroupChatMessageRequest(
         @NotNull UUID messageId,
         @NotBlank @Size(max = 2000) String body,
         String messageType,
-        List<String> options
+                List<String> options,
+                UUID replyToMessageId
 ) {
+        public GroupChatMessageRequest(UUID messageId, String body, String messageType, List<String> options) {
+                this(messageId, body, messageType, options, null);
+        }
 }

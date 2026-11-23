@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getGroupChatImageUrl, type GroupChatMessage } from '../api/groupChat';
 import type { PreviewImage } from './GroupChatImagePreview';
+import GroupChatQuote from './GroupChatQuote';
 
 interface Props {
   groupId: string;
@@ -40,6 +41,7 @@ export default function GroupChatImageCard({ groupId, message, own, onPreview }:
 
   return <View style={[styles.card, own ? styles.own : styles.other]}>
     {!own && <Text style={styles.sender}>{message.senderName}</Text>}
+    <GroupChatQuote reply={message.replyTo} />
     {failed ? <Text style={styles.missing}>Image unavailable</Text>
       : <Pressable accessibilityRole="button" accessibilityLabel="Preview chat image"
         onPress={() => onPreview({ uri: url, width: message.image?.width ?? 1,

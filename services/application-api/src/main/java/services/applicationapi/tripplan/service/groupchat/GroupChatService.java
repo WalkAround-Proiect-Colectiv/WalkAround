@@ -14,8 +14,13 @@ public interface GroupChatService {
 
     GroupChatMessageResponse send(UUID groupId, UUID userId, GroupChatMessageRequest request);
 
+    default GroupChatMessageResponse sendImage(UUID groupId, UUID userId, UUID messageId,
+                                               String caption, MultipartFile image) {
+        return sendImage(groupId, userId, messageId, caption, image, null);
+    }
+
     GroupChatMessageResponse sendImage(UUID groupId, UUID userId, UUID messageId,
-                                       String caption, MultipartFile image);
+                                       String caption, MultipartFile image, UUID replyToMessageId);
 
     GroupChatImageResponse imageUrl(UUID groupId, UUID userId, UUID messageId);
 

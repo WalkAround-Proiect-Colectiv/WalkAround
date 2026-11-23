@@ -53,8 +53,9 @@ public class GroupChatController {
                                                               @PathVariable UUID groupId,
                                                               @RequestParam UUID messageId,
                                                               @RequestParam(required = false) String caption,
+                                                              @RequestParam(required = false) UUID replyToMessageId,
                                                               @RequestPart("image") MultipartFile image) {
-        GroupChatMessageResponse saved = chat.sendImage(groupId, userId(jwt), messageId, caption, image);
+        GroupChatMessageResponse saved = chat.sendImage(groupId, userId(jwt), messageId, caption, image, replyToMessageId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .cacheControl(CacheControl.noStore())
                 .body(saved);

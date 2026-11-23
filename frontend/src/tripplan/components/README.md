@@ -1,5 +1,7 @@
 # Trip planning components
 
+`GroupChatQuote` displays the sender and bounded plain-text preview of a replied-to message. It is shared by the composer, pending replies, text bubbles, image cards, and poll cards. It does not fetch the parent or render media URLs; history and live responses provide the server-derived quote. The quote is not a nested discussion or a jump-to-message control.
+
 `EmojiPicker` is the group chat's searchable, category-based Unicode emoji palette. It reads the bundled `data/emojiCatalog.json` file, displays the full catalog with a virtualized eight-column grid, and returns the selected glyph to the chat composer. The palette works offline and does not call a third-party API; see `../data/README.md` for the source and license.
 
 `GroupChatPollCard` renders a poll in the conversation with its option counts and percentages, the viewer's selected option, and closure status. While the poll is open, the viewer can select an option or change their vote by pressing another option. The creator sees the close action. It receives state and callbacks from the chat screen rather than making requests itself.

@@ -14,12 +14,18 @@ public record GroupChatMessageResponse(
         Instant createdAt,
         String messageType,
         GroupChatPollResponse poll,
-        GroupChatImageResponse image
+        GroupChatImageResponse image,
+        GroupChatReplyResponse replyTo
 ) {
     public static GroupChatMessageResponse from(GroupChatMessage message, GroupChatPollResponse poll,
                                                 GroupChatImageResponse image) {
+        return from(message, poll, image, null);
+    }
+
+    public static GroupChatMessageResponse from(GroupChatMessage message, GroupChatPollResponse poll,
+                                                GroupChatImageResponse image, GroupChatReplyResponse replyTo) {
         return new GroupChatMessageResponse(
                 message.id(), message.conversationId(), message.sequence(), message.senderId(),
-                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll, image);
+                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll, image, replyTo);
     }
 }

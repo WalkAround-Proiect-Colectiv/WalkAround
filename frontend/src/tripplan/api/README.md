@@ -2,6 +2,8 @@
 
 `groupChat.ts` owns the authenticated group-chat HTTP calls: send with a stable client UUID, read message pages using sequence cursors, and request the short-lived WebSocket ticket. The chat screen uses the existing `EXPO_PUBLIC_WS_URL` for live delivery. The token is kept in memory and messages are never written through the socket.
 
+Quoted replies add an optional `replyToMessageId` to text/poll JSON and image multipart sends. The client sends only the captured parent identity; authenticated API responses and live events provide `replyTo` display metadata. `chatReplies.ts` contains the bounded local composer preview, compatible socket metadata parser, and parent-request mapping used by focused Node tests. An absent quote remains compatible with existing messages and events.
+
 `sendGroupChatImage` posts a JPEG/PNG with optional caption and the same retry UUID through multipart HTTP. Web uses the picker `File`; native uses its local URI. This request uses a 60-second timeout through the shared authenticated HTTP helper; other requests keep the 15-second default. The backend uploads privately to ImageKit, then saves the chat message and outbox event. `getGroupChatImageUrl` refreshes a signed display URL if an image fails to load; ImageKit credentials stay on the backend.
 
 The same client also creates poll messages, maintains one current choice per account, allows changing it while the poll is open, closes a creator-owned poll, and fetches event cursors/pages. Message sequence tracks chat bubble order; event sequence tracks both new bubbles and updates to existing polls. Vote and close responses return the updated poll, including the current user's selected option.

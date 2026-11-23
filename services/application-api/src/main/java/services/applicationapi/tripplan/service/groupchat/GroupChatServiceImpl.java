@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ import services.applicationapi.tripplan.dto.GroupChatEventResponse;
 import services.applicationapi.tripplan.dto.GroupChatImageResponse;
 import services.applicationapi.tripplan.dto.GroupChatMessageRequest;
 import services.applicationapi.tripplan.dto.GroupChatMessageResponse;
+import services.applicationapi.tripplan.dto.GroupChatReplyResponse;
 import services.applicationapi.tripplan.dto.GroupChatPollVoteRequest;
 import services.applicationapi.tripplan.dto.GroupChatSocketTicket;
 import services.applicationapi.tripplan.model.GroupChatImage;
@@ -83,7 +85,7 @@ public class GroupChatServiceImpl implements GroupChatService {
 
     @Override
     public GroupChatMessageResponse sendImage(UUID groupId, UUID userId, UUID messageId,
-                                              String caption, MultipartFile image) {
+                                              String caption, MultipartFile image, UUID replyToMessageId) {
         requireMember(groupId, userId);
         if (messageId == null) throw new GroupChatInvalidMessageException("Message ID is required");
         String body = caption == null ? "" : caption.strip();
@@ -95,22 +97,25 @@ public class GroupChatServiceImpl implements GroupChatService {
         var normalized = imageNormalizer.normalize(image);
         var existing = messages.findById(messageId);
         if (existing.isPresent()) {
-            return sameImage(existing.get(), groupId, userId, body, normalized.sha256());
+            return sameImage(existing.get(), groupId, userId, body, normalized.sha256(), replyToMessageId);
         }
 
+        requireReplyTarget(groupId, replyToMessageId);
         var uploaded = imageStorage.upload(groupId, messageId, normalized.jpeg());
         try {
             ImageSendResult result = transactions.execute(status -> {
                 requireMember(groupId, userId);
+                requireReplyTarget(groupId, replyToMessageId);
                 GroupChatMessage saved = messages.insert(messageId, groupId, userId,
-                        body, "IMAGE", Instant.now());
+                    body, "IMAGE", Instant.now(), replyToMessageId);
                 var previousImage = images.findByMessageId(saved.id());
                 if (previousImage.isPresent()) {
                     return new ImageSendResult(sameImage(saved, groupId, userId,
-                            body, normalized.sha256()), false);
+                            body, normalized.sha256(), replyToMessageId), false);
                 }
                 if (!saved.conversationId().equals(groupId) || !userId.equals(saved.senderId())
-                        || !"IMAGE".equals(saved.messageType()) || !body.equals(saved.body())) {
+                        || !"IMAGE".equals(saved.messageType()) || !body.equals(saved.body())
+                        || !Objects.equals(saved.replyToMessageId(), replyToMessageId)) {
                     throw new GroupChatConflictException();
                 }
 
@@ -162,17 +167,18 @@ public class GroupChatServiceImpl implements GroupChatService {
 
         var existing = messages.findById(request.messageId());
         if (existing.isPresent()) return sameMessage(existing.get(), groupId, userId,
-                body, messageType, options);
+            body, messageType, options, request.replyToMessageId());
 
+        requireReplyTarget(groupId, request.replyToMessageId());
         try {
             GroupChatMessage saved = messages.insert(request.messageId(), groupId, userId,
-                    body, messageType, Instant.now());
+                body, messageType, Instant.now(), request.replyToMessageId());
             if ("POLL".equals(messageType) && polls.snapshot(saved.id(), userId).isEmpty()) {
                 polls.create(saved.id(), options);
             }
             GroupChatMessageResponse response = sameMessage(saved, groupId, userId,
-                    body, messageType, options);
-            if ("POLL".equals(messageType)) {
+                    body, messageType, options, request.replyToMessageId());
+                if ("POLL".equals(messageType) || request.replyToMessageId() != null) {
                 messages.setPayload(saved.id(), payload(response, messages.eventSequence(saved.id())));
             }
             log.info("Saved group chat message {} at sequence {} in conversation {}",
@@ -280,9 +286,10 @@ public class GroupChatServiceImpl implements GroupChatService {
 
     private GroupChatMessageResponse sameMessage(GroupChatMessage message, UUID groupId,
                                                  UUID userId, String body, String messageType,
-                                                 List<String> options) {
+                             List<String> options, UUID replyToMessageId) {
         if (!groupId.equals(message.conversationId()) || !userId.equals(message.senderId())
-                || !body.equals(message.body()) || !messageType.equals(message.messageType())) {
+            || !body.equals(message.body()) || !messageType.equals(message.messageType())
+            || !Objects.equals(message.replyToMessageId(), replyToMessageId)) {
             throw new GroupChatConflictException();
         }
         GroupChatMessageResponse response = response(message, userId);
@@ -326,16 +333,21 @@ public class GroupChatServiceImpl implements GroupChatService {
     }
 
     private GroupChatMessageResponse response(GroupChatMessage message, UUID viewerId) {
+        GroupChatReplyResponse reply = message.replyToMessageId() == null ? null
+            : messages.findById(message.replyToMessageId())
+                .filter(parent -> parent.conversationId().equals(message.conversationId()))
+                .map(GroupChatReplyResponse::from).orElse(null);
         return GroupChatMessageResponse.from(message, "POLL".equals(message.messageType())
                 ? polls.snapshot(message.id(), viewerId).orElseThrow() : null,
                 "IMAGE".equals(message.messageType())
-                        ? imageResponse(images.findByMessageId(message.id()).orElseThrow()) : null);
+                        ? imageResponse(images.findByMessageId(message.id()).orElseThrow()) : null, reply);
     }
 
     private GroupChatMessageResponse sameImage(GroupChatMessage message, UUID groupId,
-                                               UUID userId, String body, String sha256) {
+                                       UUID userId, String body, String sha256, UUID replyToMessageId) {
         if (!groupId.equals(message.conversationId()) || !userId.equals(message.senderId())
                 || !"IMAGE".equals(message.messageType()) || !body.equals(message.body())
+                    || !Objects.equals(message.replyToMessageId(), replyToMessageId)
                 || !images.findByMessageId(message.id())
                         .map(found -> sha256.equals(found.contentSha256())).orElse(false)) {
             throw new GroupChatConflictException();
@@ -364,7 +376,7 @@ public class GroupChatServiceImpl implements GroupChatService {
         return mapper.writeValueAsString(new PollChatEvent("GROUP_CHAT_MESSAGE", response.id(),
                 response.conversationId(), response.sequence(), eventSequence, response.senderId(),
                 response.senderName(), response.body(), response.createdAt(),
-                response.messageType(), publicPoll, response.image()));
+                response.messageType(), publicPoll, response.image(), response.replyTo()));
     }
 
     private record PollChatEvent(String type, UUID messageId, UUID conversationId,
@@ -372,7 +384,14 @@ public class GroupChatServiceImpl implements GroupChatService {
                                  String senderName, String body, Instant createdAt,
                                  String messageType,
                                  services.applicationapi.tripplan.dto.GroupChatPollResponse poll,
-                                 GroupChatImageResponse image) {
+                                 GroupChatImageResponse image, GroupChatReplyResponse replyTo) {
+    }
+
+    private void requireReplyTarget(UUID groupId, UUID messageId) {
+        if (messageId == null) return;
+        if (messages.findById(messageId).filter(parent -> groupId.equals(parent.conversationId())).isEmpty()) {
+            throw new GroupChatInvalidMessageException("Reply target is not available in this group");
+        }
     }
 
     private record ImageSendResult(GroupChatMessageResponse response, boolean usedUpload) {
