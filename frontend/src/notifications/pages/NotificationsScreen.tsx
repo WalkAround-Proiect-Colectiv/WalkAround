@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, FlatList, Pressable, StyleSheet, Text, View, type FlatListProps } from 'react-native';
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Bell, ChevronRight } from 'lucide-react-native';
@@ -18,10 +18,58 @@ export default function NotificationsScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const listRef = useRef<FlatList<InboxNotification>>(null);
+  const focusedRef = useRef(false);
+  const readIdsRef = useRef(new Set<string>());
+  const pendingReadsRef = useRef(new Map<string, Promise<void>>());
+  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50, minimumViewTime: 750 }).current;
+
+  const markReadOnce = useCallback((item: InboxNotification): Promise<void> => {
+    if (item.readAt || readIdsRef.current.has(item.id)) return Promise.resolve();
+
+    const pending = pendingReadsRef.current.get(item.id);
+    if (pending) return pending;
+
+    const request = markNotificationRead(item.id)
+      .then(() => {
+        readIdsRef.current.add(item.id);
+        setItems(current => current.map(existing => existing.id === item.id
+          ? { ...existing, readAt: new Date().toISOString() } : existing));
+      })
+      .catch(error => {
+        setError('Some notifications could not be marked as read. Tap to retry.');
+        throw error;
+      })
+      .finally(() => pendingReadsRef.current.delete(item.id));
+
+    pendingReadsRef.current.set(item.id, request);
+    return request;
+  }, []);
+
+  const onViewableItemsChanged = useRef<NonNullable<FlatListProps<InboxNotification>['onViewableItemsChanged']>>(
+    ({ viewableItems }) => {
+      if (!focusedRef.current || AppState.currentState === 'background'
+          || AppState.currentState === 'inactive') return;
+
+      viewableItems.forEach(({ item, isViewable }) => {
+        if (isViewable && item && !item.readAt) {
+          void markReadOnce(item).catch(() => {});
+        }
+      });
+    },
+  ).current;
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', state => {
+      if (state === 'active' && focusedRef.current) listRef.current?.recordInteraction();
+    });
+    return () => subscription.remove();
+  }, []);
 
   useFocusEffect(useCallback(() => {
     if (!session) return;
     let active = true;
+    focusedRef.current = true;
     const unsubscribe = subscribeToInboxChanges(() => setReloadKey(value => value + 1));
     setLoading(true);
     listNotifications()
@@ -33,7 +81,7 @@ export default function NotificationsScreen() {
       })
       .catch(() => { if (active) setError('Could not load notifications. Try again.'); })
       .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; unsubscribe(); };
+    return () => { active = false; focusedRef.current = false; unsubscribe(); };
   }, [session?.user.id, reloadKey]));
 
   if (!ready) return <View style={styles.center}><ActivityIndicator color="#0065EB" /></View>;
@@ -55,15 +103,10 @@ export default function NotificationsScreen() {
   }
 
   async function open(item: InboxNotification) {
-    if (!item.readAt) {
-      try {
-        await markNotificationRead(item.id);
-        setItems(current => current.map(existing => existing.id === item.id
-          ? { ...existing, readAt: new Date().toISOString() } : existing));
-      } catch {
-        setError('Could not mark this notification as read. Try again.');
-        return;
-      }
+    try {
+      await markReadOnce(item);
+    } catch {
+      return;
     }
     if (item.target && !openNotificationTarget(item.target, router)) {
       setError('This destination is not available in this version of the app.');
@@ -78,16 +121,22 @@ export default function NotificationsScreen() {
       <View style={styles.heading}><Text style={styles.title}>Inbox</Text><Text style={styles.subtitle}>Updates worth keeping</Text></View>
       <View style={styles.headerIcon}><Bell size={21} color="#0065EB" /></View>
     </View>
-    <ScrollView contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}>
-      {error && <Pressable accessibilityRole="button" onPress={() => setReloadKey(value => value + 1)}
-        style={styles.error}><Text style={styles.errorText}>{error} Tap to retry.</Text></Pressable>}
-      {loading && <ActivityIndicator color="#0065EB" style={styles.spinner} />}
-      {!loading && items.length === 0 && <View style={styles.empty}>
-        <Bell size={32} color="#8B98AA" />
-        <Text style={styles.emptyTitle}>All caught up</Text>
-        <Text style={styles.emptyText}>Important updates from your trips and other activities will appear here.</Text>
-      </View>}
-      {items.map(item => <Pressable key={item.id} accessibilityRole="button"
+    <FlatList
+      ref={listRef}
+      data={items}
+      keyExtractor={item => item.id}
+      viewabilityConfig={viewabilityConfig}
+      onViewableItemsChanged={onViewableItemsChanged}
+      contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
+      ListHeaderComponent={error ? <Pressable accessibilityRole="button" onPress={() => setReloadKey(value => value + 1)}
+        style={styles.error}><Text style={styles.errorText}>{error}</Text></Pressable> : null}
+      ListEmptyComponent={loading ? <ActivityIndicator color="#0065EB" style={styles.spinner} />
+        : error ? null : <View style={styles.empty}>
+          <Bell size={32} color="#8B98AA" />
+          <Text style={styles.emptyTitle}>All caught up</Text>
+          <Text style={styles.emptyText}>Important updates from your trips and other activities will appear here.</Text>
+        </View>}
+      renderItem={({ item }) => <Pressable accessibilityRole="button"
         accessibilityLabel={`${item.readAt ? '' : 'Unread. '}${item.title}`}
         onPress={() => open(item)} style={[styles.card, !item.readAt && styles.unread]}>
         <View style={styles.cardHeader}>
@@ -100,11 +149,11 @@ export default function NotificationsScreen() {
         </View>
         <Text style={styles.body}>{item.body}</Text>
         {item.target && <View style={styles.openRow}><Text style={styles.openText}>Open</Text><ChevronRight size={16} color="#0065EB" /></View>}
-      </Pressable>)}
-      {cursor && <Pressable accessibilityRole="button" onPress={loadMore} disabled={loadingMore} style={styles.more}>
-        <Text style={styles.moreText}>{loadingMore ? 'Loading…' : 'Show more'}</Text>
       </Pressable>}
-    </ScrollView>
+      ListFooterComponent={cursor ? <Pressable accessibilityRole="button" onPress={loadMore} disabled={loadingMore} style={styles.more}>
+        <Text style={styles.moreText}>{loadingMore ? 'Loading...' : 'Show more'}</Text>
+      </Pressable> : null}
+    />
   </View>;
 }
 
