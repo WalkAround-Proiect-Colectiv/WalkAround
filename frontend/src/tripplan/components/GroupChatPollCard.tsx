@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, ListChecks, LockKeyhole } from 'lucide-react-native';
 import type { GroupChatMessage } from '../api/groupChat';
+import GroupChatQuote from './GroupChatQuote';
 
 interface Props {
   message: GroupChatMessage;
@@ -28,6 +29,7 @@ export default function GroupChatPollCard({ message, own, busy, onVote, onClose 
         <Text style={styles.closedText}>Closed</Text></View>}
     </View>
     {!own && <Text style={styles.sender}>{message.senderName}</Text>}
+    <GroupChatQuote reply={message.replyTo} />
     <Text style={styles.question}>{message.body}</Text>
     <View style={styles.options}>
       {poll.options.map((option) => {

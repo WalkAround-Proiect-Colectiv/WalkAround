@@ -2,6 +2,8 @@ import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { ApiError } from '../../login/api/http';
 import { authenticatedRequest } from '../../login/api/session';
+import type { GroupChatReply } from './chatReplies';
+import { replyRequest } from './chatReplies';
 
 export interface GroupChatMessage {
   id: string;
@@ -14,6 +16,7 @@ export interface GroupChatMessage {
   messageType: 'TEXT' | 'POLL' | 'IMAGE';
   poll: GroupChatPoll | null;
   image: GroupChatImage | null;
+  replyTo?: GroupChatReply | null;
 }
 
 export interface GroupChatImage {
@@ -72,19 +75,21 @@ export function getGroupChatMessages(groupId: string, options: {
 
 export function sendGroupChatMessage(groupId: string, messageId: string,
                                      body: string, messageType: 'TEXT' | 'POLL' = 'TEXT',
-                                     options?: string[]): Promise<GroupChatMessage> {
+                                     options?: string[], replyTo?: GroupChatReply | null): Promise<GroupChatMessage> {
   return chatRequest(`${chatPath(groupId)}/messages`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messageId, body, messageType, options }),
+    body: JSON.stringify({ messageId, body, messageType, options, ...replyRequest(replyTo) }),
   });
 }
 
 export function sendGroupChatImage(groupId: string, messageId: string,
-                                   caption: string, image: ImagePickerAsset): Promise<GroupChatMessage> {
+                                   caption: string, image: ImagePickerAsset,
+                                   replyTo?: GroupChatReply | null): Promise<GroupChatMessage> {
   const body = new FormData();
   body.append('messageId', messageId);
   body.append('caption', caption);
+  if (replyTo) body.append('replyToMessageId', replyTo.messageId);
   if (Platform.OS === 'web') {
     if (!image.file) throw new Error('Could not read the selected image. Choose it again.');
     body.append('image', image.file, image.fileName ?? 'chat.jpg');

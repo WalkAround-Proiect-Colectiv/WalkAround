@@ -1,8 +1,8 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ComponentRef } from 'react';
 import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ImagePlus, ListChecks, MessageCircle, Plus, Send, Smile, X } from 'lucide-react-native';
+import { ArrowLeft, ImagePlus, ListChecks, MessageCircle, Plus, Reply, Send, Smile, X } from 'lucide-react-native';
 import * as Crypto from 'expo-crypto';
 import * as ImagePicker from 'expo-image-picker';
 import type { ImagePickerAsset } from 'expo-image-picker';
@@ -13,6 +13,8 @@ import GroupChatPollCard from '../components/GroupChatPollCard';
 import GroupChatImageCard from '../components/GroupChatImageCard';
 import GroupChatImagePreview from '../components/GroupChatImagePreview';
 import type { PreviewImage } from '../components/GroupChatImagePreview';
+import GroupChatQuote from '../components/GroupChatQuote';
+import { quoteMessage, readChatReply, type GroupChatReply } from '../api/chatReplies';
 import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
   getGroupChatMessages, getGroupChatTicket, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
@@ -24,7 +26,7 @@ const RECONNECT_DELAY_MS = 3000;
 const CATCH_UP_INTERVAL_MS = 3000;
 
 type PendingMessage = { id: string; body: string; messageType: 'TEXT' | 'POLL' | 'IMAGE';
-  options?: string[]; image?: ImagePickerAsset };
+  options?: string[]; image?: ImagePickerAsset; replyTo?: GroupChatReply | null };
 type SocketEvent = { type: 'SUBSCRIBED'; conversationId: string }
   | ({ type: 'GROUP_CHAT_MESSAGE'; eventSequence: number } & GroupChatMessage);
 
@@ -84,6 +86,7 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
         ? event.messageType : 'TEXT',
       poll,
       image,
+      replyTo: readChatReply(event.replyTo),
     };
   } catch {
     return null;
@@ -99,8 +102,10 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { session } = useSession();
+  const signedInUserId = session?.user.id;
   const [messages, setMessages] = useState<GroupChatMessage[]>([]);
   const [draft, setDraft] = useState('');
+  const [replyTarget, setReplyTarget] = useState<GroupChatReply | null>(null);
   const [imageAsset, setImageAsset] = useState<ImagePickerAsset | null>(null);
   const [previewImage, setPreviewImage] = useState<PreviewImage | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
@@ -120,7 +125,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const syncedEventSequence = useRef(0);
   const historyLoaded = useRef(false);
   const pendingRef = useRef<PendingMessage | null>(null);
-  const listRef = useRef<ScrollView>(null);
+  const listRef = useRef<ComponentRef<typeof ScrollView>>(null);
+  const composerRef = useRef<ComponentRef<typeof TextInput>>(null);
   const loadingOlderRef = useRef(false);
   const scrollOnNextChange = useRef(true);
 
@@ -138,7 +144,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   }
 
   useEffect(() => {
-    if (!session) return;
+    if (!signedInUserId) return;
     let active = true;
     let generation = 0;
     let socket: WebSocket | null = null;
@@ -234,16 +240,16 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       if (catchUpTimer) clearInterval(catchUpTimer);
       socket?.close();
     };
-  }, [group.id, session?.user.id]);
+  }, [group.id, signedInUserId]);
 
   async function send(item: PendingMessage) {
     setSending(true);
     setSendError(null);
     try {
       const saved = item.image
-        ? await sendGroupChatImage(group.id, item.id, item.body, item.image)
+        ? await sendGroupChatImage(group.id, item.id, item.body, item.image, item.replyTo)
         : await sendGroupChatMessage(group.id, item.id, item.body,
-          item.messageType as 'TEXT' | 'POLL', item.options);
+          item.messageType as 'TEXT' | 'POLL', item.options, item.replyTo);
       acceptMessages([saved]);
       if (pendingRef.current?.id === item.id) {
         pendingRef.current = null;
@@ -266,11 +272,12 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       return;
     }
     const item: PendingMessage = { id: Crypto.randomUUID(), body,
-      messageType: imageAsset ? 'IMAGE' : 'TEXT', image: imageAsset ?? undefined };
+      messageType: imageAsset ? 'IMAGE' : 'TEXT', image: imageAsset ?? undefined, replyTo: replyTarget };
     pendingRef.current = item;
     setPending(item);
     scrollOnNextChange.current = true;
     setDraft('');
+    setReplyTarget(null);
     setImageAsset(null);
     setSelection({ start: 0, end: 0 });
     setShowEmojis(false);
@@ -310,11 +317,12 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       return;
     }
     const item: PendingMessage = { id: Crypto.randomUUID(), body: question,
-      messageType: 'POLL', options };
+      messageType: 'POLL', options, replyTo: replyTarget };
     pendingRef.current = item;
     setPending(item);
     scrollOnNextChange.current = true;
     setPollOpen(false);
+    setReplyTarget(null);
     setPollQuestion('');
     setPollOptions(['', '']);
     setSendError(null);
@@ -443,14 +451,26 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
               onPreview={setPreviewImage} />
             : <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
               {!own && <Text style={styles.sender}>{message.senderName}</Text>}
+              <GroupChatQuote reply={message.replyTo} />
               <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
               <Text style={own ? styles.ownTime : styles.time}>
                 {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </Text>
             </View>}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Reply to ${message.senderName}`}
+            disabled={sending || Boolean(pending)} style={[styles.replyAction, own && styles.ownReplyAction,
+              message.messageType === 'POLL' && styles.pollReplyAction]}
+            onPress={() => {
+              setReplyTarget(quoteMessage(message));
+              setSendError(null);
+              composerRef.current?.focus();
+            }}>
+            <Reply size={15} color={BLUE} /><Text style={styles.replyActionText}>Reply</Text>
+          </Pressable>
         </Fragment>;
       })}
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
+        <GroupChatQuote reply={pending.replyTo} />
         {pending.messageType === 'POLL' && <Text style={styles.pendingType}>POLL · {pending.options?.length} choices</Text>}
         {pending.image && <Pressable accessibilityRole="button"
           accessibilityLabel="Preview pending image" onPress={() => setPreviewImage(pending.image ?? null)}>
@@ -461,6 +481,12 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       </View>}
     </ScrollView>
 
+    {replyTarget && <View style={styles.replyComposer}>
+      <View style={styles.replyComposerPreview}><GroupChatQuote reply={replyTarget} /></View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" style={styles.cancelReply} onPress={() => setReplyTarget(null)}>
+        <X size={20} color="#65758B" />
+      </Pressable>
+    </View>}
     {pollOpen && <View style={styles.pollComposer}>
       <View style={styles.pollHeading}><ListChecks size={19} color={BLUE} />
         <Text style={styles.pollHeadingText}>Create a poll</Text>
@@ -544,7 +570,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
         }} style={[styles.emojiToggle, showEmojis && styles.emojiToggleActive]}>
         <Smile size={21} color={showEmojis ? BLUE : '#7D8B9E'} />
       </Pressable>
-      <TextInput accessibilityLabel={imageAsset ? 'Image caption' : 'Group message'} multiline maxLength={2000}
+      <TextInput ref={composerRef} accessibilityLabel={imageAsset ? 'Image caption' : 'Group message'} multiline maxLength={2000}
         placeholder={imageAsset ? 'Add a caption (optional)' : 'Message your group'} placeholderTextColor="#8A96A6"
         style={styles.input} value={draft} onChangeText={setDraft} selection={selection}
         onSelectionChange={({ nativeEvent }) => setSelection(nativeEvent.selection)}
@@ -559,6 +585,13 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
 }
 
 const styles = StyleSheet.create({
+  replyAction: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 32, paddingHorizontal: 8 },
+  ownReplyAction: { alignSelf: 'flex-end' },
+  pollReplyAction: { alignSelf: 'center', width: '100%', maxWidth: 450 },
+  replyActionText: { color: BLUE, fontSize: 12, fontWeight: '600' },
+  replyComposer: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 8 },
+  replyComposerPreview: { flex: 1, minWidth: 0 },
+  cancelReply: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   screen: { flex: 1, backgroundColor: '#F6F8FC' },
   header: { paddingHorizontal: 16, paddingBottom: 15, backgroundColor: '#fff', gap: 15,
     borderBottomWidth: 1, borderBottomColor: '#E5EAF2' },

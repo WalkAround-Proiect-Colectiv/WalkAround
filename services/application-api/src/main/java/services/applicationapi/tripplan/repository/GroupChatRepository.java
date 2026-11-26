@@ -10,8 +10,13 @@ public interface GroupChatRepository {
 
     Optional<GroupChatMessage> findById(UUID messageId);
 
+    default GroupChatMessage insert(UUID messageId, UUID conversationId, UUID senderId,
+                                    String body, String messageType, Instant createdAt) {
+        return insert(messageId, conversationId, senderId, body, messageType, createdAt, null);
+    }
+
     GroupChatMessage insert(UUID messageId, UUID conversationId, UUID senderId,
-                            String body, String messageType, Instant createdAt);
+                            String body, String messageType, Instant createdAt, UUID replyToMessageId);
 
     List<GroupChatMessage> latest(UUID conversationId, int limit);
 
