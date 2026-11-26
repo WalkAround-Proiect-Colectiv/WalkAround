@@ -14,7 +14,7 @@ The stored target is a route **key** and string parameter map, never an absolute
 
 ## API and storage
 
-`GET /api/notifications?before=<notification UUID>&limit=20` returns newest first with `items` and `nextCursor`. Limit must be 1–50. `GET /api/notifications/unread-count` returns `{ "count": n }`. `PUT /api/notifications/{id}/read` is idempotent and returns 204; a missing or other user's notification returns 404. All requests require the application's JWT; every SQL read and update is scoped to its subject user ID. Responses are not cached. Errors use client-safe `ProblemDetail` bodies.
+`GET /api/notifications?before=<notification UUID>&limit=20` returns newest first with `items` and `nextCursor`. Limit must be 1–50. `GET /api/notifications/unread-count` returns `{ "count": n }`. `PUT /api/notifications/{id}/read` is idempotent and returns 204; a missing or other user's notification returns 404. `DELETE /api/notifications/{id}` hides one of the user's notifications and returns 204, including when the ID is already deleted or does not belong to the user. All requests require the application's JWT; every SQL read and update is scoped to its subject user ID. Responses are not cached. Errors use client-safe `ProblemDetail` bodies.
 
 An item has the following response shape (the IDs and times are illustrative):
 
@@ -37,6 +37,8 @@ An item has the following response shape (the IDs and times are illustrative):
 ```
 
 Flyway V21 creates `notification_inbox`, its user foreign key, deduplication constraint, chronological listing index, and partial unread index. `read_at` records read state; there is no inbox copy of every WebSocket delivery. The repository uses PostgreSQL JSONB for target parameters and keyset pagination by `(created_at, id)`.
+
+Flyway V23 adds `deleted_at` and indexes for active rows. Deletion is a soft delete: list and unread count exclude deleted rows, while the unique `(recipient_user_id, source, source_event_id)` key remains. This prevents a retried feature event from recreating a notification that the user removed. The pagination cursor can still point to a deleted row, so loading the next page continues correctly after an item is removed.
 
 ## Live inbox updates
 

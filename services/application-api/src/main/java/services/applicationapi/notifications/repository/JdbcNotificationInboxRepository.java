@@ -73,6 +73,7 @@ public class JdbcNotificationInboxRepository implements NotificationInboxReposit
                 SELECT id, category, title, body, target_key, target_params, created_at, read_at
                 FROM notification_inbox
                 WHERE recipient_user_id = :userId
+                  AND deleted_at IS NULL
                   AND (CAST(:before AS uuid) IS NULL OR (created_at, id) < (
                       SELECT created_at, id FROM notification_inbox
                       WHERE id = :before AND recipient_user_id = :userId
@@ -86,7 +87,7 @@ public class JdbcNotificationInboxRepository implements NotificationInboxReposit
     public long countUnread(UUID userId) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM notification_inbox
-                WHERE recipient_user_id = :userId AND read_at IS NULL
+                WHERE recipient_user_id = :userId AND read_at IS NULL AND deleted_at IS NULL
                 """, Map.of("userId", userId), Long.class);
         return count == null ? 0 : count;
     }
@@ -96,7 +97,16 @@ public class JdbcNotificationInboxRepository implements NotificationInboxReposit
         return jdbc.update("""
                 UPDATE notification_inbox
                 SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
-                WHERE id = :id AND recipient_user_id = :userId
+                WHERE id = :id AND recipient_user_id = :userId AND deleted_at IS NULL
+                """, Map.of("id", notificationId, "userId", userId)) == 1;
+    }
+
+    @Override
+    public boolean delete(UUID userId, UUID notificationId) {
+        return jdbc.update("""
+                UPDATE notification_inbox
+                SET deleted_at = CURRENT_TIMESTAMP
+                WHERE id = :id AND recipient_user_id = :userId AND deleted_at IS NULL
                 """, Map.of("id", notificationId, "userId", userId)) == 1;
     }
 

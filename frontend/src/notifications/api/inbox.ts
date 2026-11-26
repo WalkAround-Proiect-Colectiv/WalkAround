@@ -35,3 +35,9 @@ export function markNotificationRead(id: string): Promise<void> {
     method: 'PUT',
   });
 }
+
+export function deleteNotification(id: string): Promise<void> {
+  return authenticatedRequest<void>(`/api/notifications/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}

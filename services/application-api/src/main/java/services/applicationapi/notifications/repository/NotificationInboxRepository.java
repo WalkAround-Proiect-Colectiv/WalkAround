@@ -17,6 +17,8 @@ public interface NotificationInboxRepository {
 
     boolean markRead(UUID userId, UUID notificationId);
 
+    boolean delete(UUID userId, UUID notificationId);
+
     List<PendingInboxSignal> lockPendingSignals(int limit);
 
     void markSignalPublished(UUID notificationId);

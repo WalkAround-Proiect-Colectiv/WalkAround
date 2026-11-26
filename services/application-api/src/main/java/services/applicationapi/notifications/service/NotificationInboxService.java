@@ -64,6 +64,14 @@ public class NotificationInboxService implements NotificationInboxWriter, Notifi
         }
     }
 
+    @Override
+    @Transactional
+    public void delete(UUID userId, UUID notificationId) {
+        if (repository.delete(userId, notificationId)) {
+            log.debug("Deleted inbox notification {} for user {}", notificationId, userId);
+        }
+    }
+
     private void validate(NotificationDraft draft) {
         if (draft == null || draft.recipientUserId() == null
                 || !code(draft.source(), 64) || !text(draft.sourceEventId(), 160)

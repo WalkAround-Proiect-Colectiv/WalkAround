@@ -4,6 +4,8 @@ The `notifications` feature contains the authenticated API client, the inbox pag
 
 The inbox uses `FlatList` viewability tracking to mark an unread item as read after at least half its card has been visible for 750 ms while the inbox screen is focused and the app is active. Loading a page does not mark off-screen items. Read requests for the same item are shared while in flight, and the local read state changes only after the API confirms the update. Tapping an item also uses the same read request before opening its target.
 
+Each card has a separate Delete action with an inline confirmation. After `DELETE /api/notifications/{id}` succeeds, the card disappears from the local list. The server hides deleted rows from later page loads and unread counts. Delete and Open are separate controls, so deleting an item does not follow its deep link.
+
 Targets are data from the server, never executable URLs. `navigation.ts` accepts only known route keys and validates parameters before calling Expo Router. Add a registry branch when a new feature wants its inbox notifications to open a resource. If a target key is unknown, the page shows a helpful message and does not navigate. The backend writer and storage do not need to change.
 
 The app's temporary WebSocket `ReminderBanner` remains separate. An inbox item appears only after a feature deliberately writes it through the backend `NotificationInboxWriter`; live delivery does not automatically persist anything.

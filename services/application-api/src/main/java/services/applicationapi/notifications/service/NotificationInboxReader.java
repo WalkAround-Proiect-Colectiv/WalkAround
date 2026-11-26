@@ -10,4 +10,6 @@ public interface NotificationInboxReader {
     long unreadCount(UUID userId);
 
     void markRead(UUID userId, UUID notificationId);
+
+    void delete(UUID userId, UUID notificationId);
 }
