@@ -3,6 +3,7 @@ package services.realtimeservice.notifications;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,9 +33,14 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
     private final Map<String, Set<WebSocketSession>> sessionsByUser = new ConcurrentHashMap<>();
     private final Map<String, WebSocketSession> decorated = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
+    private final String inboxConsumerGroupId = "inbox-socket-" + UUID.randomUUID();
 
     public NotificationSocketHandler(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+    }
+
+    public String getInboxConsumerGroupId() {
+        return inboxConsumerGroupId;
     }
 
     @Override
@@ -95,6 +101,35 @@ public class NotificationSocketHandler extends TextWebSocketHandler {
             log.debug("Delivered group plan notification to {} connections for user {}", delivered, userId);
         } catch (JacksonException exception) {
             log.warn("Ignoring malformed group plan notification");
+        }
+    }
+
+    @KafkaListener(topics = "${app.notifications.inbox-topic}",
+            groupId = "#{__listener.inboxConsumerGroupId}",
+            properties = "auto.offset.reset=latest")
+    public void consumeInboxChanged(String message) {
+        try {
+            JsonNode node = objectMapper.readTree(message);
+            if (node == null || !node.isObject()) {
+                log.warn("Ignoring invalid inbox notification signal");
+                return;
+            }
+            String userId = node.path("userId").asString(null);
+            String notificationId = node.path("notificationId").asString(null);
+            if (!"INBOX_CHANGED".equals(node.path("type").asString())
+                    || userId == null || notificationId == null) {
+                log.warn("Ignoring invalid inbox notification signal");
+                return;
+            }
+            if (!UUID.fromString(userId).toString().equalsIgnoreCase(userId)
+                    || !UUID.fromString(notificationId).toString().equalsIgnoreCase(notificationId)) {
+                log.warn("Ignoring invalid inbox notification identifier");
+                return;
+            }
+            int delivered = deliver(userId, message);
+            log.debug("Delivered inbox signal {} to {} connections", notificationId, delivered);
+        } catch (JacksonException | IllegalArgumentException exception) {
+            log.warn("Ignoring malformed inbox notification signal");
         }
     }
 

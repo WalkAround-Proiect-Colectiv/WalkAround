@@ -8,6 +8,7 @@ import { refreshSession } from '../../login/api/session';
 import { getUnseenReminders, markReminderSeen } from '../api/events';
 import { formatEventDate } from '../format';
 import { publishGroupPlanSaved } from '../../tripplan/api/groupPlanNotifications';
+import { publishInboxChanged } from '../../notifications/liveInbox';
 import { environment } from '../../config/environment';
 
 type Reminder = {
@@ -114,7 +115,16 @@ export default function ReminderBanner() {
         return;
       }
       socket = new WebSocket(url);
+      socket.onopen = () => publishInboxChanged();
       socket.onmessage = event => {
+        try {
+          if (JSON.parse(event.data)?.type === 'INBOX_CHANGED') {
+            publishInboxChanged();
+            return;
+          }
+        } catch {
+          // Existing notification parsing below handles malformed payloads.
+        }
         const notification = parseNotification(event.data);
         if (!notification) return;
         add(notification);

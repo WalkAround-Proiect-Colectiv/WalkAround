@@ -3,7 +3,7 @@ import { ActivityIndicator, Animated, Keyboard, PanResponder, Pressable, ScrollV
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
+import { Bell, CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import PoiFilters from './PoiFilters';
@@ -1175,6 +1175,9 @@ export default function MapScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push(session ? '/notifications' : '/login'); }} style={styles.menuItem}>
+            <Bell size={20} color="#0065EB" /><Text style={styles.menuItemText}>Inbox</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/recommendations'); }} style={styles.menuItem}>
             <CloudSun size={20} color="#0065EB" /><Text style={styles.menuItemText}>Weather activities</Text>
