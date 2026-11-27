@@ -1,5 +1,6 @@
 package services.applicationapi.tripplan.repository;
 
+import services.applicationapi.tripplan.model.GroupChatDocumentMetadata;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
@@ -19,11 +20,12 @@ import services.applicationapi.tripplan.model.GroupChatMessage;
 public class JdbcGroupChatRepository implements GroupChatRepository {
 
     private static final String MESSAGE_SELECT = """
-            SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at, m.reply_to_message_id,
+            SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at, m.reply_to_message_id, d.file_name, d.content_type, d.size_bytes,
                    COALESCE(NULLIF(u.username, ''), NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
                             'Former member') AS sender_name
             FROM trip_group_chat_messages m
             LEFT JOIN users u ON u.id = m.sender_id
+            LEFT JOIN trip_group_chat_documents d ON d.message_id = m.id
             """;
 
     private static final RowMapper<GroupChatMessage> MESSAGE_MAPPER = (rs, row) -> mapMessage(rs);
@@ -163,13 +165,14 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
     @Override
     public List<PendingEvent> lockPending(int limit) {
         return jdbc.query("""
-                SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at, m.reply_to_message_id,
+                SELECT m.id, m.conversation_id, m.sequence, m.sender_id, m.body, m.message_type, m.created_at, m.reply_to_message_id, d.file_name, d.content_type, d.size_bytes,
                        COALESCE(NULLIF(u.username, ''), NULLIF(BTRIM(CONCAT_WS(' ', u.first_name, u.last_name)), ''),
                                 'Former member') AS sender_name,
                        o.event_id, o.event_sequence, o.payload, o.attempts
                 FROM trip_group_chat_outbox o
                 JOIN trip_group_chat_messages m ON m.id = o.message_id
                 LEFT JOIN users u ON u.id = m.sender_id
+                LEFT JOIN trip_group_chat_documents d ON d.message_id = m.id
                 WHERE o.published_at IS NULL AND o.next_attempt_at <= now()
                   AND NOT EXISTS (
                       SELECT 1 FROM trip_group_chat_outbox earlier
@@ -207,7 +210,7 @@ public class JdbcGroupChatRepository implements GroupChatRepository {
                 rs.getString("body"),
                 rs.getString("message_type"),
                 rs.getObject("created_at", OffsetDateTime.class).toInstant(),
-                rs.getObject("reply_to_message_id", UUID.class)
+                rs.getObject("reply_to_message_id", UUID.class), rs.getString("file_name") == null ? null : new GroupChatDocumentMetadata(rs.getString("file_name"), rs.getString("content_type"), rs.getLong("size_bytes"))
         );
     }
 }
