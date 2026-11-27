@@ -14,7 +14,7 @@ import GroupChatImageCard from '../components/GroupChatImageCard';
 import GroupChatImagePreview from '../components/GroupChatImagePreview';
 import type { PreviewImage } from '../components/GroupChatImagePreview';
 import GroupChatQuote from '../components/GroupChatQuote';
-import { quoteMessage, readChatReply, type GroupChatReply } from '../api/chatReplies';
+import { loadReplyHistory, quoteMessage, readChatReply, type GroupChatReply } from '../api/chatReplies';
 import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
   getGroupChatMessages, getGroupChatTicket, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
@@ -122,6 +122,9 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [hasOlder, setHasOlder] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [replyNavigationId, setReplyNavigationId] = useState<string | null>(null);
+  const [replyNavigationError, setReplyNavigationError] = useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const syncedEventSequence = useRef(0);
   const historyLoaded = useRef(false);
   const pendingRef = useRef<PendingMessage | null>(null);
@@ -129,13 +132,20 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const composerRef = useRef<ComponentRef<typeof TextInput>>(null);
   const loadingOlderRef = useRef(false);
   const scrollOnNextChange = useRef(true);
+  const followLatest = useRef(true);
+  const messagesRef = useRef<GroupChatMessage[]>([]);
+  const messagePositions = useRef(new Map<string, number>());
+  const replyNavigation = useRef<{ messageId: string; ready: boolean } | null>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function acceptMessages(incoming: GroupChatMessage[]) {
-    setMessages((current) => {
-      const merged = mergeMessages(current, incoming);
-      if (merged.at(-1)?.id !== current.at(-1)?.id) scrollOnNextChange.current = true;
-      return merged;
-    });
+    const current = messagesRef.current;
+    const merged = mergeMessages(current, incoming);
+    if (merged.at(-1)?.id !== current.at(-1)?.id && followLatest.current && !replyNavigation.current) {
+      scrollOnNextChange.current = true;
+    }
+    messagesRef.current = merged;
+    setMessages(merged);
     if (pendingRef.current && incoming.some((message) => message.id === pendingRef.current?.id)) {
       pendingRef.current = null;
       setPending(null);
@@ -238,6 +248,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       if (retry) clearTimeout(retry);
       if (expiry) clearTimeout(expiry);
       if (catchUpTimer) clearInterval(catchUpTimer);
+      replyNavigation.current = null;
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
       socket?.close();
     };
   }, [group.id, signedInUserId]);
@@ -275,6 +287,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       messageType: imageAsset ? 'IMAGE' : 'TEXT', image: imageAsset ?? undefined, replyTo: replyTarget };
     pendingRef.current = item;
     setPending(item);
+    cancelReplyNavigation();
+    followLatest.current = true;
     scrollOnNextChange.current = true;
     setDraft('');
     setReplyTarget(null);
@@ -320,6 +334,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       messageType: 'POLL', options, replyTo: replyTarget };
     pendingRef.current = item;
     setPending(item);
+    cancelReplyNavigation();
+    followLatest.current = true;
     scrollOnNextChange.current = true;
     setPollOpen(false);
     setReplyTarget(null);
@@ -370,8 +386,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   }
 
   async function loadOlder() {
-    const first = messages[0];
-    if (!first || loadingOlder) return;
+    const first = messagesRef.current[0];
+    if (!first || loadingOlderRef.current || replyNavigation.current) return;
     loadingOlderRef.current = true;
     scrollOnNextChange.current = false;
     setLoadingOlder(true);
@@ -386,6 +402,63 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       loadingOlderRef.current = false;
     }
   }
+
+  function cancelReplyNavigation() {
+    replyNavigation.current = null;
+    setReplyNavigationId(null);
+  }
+
+  function scrollToReply() {
+    const navigation = replyNavigation.current;
+    if (!navigation?.ready || !listRef.current) return;
+    const y = messagePositions.current.get(navigation.messageId);
+    if (y === undefined) return;
+    listRef.current.scrollTo({ y: Math.max(0, y - 16), animated: true });
+    setHighlightedMessageId(navigation.messageId);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    highlightTimer.current = setTimeout(() => {
+      setHighlightedMessageId(null);
+      highlightTimer.current = null;
+    }, 2500);
+    cancelReplyNavigation();
+  }
+
+  async function navigateToReply(messageId: string) {
+    if (loading || loadingOlderRef.current || replyNavigation.current) return;
+    const navigation = { messageId, ready: false };
+    replyNavigation.current = navigation;
+    setReplyNavigationId(messageId);
+    setReplyNavigationError(null);
+    setHighlightedMessageId(null);
+    if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    followLatest.current = false;
+    scrollOnNextChange.current = false;
+    Keyboard.dismiss();
+    try {
+      const found = await loadReplyHistory(messageId, {
+        messages: messagesRef.current, hasOlder, pageSize: PAGE_SIZE,
+        isActive: () => replyNavigation.current === navigation,
+        loadEarlier: async (beforeSequence) => {
+          const page = await getGroupChatMessages(group.id, { beforeSequence, limit: PAGE_SIZE });
+          if (replyNavigation.current === navigation) {
+            acceptMessages(page);
+            setHasOlder(page.length === PAGE_SIZE);
+          }
+          return page;
+        },
+      });
+      if (!found || replyNavigation.current !== navigation) return;
+      navigation.ready = true;
+      scrollToReply();
+    } catch (reason) {
+      if (replyNavigation.current !== navigation) return;
+      setReplyNavigationError(reason instanceof Error ? reason.message : 'Could not find the original message.');
+      cancelReplyNavigation();
+    }
+  }
+
+  const replyNavigationDisabled = loading || loadingOlder || replyNavigationId !== null;
+  const onNavigateReply = (messageId: string) => { void navigateToReply(messageId); };
 
   return <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     style={[styles.screen, { paddingBottom: Math.max(insets.bottom, 12) }]}>
@@ -415,14 +488,31 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     </View>
 
     {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+    {replyNavigationError && <Text accessibilityRole="alert" style={styles.error}>{replyNavigationError}</Text>}
+    {replyNavigationId && <View style={styles.replyNavigation}>
+      <ActivityIndicator size="small" color={BLUE} />
+      <Text accessibilityLiveRegion="polite" style={styles.replyNavigationText}>Finding original message…</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cancel finding original message"
+        onPress={cancelReplyNavigation} style={styles.cancelReply}>
+        <X size={20} color="#65758B" />
+      </Pressable>
+    </View>}
     <ScrollView ref={listRef} style={styles.messages} contentContainerStyle={styles.messageContent}
+      keyboardShouldPersistTaps="handled" scrollEventThrottle={16}
+      onScroll={({ nativeEvent }) => {
+        const { contentOffset, contentSize, layoutMeasurement } = nativeEvent;
+        if (!replyNavigation.current) {
+          followLatest.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 80;
+        }
+      }}
       onContentSizeChange={() => {
-        if (!loadingOlderRef.current && scrollOnNextChange.current) {
+        scrollToReply();
+        if (!replyNavigation.current && !loadingOlderRef.current && scrollOnNextChange.current) {
           listRef.current?.scrollToEnd({ animated: true });
           scrollOnNextChange.current = false;
         }
       }}>
-      {hasOlder && <Pressable accessibilityRole="button" disabled={loadingOlder} onPress={() => { void loadOlder(); }}
+      {hasOlder && <Pressable accessibilityRole="button" disabled={replyNavigationDisabled} onPress={() => { void loadOlder(); }}
         style={styles.older}><Text style={styles.olderText}>{loadingOlder ? 'Loading…' : 'Load earlier messages'}</Text></Pressable>}
       {loading && <ActivityIndicator color={BLUE} />}
       {!loading && messages.length === 0 && <View style={styles.emptyCard}>
@@ -442,16 +532,24 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
             </Text>
             <View style={styles.dayLine} />
           </View>}
+          <View testID={`chat-message-${message.id}`}
+            onLayout={({ nativeEvent }) => {
+              messagePositions.current.set(message.id, nativeEvent.layout.y);
+              if (replyNavigation.current?.messageId === message.id) scrollToReply();
+            }}
+            style={[styles.messageEntry, highlightedMessageId === message.id && styles.highlightedMessage]}>
           {message.messageType === 'POLL' && message.poll
             ? <GroupChatPollCard message={message} own={own} busy={busyPollId === message.id}
+              onNavigateReply={onNavigateReply} replyNavigationDisabled={replyNavigationDisabled}
               onVote={(optionId) => { void vote(message.id, optionId); }}
               onClose={() => { void closePoll(message.id); }} />
             : message.messageType === 'IMAGE' && message.image
             ? <GroupChatImageCard groupId={group.id} message={message} own={own}
+              onNavigateReply={onNavigateReply} replyNavigationDisabled={replyNavigationDisabled}
               onPreview={setPreviewImage} />
             : <View style={[styles.bubble, own ? styles.ownBubble : styles.otherBubble]}>
               {!own && <Text style={styles.sender}>{message.senderName}</Text>}
-              <GroupChatQuote reply={message.replyTo} />
+              <GroupChatQuote reply={message.replyTo} onNavigate={onNavigateReply} disabled={replyNavigationDisabled} />
               <Text style={own ? styles.ownText : styles.messageText}>{message.body}</Text>
               <Text style={own ? styles.ownTime : styles.time}>
                 {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -467,10 +565,11 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
             }}>
             <Reply size={15} color={BLUE} /><Text style={styles.replyActionText}>Reply</Text>
           </Pressable>
+          </View>
         </Fragment>;
       })}
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
-        <GroupChatQuote reply={pending.replyTo} />
+        <GroupChatQuote reply={pending.replyTo} onNavigate={onNavigateReply} disabled={replyNavigationDisabled} />
         {pending.messageType === 'POLL' && <Text style={styles.pendingType}>POLL · {pending.options?.length} choices</Text>}
         {pending.image && <Pressable accessibilityRole="button"
           accessibilityLabel="Preview pending image" onPress={() => setPreviewImage(pending.image ?? null)}>
@@ -482,7 +581,9 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     </ScrollView>
 
     {replyTarget && <View style={styles.replyComposer}>
-      <View style={styles.replyComposerPreview}><GroupChatQuote reply={replyTarget} /></View>
+      <View style={styles.replyComposerPreview}>
+        <GroupChatQuote reply={replyTarget} onNavigate={onNavigateReply} disabled={replyNavigationDisabled} />
+      </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel reply" style={styles.cancelReply} onPress={() => setReplyTarget(null)}>
         <X size={20} color="#65758B" />
       </Pressable>
@@ -585,6 +686,10 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
 }
 
 const styles = StyleSheet.create({
+  messageEntry: { gap: 10, borderRadius: 20 },
+  highlightedMessage: { backgroundColor: '#DDEBFF' },
+  replyNavigation: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 16 },
+  replyNavigationText: { flex: 1, color: '#46566D', fontSize: 12 },
   replyAction: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, minHeight: 32, paddingHorizontal: 8 },
   ownReplyAction: { alignSelf: 'flex-end' },
   pollReplyAction: { alignSelf: 'center', width: '100%', maxWidth: 450 },

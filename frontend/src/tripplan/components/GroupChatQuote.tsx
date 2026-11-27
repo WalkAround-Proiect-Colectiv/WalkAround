@@ -1,11 +1,26 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { GroupChatReply } from '../api/chatReplies';
 
-export default function GroupChatQuote({ reply }: { reply?: GroupChatReply | null }) {
+interface Props {
+  reply?: GroupChatReply | null;
+  onNavigate?: (messageId: string) => void;
+  disabled?: boolean;
+}
+
+export default function GroupChatQuote({ reply, onNavigate, disabled }: Props) {
   if (!reply) return null;
-  return <View style={styles.quote} accessible accessibilityLabel={`Replying to ${reply.senderName}: ${reply.preview}`}>
+  const content = <>
     <Text numberOfLines={1} style={styles.sender}>{reply.senderName}</Text>
     <Text numberOfLines={2} style={styles.preview}>{reply.preview}</Text>
+  </>;
+  if (onNavigate) return <Pressable style={styles.quote} accessibilityRole="button"
+    accessibilityLabel={`Go to original message from ${reply.senderName}: ${reply.preview}`}
+    accessibilityHint="Loads earlier messages if needed" disabled={disabled}
+    onPress={() => onNavigate(reply.messageId)}>
+    {content}
+  </Pressable>;
+  return <View style={styles.quote} accessible accessibilityLabel={`Replying to ${reply.senderName}: ${reply.preview}`}>
+    {content}
   </View>;
 }
 
