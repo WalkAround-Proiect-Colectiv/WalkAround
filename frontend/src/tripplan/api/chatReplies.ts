@@ -1,3 +1,5 @@
+import type { GroupChatMessage } from './groupChat';
+
 export type GroupChatReply = {
   messageId: string;
   senderName: string;
@@ -29,4 +31,27 @@ export function quoteMessage(message: { id: string; senderName: string; messageT
 
 export function replyRequest(reply?: GroupChatReply | null): { replyToMessageId?: string } {
   return reply ? { replyToMessageId: reply.messageId } : {};
+}
+
+export async function loadReplyHistory(messageId: string, options: {
+  messages: GroupChatMessage[];
+  hasOlder: boolean;
+  pageSize: number;
+  loadEarlier: (beforeSequence: number) => Promise<GroupChatMessage[]>;
+  isActive: () => boolean;
+}): Promise<boolean> {
+  let page = options.messages;
+  let hasOlder = options.hasOlder;
+  while (options.isActive()) {
+    if (page.some((message) => message.id === messageId)) return true;
+    const first = page[0];
+    if (!hasOlder || !first) throw new Error('The original message is no longer available.');
+    page = await options.loadEarlier(first.sequence);
+    if (!options.isActive()) return false;
+    if (page.length > 0 && page[0].sequence >= first.sequence) {
+      throw new Error('Could not load earlier messages. Please try again.');
+    }
+    hasOlder = page.length === options.pageSize;
+  }
+  return false;
 }

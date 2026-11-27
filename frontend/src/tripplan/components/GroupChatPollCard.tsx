@@ -9,9 +9,11 @@ interface Props {
   busy: boolean;
   onVote: (optionId: string) => void;
   onClose: () => void;
+  onNavigateReply: (messageId: string) => void;
+  replyNavigationDisabled: boolean;
 }
 
-export default function GroupChatPollCard({ message, own, busy, onVote, onClose }: Props) {
+export default function GroupChatPollCard({ message, own, busy, onVote, onClose, onNavigateReply, replyNavigationDisabled }: Props) {
   const poll = message.poll;
   if (!poll) return null;
   const total = poll.options.reduce((sum, option) => sum + option.votes, 0);
@@ -29,7 +31,7 @@ export default function GroupChatPollCard({ message, own, busy, onVote, onClose 
         <Text style={styles.closedText}>Closed</Text></View>}
     </View>
     {!own && <Text style={styles.sender}>{message.senderName}</Text>}
-    <GroupChatQuote reply={message.replyTo} />
+    <GroupChatQuote reply={message.replyTo} onNavigate={onNavigateReply} disabled={replyNavigationDisabled} />
     <Text style={styles.question}>{message.body}</Text>
     <View style={styles.options}>
       {poll.options.map((option) => {

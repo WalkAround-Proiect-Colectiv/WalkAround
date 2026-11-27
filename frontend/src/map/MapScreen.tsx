@@ -3,7 +3,9 @@ import { ActivityIndicator, Animated, Keyboard, PanResponder, Pressable, ScrollV
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSession } from '../login/components/SessionProvider';
-import { CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
+import MapInboxNotice from '../notifications/components/MapInboxNotice';
+import { useMapInboxNotice } from '../notifications/useMapInboxNotice';
+import { Bell, CloudSun, CalendarDays, Compass, LocateFixed, Menu, Minus, Plus, RotateCcw, Route, ShieldAlert, UserRound, MapPin, Search, Volume1, Volume2, VolumeX, X, Map as MapIcon, type LucideIcon, Pause } from 'lucide-react-native';
 import type { StyleSpecification } from 'maplibre-gl';
 import MapCanvas from './MapCanvas';
 import PoiFilters from './PoiFilters';
@@ -190,6 +192,7 @@ export default function MapScreen() {
   const insets = useSafeAreaInsets();
   const map = useRef<MapHandle>(null);
   const { session } = useSession();
+  const { unreadCount, showPopup, dismissPopup } = useMapInboxNotice(session?.user.id ?? null);
   const [style, setStyle] = useState<StyleSpecification | null>(null);
   const [camera, setCamera] = useState({ center: PLACES[0].center, zoom: PLACES[0].zoom });
   const [coordinateQuery, setCoordinateQuery] = useState('');
@@ -1153,7 +1156,9 @@ export default function MapScreen() {
         }} />
       <View style={[styles.mapMenu, { top: Math.max(insets.top, 12) + 4 }]}>
         <Pressable accessibilityRole="button" accessibilityLabel={menuOpen ? 'Close features menu' : 'Open features menu'}
-                   accessibilityState={{ expanded: menuOpen }} onPress={() => setMenuOpen(open => !open)} style={styles.menuButton}>
+                   accessibilityState={{ expanded: menuOpen }}
+                   onPress={() => { dismissPopup(); setMenuOpen(open => !open); }}
+                   style={styles.menuButton}>
           {menuOpen ? <X size={22} color="#0065EB" /> : <Menu size={22} color="#0065EB" />}
         </Pressable>
         {menuOpen && <View style={styles.menuPanel}>
@@ -1178,6 +1183,20 @@ export default function MapScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/journal'); }} style={styles.menuItem}>
             <BookOpen size={20} color="#0065EB" /><Text style={styles.menuItemText}>Private journal</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button"
+            accessibilityLabel={session && unreadCount !== null
+              ? `Inbox, ${unreadCount} unread notifications` : 'Inbox'}
+            onPress={() => { setMenuOpen(false); router.push(session ? '/notifications' : '/login'); }}
+            style={styles.menuItem}>
+            <Bell size={20} color="#0065EB" />
+            <Text style={[styles.menuItemText, styles.inboxMenuText]}>Inbox</Text>
+            {session && unreadCount !== null && <View style={[styles.inboxCountBadge,
+              unreadCount === 0 && styles.inboxCountBadgeZero]}>
+              <Text style={[styles.inboxCountText, unreadCount === 0 && styles.inboxCountTextZero]}>
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </Text>
+            </View>}
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/recommendations'); }} style={styles.menuItem}>
             <CloudSun size={20} color="#0065EB" /><Text style={styles.menuItemText}>Weather activities</Text>
@@ -1222,6 +1241,16 @@ export default function MapScreen() {
           </Pressable>
         </View>}
       </View>
+
+      {session && showPopup && unreadCount !== null && unreadCount > 0
+        && !menuOpen && !routeMode && !isNavigating && (
+        <MapInboxNotice
+          count={unreadCount}
+          top={Math.max(insets.top, 12) + 68}
+          onDismiss={dismissPopup}
+          onOpen={() => { dismissPopup(); router.push('/notifications'); }}
+        />
+      )}
 
       {policeOpen && <View style={[styles.policePanel, { bottom: searchPanelOffset + 12, display: selectedPoi ? 'none' : 'flex' }]}>
         <NearbyPolicePanel maxHeight={Math.max(240, Math.min(320, windowHeight * 0.4))}
@@ -1501,6 +1530,12 @@ const styles = StyleSheet.create({
   menuPanel: { width: 242, marginTop: 8, padding: 7, borderRadius: 18, backgroundColor: '#fff', borderWidth: 1, borderColor: '#dce2e9', gap: 2, elevation: 5, shadowColor: '#14243f', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 } },
   menuItem: { minHeight: 46, borderRadius: 13, flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 13 },
   menuItemText: { color: '#263241', fontSize: 15, fontWeight: '700' },
+  inboxMenuText: { flex: 1 },
+  inboxCountBadge: { minWidth: 27, height: 25, borderRadius: 13, paddingHorizontal: 6,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#0065EB' },
+  inboxCountText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  inboxCountBadgeZero: { backgroundColor: '#E9EDF2' },
+  inboxCountTextZero: { color: '#586779' },
   map: { flex: 1, position: 'relative', backgroundColor: '#edf0f3', overflow: 'hidden' },
   policePanel: { position: 'absolute', left: 12, right: 64, maxWidth: 400, zIndex: 4 },
   tools: { position: 'absolute', right: 12, top: 16, gap: 8 },
