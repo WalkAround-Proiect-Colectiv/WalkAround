@@ -45,7 +45,10 @@ export default function JournalTripForm({ today, source, trip, onSaved, onCancel
     const timer = setTimeout(() => {
       setSearching(true);
       searchCities(query.trim()).then(results => { if (active) { setSuggestions(results); setCityError(null); setSearched(true); } })
-        .catch(() => { if (active) setCityError('Destination search is unavailable. Try again.'); })
+        .catch(failure => {
+          if (active) setCityError(failure instanceof Error && failure.message.trim()
+            ? failure.message : 'Destination search is unavailable. Try again.');
+        })
         .finally(() => { if (active) setSearching(false); });
     }, 350);
     return () => { active = false; clearTimeout(timer); };
