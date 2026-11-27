@@ -11,6 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
 import services.applicationapi.tripplan.configurations.CityAutocompleteProperties;
 import services.applicationapi.tripplan.dto.CitySuggestion;
 import services.applicationapi.tripplan.service.exceptions.CitySearchUnavailableException;
@@ -50,6 +51,16 @@ public class GeoNamesCitySearchProvider implements CitySearchProvider {
                             )))
                     .retrieve()
                     .body(GeoNamesResponse.class);
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode().value() == 401) {
+                log.warn("GeoNames rejected the configured city-search account");
+                throw new CitySearchUnavailableException(
+                        "GeoNames rejected the configured account. Check GEONAMES_USERNAME and enable web services for that account.",
+                        exception
+                );
+            }
+            log.warn("GeoNames city search request failed: {}", exception.getClass().getSimpleName());
+            throw new CitySearchUnavailableException("City suggestions are temporarily unavailable", exception);
         } catch (RestClientException exception) {
             log.warn("GeoNames city search request failed: {}", exception.getClass().getSimpleName());
             throw new CitySearchUnavailableException("City suggestions are temporarily unavailable", exception);

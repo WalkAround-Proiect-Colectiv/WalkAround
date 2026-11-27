@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, Pressable, StyleSheet, Text, View, type FlatListProps } from 'react-native';
 import { Redirect, useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,7 +26,7 @@ export default function NotificationsScreen() {
   const pendingReadsRef = useRef(new Map<string, Promise<void>>());
   const deletingIdsRef = useRef(new Set<string>());
   const deletedIdsRef = useRef(new Set<string>());
-  const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 50, minimumViewTime: 750 }).current;
+  const viewabilityConfig = useMemo(() => ({ itemVisiblePercentThreshold: 50, minimumViewTime: 750 }), []);
 
   const markReadOnce = useCallback((item: InboxNotification): Promise<void> => {
     if (item.readAt || readIdsRef.current.has(item.id)
@@ -55,7 +55,7 @@ export default function NotificationsScreen() {
     return request;
   }, []);
 
-  const onViewableItemsChanged = useRef<NonNullable<FlatListProps<InboxNotification>['onViewableItemsChanged']>>(
+  const onViewableItemsChanged = useCallback<NonNullable<FlatListProps<InboxNotification>['onViewableItemsChanged']>>(
     ({ viewableItems }) => {
       if (!focusedRef.current || AppState.currentState === 'background'
           || AppState.currentState === 'inactive') return;
@@ -65,8 +65,7 @@ export default function NotificationsScreen() {
           void markReadOnce(item).catch(() => {});
         }
       });
-    },
-  ).current;
+    }, [markReadOnce]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', state => {
@@ -91,7 +90,9 @@ export default function NotificationsScreen() {
       .catch(() => { if (active) setError('Could not load notifications. Try again.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; focusedRef.current = false; unsubscribe(); };
-  }, [session?.user.id, reloadKey]));
+  // Reload-key changes intentionally rerun this focused fetch for inbox events and retries.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, reloadKey]));
 
   if (!ready) return <View style={styles.center}><ActivityIndicator color="#0065EB" /></View>;
   if (!session) return <Redirect href="/login" />;
@@ -159,9 +160,9 @@ export default function NotificationsScreen() {
       onViewableItemsChanged={onViewableItemsChanged}
       contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
       ListHeaderComponent={error ? <Pressable accessibilityRole="button" onPress={() => setReloadKey(value => value + 1)}
-        style={styles.error}><Text style={styles.errorText}>{error}</Text></Pressable> : null}
+        style={styles.error}><Text style={styles.errorText}>{error}</Text></Pressable> : undefined}
       ListEmptyComponent={loading ? <ActivityIndicator color="#0065EB" style={styles.spinner} />
-        : error ? null : <View style={styles.empty}>
+        : error ? undefined : <View style={styles.empty}>
           <Bell size={32} color="#8B98AA" />
           <Text style={styles.emptyTitle}>All caught up</Text>
           <Text style={styles.emptyText}>Important updates from your trips and other activities will appear here.</Text>
@@ -207,7 +208,7 @@ export default function NotificationsScreen() {
       </View>}
       ListFooterComponent={cursor ? <Pressable accessibilityRole="button" onPress={loadMore} disabled={loadingMore} style={styles.more}>
         <Text style={styles.moreText}>{loadingMore ? 'Loading...' : 'Show more'}</Text>
-      </Pressable> : null}
+      </Pressable> : undefined}
     />
   </View>;
 }

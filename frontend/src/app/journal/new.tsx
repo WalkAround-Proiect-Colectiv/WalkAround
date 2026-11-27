@@ -1,0 +1,1 @@
+export { JournalCreateScreen as default } from '../../journal/JournalPages';

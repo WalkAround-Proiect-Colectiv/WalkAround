@@ -1,0 +1,1 @@
+export { JournalTripScreen as default } from '../../journal/JournalPages';

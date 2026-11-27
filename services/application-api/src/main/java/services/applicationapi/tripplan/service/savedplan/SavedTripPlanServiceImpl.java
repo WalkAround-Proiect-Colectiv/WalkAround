@@ -182,6 +182,17 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
 
     @Override
     @Transactional(readOnly = true)
+        public PersonalPage listPersonal(UUID userId, int page) {
+        if (page < 0 || page > 100000) throw new InvalidTripPlanException("Invalid saved-plan page");
+        var rows = tripPlans.findByUser_IdAndGroupIsNullOrderByCreatedAtDescIdDesc(userId,
+            org.springframework.data.domain.PageRequest.of(page, 20));
+        boolean more = tripPlans.findByUser_IdAndGroupIsNullOrderByCreatedAtDescIdDesc(userId,
+            org.springframework.data.domain.PageRequest.of(page + 1, 20)).size() > 0;
+        return new PersonalPage(rows.stream().map(this::toResponse).toList(), more ? page + 1 : null);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
     public TripPlanResponse get(UUID userId, UUID planId) {
         TripPlan plan = tripPlans.findByIdAndUser_IdAndGroupIsNull(planId, userId)
                 .orElseThrow(TripPlanNotFoundException::new);

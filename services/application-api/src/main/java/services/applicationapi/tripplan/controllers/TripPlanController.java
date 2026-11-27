@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import services.applicationapi.tripplan.dto.SaveTripPlanRequest;
 import services.applicationapi.tripplan.dto.TripPlanResponse;
@@ -49,6 +50,11 @@ public class TripPlanController {
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(tripPlans.get(currentUserId(jwt), id));
+    }
+
+    @GetMapping
+    public ResponseEntity<SavedTripPlanService.PersonalPage> list(@AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "0") int page) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tripPlans.listPersonal(currentUserId(jwt), page));
     }
 
     private UUID currentUserId(Jwt jwt) {
