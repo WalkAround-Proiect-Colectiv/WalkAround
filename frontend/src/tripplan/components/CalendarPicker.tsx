@@ -14,6 +14,8 @@ type CalendarPickerProps = {
   value: string;
   visible: boolean;
   minimumDate?: string;
+  maximumDate?: string;
+  referenceDate?: string;
   description?: string;
   onSelect(date: string): void;
   onClose(): void;
@@ -21,12 +23,12 @@ type CalendarPickerProps = {
 
 export default function CalendarPicker(props: CalendarPickerProps) {
   const today = new Date();
-  const todayKey = dateKey(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayKey = props.referenceDate ?? dateKey(today.getFullYear(), today.getMonth(), today.getDate());
   const earliest = props.minimumDate && props.minimumDate > todayKey ? props.minimumDate : todayKey;
   return <CalendarBody key={`${props.visible}-${props.value}-${earliest}`} {...props} earliest={earliest} />;
 }
 
-function CalendarBody({ label, value, visible, description, onSelect, onClose, earliest }: CalendarPickerProps & { earliest: string }) {
+function CalendarBody({ label, value, visible, description, onSelect, onClose, earliest, maximumDate }: CalendarPickerProps & { earliest: string }) {
   const [displayedMonth, setDisplayedMonth] = useState(() => {
     const initial = /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= earliest ? value : earliest;
     const [year, month] = initial.split('-').map(Number);
@@ -39,6 +41,7 @@ function CalendarBody({ label, value, visible, description, onSelect, onClose, e
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const cells = Array.from({ length: firstWeekday + daysInMonth }, (_, index) => index - firstWeekday + 1);
   const previousDisabled = dateKey(year, month, 1) <= earliest.slice(0, 7) + '-01';
+  const nextDisabled = Boolean(maximumDate && dateKey(year, month, 1) >= maximumDate.slice(0, 7) + '-01');
 
   function changeMonth(offset: number) {
     setDisplayedMonth(new Date(year, month + offset, 1));
@@ -67,7 +70,8 @@ function CalendarBody({ label, value, visible, description, onSelect, onClose, e
             <ChevronLeft size={20} color="#202632" />
           </Pressable>
           <Text style={styles.monthTitle}>{displayedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(1)} style={styles.monthButton}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Next month" disabled={nextDisabled} accessibilityState={{ disabled: nextDisabled }}
+            onPress={() => changeMonth(1)} style={[styles.monthButton, nextDisabled && styles.disabled]}>
             <ChevronRight size={20} color="#202632" />
           </Pressable>
         </View>
@@ -79,7 +83,7 @@ function CalendarBody({ label, value, visible, description, onSelect, onClose, e
           {cells.map((day, index) => {
             if (day < 1) return <View key={`empty-${index}`} style={styles.dayCell} />;
             const key = dateKey(year, month, day);
-            const disabled = key < earliest;
+            const disabled = key < earliest || Boolean(maximumDate && key > maximumDate);
             const selected = key === value;
 
             return <View key={key} style={styles.dayCell}>

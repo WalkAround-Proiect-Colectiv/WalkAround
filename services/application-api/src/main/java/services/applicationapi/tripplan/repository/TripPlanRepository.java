@@ -15,6 +15,8 @@ public interface TripPlanRepository extends Repository<TripPlan, UUID> {
 
     Optional<TripPlan> findByIdAndUser_IdAndGroupIsNull(UUID id, UUID userId);
 
+    List<TripPlan> findByUser_IdAndGroupIsNullOrderByCreatedAtDescIdDesc(UUID userId, org.springframework.data.domain.Pageable pageable);
+
     Optional<TripPlan> findByIdAndGroup_Id(UUID id, UUID groupId);
 
     List<TripPlan> findByGroup_IdOrderByCreatedAtDesc(UUID groupId);

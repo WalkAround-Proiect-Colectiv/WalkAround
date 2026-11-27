@@ -7,6 +7,10 @@ import services.applicationapi.tripplan.dto.TripPlanResponse;
 
 public interface SavedTripPlanService {
 
+    record PersonalPage(List<TripPlanResponse> items, Integer nextPage) {}
+
+    PersonalPage listPersonal(UUID userId, int page);
+
     TripPlanResponse create(UUID userId, SaveTripPlanRequest request);
 
     TripPlanResponse get(UUID userId, UUID planId);

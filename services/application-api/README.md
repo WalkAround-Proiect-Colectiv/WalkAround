@@ -16,6 +16,7 @@ This Spring Boot service owns account registration, login/session issuance, JWT-
 - `POST /api/sessions/google`, `/refresh`, `/logout`: web session endpoints using an HttpOnly cookie.
 - `POST /api/mobile/sessions/google`, `/refresh`, `/logout`: mobile session endpoints using a refresh token in JSON.
 - `GET /api/users/me`: return the current authenticated user's profile.
+- `/api/journal/trips`: owner-only private journal CRUD and personal-plan imports; `GET /api/trip-plans?page=0` lists personal saved plans for the picker. See the [journal guide](src/main/java/services/applicationapi/journal/README.md).
 - `/api/poi-comments`: public POI comment reads, authenticated posting, author-owned updates/deletion, and abuse reporting. See the [POI comments guide](src/main/java/services/applicationapi/poicomments/README.md) for identity, pagination, moderation, and tests.
 - `/api/events/...`: upcoming events near the user, marked events, and reminders. See the [events README](src/main/java/services/applicationapi/events/README.md).
 - `/api/poi-images...`: photos users attach to map POIs, stored in ImageKit. See the [POI photos README](src/main/java/services/applicationapi/poiimages/README.md).

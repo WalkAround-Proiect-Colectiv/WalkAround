@@ -10,7 +10,7 @@ import PoiFilters from './PoiFilters';
 import PoiPhotos from '../poiimages/components/PoiPhotos';
 import { canHavePhotos } from '../poiimages/limits';
 import type { PoiFilter, EventTypeFilter } from './filters';
-import { MessageSquare, SlidersHorizontal } from 'lucide-react-native';
+import { BookOpen, MessageSquare, SlidersHorizontal } from 'lucide-react-native';
 import type { MapHandle, ScreenPoint } from './MapCanvas.types';
 import { isInCoverage, MAP_STYLE_URL, PLACES } from './config';
 import { resolveStyleResources, styleMap } from './style';
@@ -1175,6 +1175,9 @@ export default function MapScreen() {
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/trip-plan'); }} style={styles.menuItem}>
             <Route size={20} color="#0065EB" /><Text style={styles.menuItemText}>Plan a trip</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/journal'); }} style={styles.menuItem}>
+            <BookOpen size={20} color="#0065EB" /><Text style={styles.menuItemText}>Private journal</Text>
           </Pressable>
           <Pressable accessibilityRole="button" onPress={() => { setMenuOpen(false); router.push('/recommendations'); }} style={styles.menuItem}>
             <CloudSun size={20} color="#0065EB" /><Text style={styles.menuItemText}>Weather activities</Text>
