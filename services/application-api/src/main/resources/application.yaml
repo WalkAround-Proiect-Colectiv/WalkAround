@@ -58,6 +58,14 @@ logging:
     root: info
 
 app:
+  notifications:
+    inbox:
+      topic: ${INBOX_NOTIFICATION_TOPIC:notification-inbox-topic}
+      partitions: ${INBOX_NOTIFICATION_PARTITIONS:3}
+      outbox-poll-ms: ${INBOX_OUTBOX_POLL_MS:1000}
+      outbox-batch-size: ${INBOX_OUTBOX_BATCH_SIZE:50}
+      publish-timeout: ${INBOX_OUTBOX_PUBLISH_TIMEOUT:PT5S}
+      retry-max-delay: ${INBOX_OUTBOX_RETRY_MAX_DELAY:PT1M}
   place-search:
     provider: ${PLACE_SEARCH_PROVIDER:photon}
     base-url: ${PLACE_SEARCH_BASE_URL:https://photon.komoot.io}

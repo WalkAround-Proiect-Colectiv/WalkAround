@@ -44,5 +44,6 @@ app:
     audience: ${JWT_AUDIENCE:walkaround-api}
     reminder-topic: ${EVENTS_REMINDER_TOPIC:event-reminders-topic}
     group-plan-topic: ${GROUP_PLAN_NOTIFICATION_TOPIC:trip-group-plan-notifications-topic}
+    inbox-topic: ${INBOX_NOTIFICATION_TOPIC:notification-inbox-topic}
   group-chat:
     topic: ${GROUP_CHAT_TOPIC:trip-group-chat-topic}
