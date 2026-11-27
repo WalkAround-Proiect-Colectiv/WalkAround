@@ -7,5 +7,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
  * Application API, which issues the sign-in tokens.
  */
 @ConfigurationProperties("app.notifications")
-public record NotificationProperties(String signingSecret, String issuer, String audience, String reminderTopic) {
+public record NotificationProperties(
+        String signingSecret,
+        String issuer,
+        String audience,
+        String reminderTopic,
+        String inboxTopic
+) {
 }
