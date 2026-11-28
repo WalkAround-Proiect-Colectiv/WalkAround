@@ -1,12 +1,7 @@
 package services.applicationapi.tripplan.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
+
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -31,13 +26,14 @@ public class TripPlanGroupMember {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    private String role;
+    private GroupRole role;
 
     @Column(nullable = false)
     private Instant joinedAt;
 
-    public TripPlanGroupMember(TripPlanGroup group, User user, String role) {
+    public TripPlanGroupMember(TripPlanGroup group, User user, GroupRole role) {
         this.id = UUID.randomUUID();
         this.group = group;
         this.user = user;

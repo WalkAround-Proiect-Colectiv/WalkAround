@@ -18,6 +18,7 @@ import services.applicationapi.tripplan.dto.TripGroupInvitePreview;
 import services.applicationapi.tripplan.dto.TripGroupInviteResponse;
 import services.applicationapi.tripplan.dto.TripGroupInviteSummary;
 import services.applicationapi.tripplan.dto.TripGroupResponse;
+import services.applicationapi.tripplan.model.GroupRole;
 import services.applicationapi.tripplan.model.TripPlanGroup;
 import services.applicationapi.tripplan.model.TripPlanGroupInvite;
 import services.applicationapi.tripplan.model.TripPlanGroupMember;
@@ -135,7 +136,7 @@ public class TripGroupInviteServiceImpl implements TripGroupInviteService {
             return groupService.get(groupId, userId);
         }
         User user = users.findById(userId).orElseThrow(TripPlanAuthenticationException::new);
-        members.save(new TripPlanGroupMember(group, user, "MEMBER"));
+        members.save(new TripPlanGroupMember(group, user, GroupRole.MEMBER));
         invite.use(user, Instant.now());
         log.info("User {} joined trip group {} through invitation {}", userId, groupId, invite.getId());
         return groupService.get(groupId, userId);
@@ -144,7 +145,7 @@ public class TripGroupInviteServiceImpl implements TripGroupInviteService {
     private TripPlanGroupMember requireAdmin(UUID groupId, UUID userId) {
         TripPlanGroupMember membership = members.findByGroup_IdAndUser_Id(groupId, userId)
                 .orElseThrow(TripGroupNotFoundException::new);
-        if (!"ADMIN".equals(membership.getRole())) throw new TripGroupForbiddenException();
+        if (!GroupRole.ADMIN.equals(membership.getRole())) throw new TripGroupForbiddenException();
         return membership;
     }
 

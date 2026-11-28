@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import services.applicationapi.tripplan.configurations.TripGroupProperties;
 import services.applicationapi.tripplan.dto.TripGroupResponse;
+import services.applicationapi.tripplan.model.GroupRole;
 import services.applicationapi.tripplan.model.TripPlanGroup;
 import services.applicationapi.tripplan.model.TripPlanGroupMember;
 import services.applicationapi.tripplan.model.TripPlanGroupPicture;
@@ -60,14 +61,14 @@ public class TripGroupServiceImpl implements TripGroupService {
         byte[] image = picture == null ? null : normalizePicture(picture);
 
         TripPlanGroup group = groups.save(new TripPlanGroup(creator, normalizedName, normalizedDescription));
-        members.save(new TripPlanGroupMember(group, creator, "ADMIN"));
+        members.save(new TripPlanGroupMember(group, creator, GroupRole.ADMIN));
         if (image != null) pictures.save(new TripPlanGroupPicture(group.getId(), image));
 
         log.info("Created trip group {} for user {} withPicture={}", group.getId(), creatorId,
                 image != null);
         String pictureUrl = image == null ? null : "/api/trip-plan-groups/" + group.getId() + "/picture";
         return new TripGroupResponse(group.getId(), group.getName(), group.getDescription(),
-                "ADMIN", pictureUrl, group.getCreatedAt());
+                GroupRole.ADMIN, pictureUrl, group.getCreatedAt());
     }
 
     @Override
@@ -77,7 +78,7 @@ public class TripGroupServiceImpl implements TripGroupService {
         TripPlanGroup group = groups.findByIdForUpdate(groupId).orElseThrow(TripGroupNotFoundException::new);
         TripPlanGroupMember membership = members.findByGroup_IdAndUser_Id(groupId, adminId)
                 .orElseThrow(TripGroupNotFoundException::new);
-        if (!"ADMIN".equals(membership.getRole())) throw new TripGroupForbiddenException();
+        if (!GroupRole.ADMIN.equals(membership.getRole())) throw new TripGroupForbiddenException();
         if (picture != null && removePicture) {
             throw new InvalidTripGroupException("Choose a new photo or remove the current one");
         }

@@ -17,6 +17,7 @@ import services.applicationapi.tripplan.dto.SaveTripPlanRequest;
 import services.applicationapi.tripplan.dto.TicketOption;
 import services.applicationapi.tripplan.dto.TransportMode;
 import services.applicationapi.tripplan.dto.TripPlanResponse;
+import services.applicationapi.tripplan.model.GroupRole;
 import services.applicationapi.tripplan.model.TripPlan;
 import services.applicationapi.tripplan.model.TripPlanGroup;
 import services.applicationapi.tripplan.model.TripPlanGroupMember;
@@ -211,7 +212,7 @@ public class SavedTripPlanServiceImpl implements SavedTripPlanService {
     public TripPlanResponse makeCurrent(UUID groupId, UUID adminId, UUID planId) {
         groups.findByIdForUpdate(groupId).orElseThrow(TripGroupNotFoundException::new);
         TripPlanGroupMember member = requireMember(groupId, adminId);
-        if (!"ADMIN".equals(member.getRole())) throw new TripGroupForbiddenException();
+        if (!GroupRole.ADMIN.equals(member.getRole())) throw new TripGroupForbiddenException();
         if (tripPlans.findByIdAndGroup_Id(planId, groupId).isEmpty()) throw new TripPlanNotFoundException();
 
         tripPlans.clearCurrent(groupId);
