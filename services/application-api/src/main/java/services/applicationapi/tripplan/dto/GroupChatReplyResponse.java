@@ -7,6 +7,7 @@ public record GroupChatReplyResponse(UUID messageId, String senderName, String m
     public static GroupChatReplyResponse from(GroupChatMessage message) {
         String text = switch (message.messageType()) {
             case "IMAGE" -> "Photo";
+            case "DOCUMENT" -> "Document: " + (message.document() == null ? "Attachment" : message.document().fileName());
             case "POLL" -> "Poll: " + message.body();
             default -> message.body();
         };

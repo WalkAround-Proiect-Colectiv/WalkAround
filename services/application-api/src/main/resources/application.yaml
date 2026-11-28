@@ -112,6 +112,9 @@ app:
       files-url: ${IMAGEKIT_FILES_URL:https://api.imagekit.io/v1/files}
       timeout: ${IMAGEKIT_TIMEOUT:PT10S}
       signed-url-ttl: ${IMAGEKIT_SIGNED_URL_TTL:PT1H}
+    documents:
+      max-bytes: ${GROUP_CHAT_DOCUMENT_MAX_BYTES:5242880}
+      signed-url-ttl: ${GROUP_CHAT_DOCUMENT_URL_TTL:PT5M}
     socket-token-ttl: ${GROUP_CHAT_SOCKET_TOKEN_TTL:PT5M}
     outbox-poll-ms: ${GROUP_CHAT_OUTBOX_POLL_MS:1000}
     outbox-batch-size: ${GROUP_CHAT_OUTBOX_BATCH_SIZE:50}

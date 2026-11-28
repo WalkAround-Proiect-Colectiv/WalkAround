@@ -1,5 +1,6 @@
 package services.applicationapi.tripplan.dto;
 
+import services.applicationapi.tripplan.model.GroupChatDocumentMetadata;
 import java.time.Instant;
 import java.util.UUID;
 import services.applicationapi.tripplan.model.GroupChatMessage;
@@ -15,7 +16,8 @@ public record GroupChatMessageResponse(
         String messageType,
         GroupChatPollResponse poll,
         GroupChatImageResponse image,
-        GroupChatReplyResponse replyTo
+        GroupChatReplyResponse replyTo,
+        GroupChatDocumentMetadata document
 ) {
     public static GroupChatMessageResponse from(GroupChatMessage message, GroupChatPollResponse poll,
                                                 GroupChatImageResponse image) {
@@ -26,6 +28,6 @@ public record GroupChatMessageResponse(
                                                 GroupChatImageResponse image, GroupChatReplyResponse replyTo) {
         return new GroupChatMessageResponse(
                 message.id(), message.conversationId(), message.sequence(), message.senderId(),
-                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll, image, replyTo);
+                message.senderName(), message.body(), message.createdAt(), message.messageType(), poll, image, replyTo, message.document());
     }
 }

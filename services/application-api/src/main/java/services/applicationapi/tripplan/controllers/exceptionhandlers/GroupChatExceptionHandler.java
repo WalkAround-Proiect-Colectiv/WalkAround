@@ -1,5 +1,8 @@
 package services.applicationapi.tripplan.controllers.exceptionhandlers;
 
+import services.applicationapi.tripplan.service.exceptions.GroupChatDocumentNotFoundException;
+import services.applicationapi.tripplan.service.exceptions.GroupChatDocumentStorageException;
+import services.applicationapi.tripplan.controllers.GroupChatDocumentController;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -24,7 +27,7 @@ import services.applicationapi.tripplan.service.exceptions.GroupChatPollNotFound
 import services.applicationapi.tripplan.service.exceptions.TripGroupNotFoundException;
 import services.applicationapi.tripplan.service.exceptions.TripPlanAuthenticationException;
 
-@RestControllerAdvice(assignableTypes = GroupChatController.class)
+@RestControllerAdvice(assignableTypes = {GroupChatController.class, GroupChatDocumentController.class})
 public class GroupChatExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GroupChatExceptionHandler.class);
@@ -43,12 +46,12 @@ public class GroupChatExceptionHandler {
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     ResponseEntity<ProblemDetail> oversized() {
-        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "The image is too large");
+        return problem(HttpStatus.PAYLOAD_TOO_LARGE, "The attachment is too large");
     }
 
     @ExceptionHandler(MultipartException.class)
     ResponseEntity<ProblemDetail> invalidUpload() {
-        return problem(HttpStatus.BAD_REQUEST, "A valid image upload is required");
+        return problem(HttpStatus.BAD_REQUEST, "A valid attachment upload is required");
     }
 
     @ExceptionHandler(GroupChatImageStorageException.class)
@@ -60,6 +63,16 @@ public class GroupChatExceptionHandler {
     @ExceptionHandler(GroupChatConflictException.class)
     ResponseEntity<ProblemDetail> conflict(GroupChatConflictException exception) {
         return problem(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler(GroupChatDocumentStorageException.class)
+    ResponseEntity<ProblemDetail> documentStorage(GroupChatDocumentStorageException exception) {
+        return problem(HttpStatus.BAD_GATEWAY, exception.getMessage());
+    }
+
+    @ExceptionHandler(GroupChatDocumentNotFoundException.class)
+    ResponseEntity<ProblemDetail> documentMissing(GroupChatDocumentNotFoundException exception) {
+        return problem(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
     @ExceptionHandler(GroupChatForbiddenException.class)

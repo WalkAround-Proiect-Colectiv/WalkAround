@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import type { ImagePickerAsset } from 'expo-image-picker';
+import type { DocumentPickerAsset } from 'expo-document-picker';
 import { ApiError } from '../../login/api/http';
 import { authenticatedRequest } from '../../login/api/session';
 import type { GroupChatReply } from './chatReplies';
@@ -13,7 +14,8 @@ export interface GroupChatMessage {
   senderName: string;
   body: string;
   createdAt: string;
-  messageType: 'TEXT' | 'POLL' | 'IMAGE';
+  messageType: 'TEXT' | 'POLL' | 'IMAGE' | 'DOCUMENT';
+  document?: { fileName: string; contentType: string; sizeBytes: number } | null;
   poll: GroupChatPoll | null;
   image: GroupChatImage | null;
   replyTo?: GroupChatReply | null;
@@ -105,6 +107,26 @@ export function sendGroupChatImage(groupId: string, messageId: string,
 
 export function getGroupChatImageUrl(groupId: string, messageId: string): Promise<GroupChatImage> {
   return chatRequest(`${chatPath(groupId)}/messages/${encodeURIComponent(messageId)}/image-url`);
+}
+
+export function sendGroupChatDocument(groupId: string, messageId: string, caption: string,
+                                     document: DocumentPickerAsset, replyTo?: GroupChatReply | null): Promise<GroupChatMessage> {
+  const body = new FormData();
+  body.append('messageId', messageId);
+  body.append('caption', caption);
+  if (replyTo) body.append('replyToMessageId', replyTo.messageId);
+  if (Platform.OS === 'web') {
+    if (!document.file) throw new Error('Could not read the document. Choose it again.');
+    body.append('document', document.file, document.name);
+  } else {
+    body.append('document', { uri: document.uri, name: document.name,
+      type: document.mimeType ?? 'application/octet-stream' } as unknown as Blob);
+  }
+  return chatRequest(`${chatPath(groupId)}/messages/documents`, { method: 'POST', body }, 60000);
+}
+
+export function getGroupChatDocumentUrl(groupId: string, messageId: string): Promise<{ url: string }> {
+  return chatRequest(`${chatPath(groupId)}/messages/${encodeURIComponent(messageId)}/document-url`);
 }
 
 export function voteInGroupChatPoll(groupId: string, messageId: string,

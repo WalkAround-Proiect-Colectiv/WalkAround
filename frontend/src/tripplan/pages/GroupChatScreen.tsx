@@ -2,8 +2,10 @@ import { Fragment, useEffect, useRef, useState, type ComponentRef } from 'react'
 import { ActivityIndicator, Image, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ImagePlus, ListChecks, MessageCircle, Plus, Reply, Send, Smile, X } from 'lucide-react-native';
+import { ArrowLeft, FileText, ImagePlus, ListChecks, MessageCircle, Plus, Reply, Send, Smile, X } from 'lucide-react-native';
 import * as Crypto from 'expo-crypto';
+import * as DocumentPicker from 'expo-document-picker';
+import GroupChatDocumentCard, { documentSize } from '../components/GroupChatDocumentCard';
 import * as ImagePicker from 'expo-image-picker';
 import type { ImagePickerAsset } from 'expo-image-picker';
 import { useSession } from '../../login/components/SessionProvider';
@@ -16,17 +18,19 @@ import type { PreviewImage } from '../components/GroupChatImagePreview';
 import GroupChatQuote from '../components/GroupChatQuote';
 import { loadReplyHistory, quoteMessage, readChatReply, type GroupChatReply } from '../api/chatReplies';
 import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
-  getGroupChatMessages, getGroupChatTicket, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
+  getGroupChatMessages, getGroupChatTicket, sendGroupChatDocument, sendGroupChatImage, sendGroupChatMessage, voteInGroupChatPoll,
   type GroupChatMessage } from '../api/groupChat';
 import type { CreatedTripGroup } from '../api/tripGroups';
 
 const BLUE = '#0065EB';
+const DOCUMENT_CONTENT_TYPES = ['application/pdf', 'text/plain',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/csv'];
 const PAGE_SIZE = 50;
 const RECONNECT_DELAY_MS = 3000;
 const CATCH_UP_INTERVAL_MS = 3000;
 
-type PendingMessage = { id: string; body: string; messageType: 'TEXT' | 'POLL' | 'IMAGE';
-  options?: string[]; image?: ImagePickerAsset; replyTo?: GroupChatReply | null };
+type PendingMessage = { id: string; body: string; messageType: 'TEXT' | 'POLL' | 'IMAGE' | 'DOCUMENT';
+  options?: string[]; image?: ImagePickerAsset; document?: DocumentPicker.DocumentPickerAsset; replyTo?: GroupChatReply | null };
 type SocketEvent = { type: 'SUBSCRIBED'; conversationId: string }
   | ({ type: 'GROUP_CHAT_MESSAGE'; eventSequence: number } & GroupChatMessage);
 
@@ -72,6 +76,10 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
     if (event.messageType === 'IMAGE' && (!image || typeof image.url !== 'string'
         || !Number.isSafeInteger(image.width) || image.width < 1
         || !Number.isSafeInteger(image.height) || image.height < 1)) return null;
+    const document = event.messageType === 'DOCUMENT' ? event.document : null;
+    if (event.messageType === 'DOCUMENT' && (!document || typeof document.fileName !== 'string'
+        || !DOCUMENT_CONTENT_TYPES.includes(document.contentType)
+        || !Number.isSafeInteger(document.sizeBytes) || document.sizeBytes < 1)) return null;
     return {
       type: 'GROUP_CHAT_MESSAGE',
       eventSequence: event.eventSequence,
@@ -82,10 +90,11 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
       senderName: event.senderName,
       body: event.body,
       createdAt: event.createdAt,
-      messageType: event.messageType === 'POLL' || event.messageType === 'IMAGE'
+      messageType: event.messageType === 'POLL' || event.messageType === 'IMAGE' || event.messageType === 'DOCUMENT'
         ? event.messageType : 'TEXT',
       poll,
       image,
+      document,
       replyTo: readChatReply(event.replyTo),
     };
   } catch {
@@ -107,6 +116,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   const [draft, setDraft] = useState('');
   const [replyTarget, setReplyTarget] = useState<GroupChatReply | null>(null);
   const [imageAsset, setImageAsset] = useState<ImagePickerAsset | null>(null);
+  const [documentAsset, setDocumentAsset] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [previewImage, setPreviewImage] = useState<PreviewImage | null>(null);
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState('');
@@ -258,7 +268,9 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     setSending(true);
     setSendError(null);
     try {
-      const saved = item.image
+      const saved = item.document
+        ? await sendGroupChatDocument(group.id, item.id, item.body, item.document, item.replyTo)
+        : item.image
         ? await sendGroupChatImage(group.id, item.id, item.body, item.image, item.replyTo)
         : await sendGroupChatMessage(group.id, item.id, item.body,
           item.messageType as 'TEXT' | 'POLL', item.options, item.replyTo);
@@ -279,12 +291,12 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
   function submit() {
     if (sending || pendingRef.current) return;
     const body = draft.trim();
-    if ((!body && !imageAsset) || body.length > 2000) {
-      setSendError('Enter a message of up to 2,000 characters, or choose an image.');
+    if ((!body && !imageAsset && !documentAsset) || body.length > 2000) {
+      setSendError('Enter a message of up to 2,000 characters, or choose an attachment.');
       return;
     }
     const item: PendingMessage = { id: Crypto.randomUUID(), body,
-      messageType: imageAsset ? 'IMAGE' : 'TEXT', image: imageAsset ?? undefined, replyTo: replyTarget };
+      messageType: documentAsset ? 'DOCUMENT' : imageAsset ? 'IMAGE' : 'TEXT', document: documentAsset ?? undefined, image: imageAsset ?? undefined, replyTo: replyTarget };
     pendingRef.current = item;
     setPending(item);
     cancelReplyNavigation();
@@ -293,6 +305,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     setDraft('');
     setReplyTarget(null);
     setImageAsset(null);
+    setDocumentAsset(null);
     setSelection({ start: 0, end: 0 });
     setShowEmojis(false);
     void send(item);
@@ -312,11 +325,39 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
         return;
       }
       setImageAsset(chosen);
+      setDocumentAsset(null);
       setSendError(null);
       setShowEmojis(false);
       setPollOpen(false);
     } catch {
       setSendError('Could not open your photos. Please try again.');
+    }
+  }
+
+  async function chooseDocument() {
+    if (sending || pendingRef.current) return;
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: DOCUMENT_CONTENT_TYPES, multiple: false, copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const chosen = result.assets[0];
+      if (!/\.(pdf|txt|docx|csv)$/i.test(chosen.name)) {
+        setSendError('Choose a PDF, TXT, DOCX, or CSV document.');
+        return;
+      }
+      const size = chosen.file?.size ?? chosen.size;
+      if (size !== undefined && (size === 0 || size > 5 * 1024 * 1024)) {
+        setSendError('Choose a nonempty document up to 5 MB.');
+        return;
+      }
+      setDocumentAsset(chosen);
+      setImageAsset(null);
+      setSendError(null);
+      setShowEmojis(false);
+      setPollOpen(false);
+    } catch {
+      setSendError('Could not open your documents. Please try again.');
     }
   }
 
@@ -543,6 +584,8 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
               onNavigateReply={onNavigateReply} replyNavigationDisabled={replyNavigationDisabled}
               onVote={(optionId) => { void vote(message.id, optionId); }}
               onClose={() => { void closePoll(message.id); }} />
+            : message.messageType === 'DOCUMENT' && message.document
+            ? <GroupChatDocumentCard groupId={group.id} message={message} own={own} />
             : message.messageType === 'IMAGE' && message.image
             ? <GroupChatImageCard groupId={group.id} message={message} own={own}
               onNavigateReply={onNavigateReply} replyNavigationDisabled={replyNavigationDisabled}
@@ -571,6 +614,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       {pending && <View style={[styles.bubble, styles.ownBubble]}>
         <GroupChatQuote reply={pending.replyTo} onNavigate={onNavigateReply} disabled={replyNavigationDisabled} />
         {pending.messageType === 'POLL' && <Text style={styles.pendingType}>POLL · {pending.options?.length} choices</Text>}
+        {pending.document && <Text style={styles.ownText}>{pending.document.name}</Text>}
         {pending.image && <Pressable accessibilityRole="button"
           accessibilityLabel="Preview pending image" onPress={() => setPreviewImage(pending.image ?? null)}>
           <Image source={{ uri: pending.image.uri }} style={styles.pendingImage} />
@@ -632,6 +676,15 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       <Pressable accessibilityRole="button" accessibilityLabel="Remove selected image"
         onPress={() => setImageAsset(null)}><X size={19} color="#65758B" /></Pressable>
     </View>}
+    {documentAsset && <View style={styles.imagePreview}>
+      <FileText size={24} color={BLUE} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={2} style={styles.previewText}>{documentAsset.name}</Text>
+        <Text style={styles.time}>{documentAsset.size !== undefined ? documentSize(documentAsset.size) : 'PDF, TXT, DOCX, or CSV'} ? Up to 5 MB</Text>
+      </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Remove selected document"
+        style={styles.cancelReply} onPress={() => setDocumentAsset(null)}><X size={19} color="#65758B" /></Pressable>
+    </View>}
     <GroupChatImagePreview key={previewImage?.messageId ?? (previewImage ? 'local' : 'none')}
       image={previewImage} onClose={() => setPreviewImage(null)} />
     {sendError && <Text accessibilityRole="alert" style={styles.error}>{sendError}</Text>}
@@ -646,6 +699,10 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       }}><Text style={styles.discardText}>Discard</Text></Pressable>
     </View>}
     <View style={styles.toolsRow}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Attach document"
+        disabled={sending || Boolean(pending)} onPress={() => { void chooseDocument(); }} style={styles.toolButton}>
+        <FileText size={17} color={BLUE} /><Text style={styles.toolText}>Document</Text>
+      </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Attach image"
         disabled={sending || Boolean(pending)} onPress={() => { void chooseImage(); }}
         style={styles.toolButton}>
@@ -655,7 +712,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
         onPress={() => {
           Keyboard.dismiss();
           setShowEmojis(false);
-          if (!pollOpen) setImageAsset(null);
+          if (!pollOpen) { setImageAsset(null); setDocumentAsset(null); }
           setPollOpen((open) => !open);
         }}
         style={[styles.toolButton, pollOpen && styles.toolButtonActive]}>
@@ -671,14 +728,14 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
         }} style={[styles.emojiToggle, showEmojis && styles.emojiToggleActive]}>
         <Smile size={21} color={showEmojis ? BLUE : '#7D8B9E'} />
       </Pressable>
-      <TextInput ref={composerRef} accessibilityLabel={imageAsset ? 'Image caption' : 'Group message'} multiline maxLength={2000}
-        placeholder={imageAsset ? 'Add a caption (optional)' : 'Message your group'} placeholderTextColor="#8A96A6"
+      <TextInput ref={composerRef} accessibilityLabel={documentAsset ? 'Document caption' : imageAsset ? 'Image caption' : 'Group message'} multiline maxLength={2000}
+        placeholder={imageAsset || documentAsset ? 'Add a caption (optional)' : 'Message your group'} placeholderTextColor="#8A96A6"
         style={styles.input} value={draft} onChangeText={setDraft} selection={selection}
         onSelectionChange={({ nativeEvent }) => setSelection(nativeEvent.selection)}
         onFocus={() => setShowEmojis(false)} />
       <Pressable accessibilityRole="button" accessibilityLabel="Send message"
-        disabled={sending || Boolean(pending) || (!draft.trim() && !imageAsset)} onPress={submit}
-        style={[styles.sendButton, (sending || Boolean(pending) || (!draft.trim() && !imageAsset)) && styles.disabled]}>
+        disabled={sending || Boolean(pending) || (!draft.trim() && !imageAsset && !documentAsset)} onPress={submit}
+        style={[styles.sendButton, (sending || Boolean(pending) || (!draft.trim() && !imageAsset && !documentAsset)) && styles.disabled]}>
         <Send size={19} color="#fff" />
       </Pressable>
     </View>
@@ -750,7 +807,7 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: '#E3EAF3',
     shadowColor: '#253043', shadowOpacity: 0.08, shadowRadius: 12,
     shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  toolsRow: { flexDirection: 'row', gap: 7, marginHorizontal: 14, marginBottom: 7 },
+  toolsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginHorizontal: 14, marginBottom: 7 },
   toolButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 5,
     paddingHorizontal: 10, borderRadius: 11, backgroundColor: '#EAF3FF' },
   toolButtonActive: { backgroundColor: '#D7E9FF' },
