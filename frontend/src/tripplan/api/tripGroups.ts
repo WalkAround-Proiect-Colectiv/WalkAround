@@ -4,13 +4,25 @@ import { ApiError } from '../../login/api/http';
 import { authenticatedRequest } from '../../login/api/session';
 import type { SavedTripPlan } from './tripPlanning';
 
+export enum GroupRole {
+  ADMIN = 'ADMIN',
+  MEMBER = 'MEMBER',
+}
+
 export interface CreatedTripGroup {
   id: string;
   name: string;
   description: string | null;
-  memberRole: 'ADMIN' | 'MEMBER';
+  memberRole: GroupRole;
   pictureUrl: string | null;
   createdAt: string;
+}
+
+export interface TripGroupMember {
+  userId: string;
+  displayName: string;
+  role: GroupRole;
+  joinedAt: string;
 }
 
 export interface TripGroupInvite {
@@ -42,6 +54,19 @@ async function groupRequest<T>(path: string, options: RequestInit = {},
     throw error;
   }
 }
+
+export const listGroupMembers = (groupId: string) =>
+  groupRequest<TripGroupMember[]>(`/api/trip-plan-groups/${encodeURIComponent(groupId)}/members`);
+
+export const assignGroupMemberRole = (groupId: string, memberId: string, role: GroupRole) =>
+  groupRequest<void>(
+    `/api/trip-plan-groups/${encodeURIComponent(groupId)}/members/${encodeURIComponent(memberId)}/role`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role }),
+    },
+  );
 
 export const listTripGroups = () => groupRequest<CreatedTripGroup[]>('/api/trip-plan-groups');
 

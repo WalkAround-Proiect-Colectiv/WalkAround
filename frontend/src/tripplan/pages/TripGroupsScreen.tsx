@@ -9,7 +9,7 @@ import GroupPicture from '../components/GroupPicture';
 import TripPlanningScreen from './TripPlanningScreen';
 import GroupChatScreen from './GroupChatScreen';
 import {
-  createGroupInvite, getTripGroup, listGroupInvites, listGroupPlans, listTripGroups,
+  createGroupInvite, getTripGroup, GroupRole, listGroupInvites, listGroupPlans, listTripGroups,
   makeGroupPlanCurrent, revokeGroupInvite,
   type CreatedTripGroup, type TripGroupInvite, type TripGroupInviteSummary,
 } from '../api/tripGroups';
@@ -86,7 +86,7 @@ export default function TripGroupsScreen() {
         setSelected(group);
         const [foundPlans, foundInvites] = await Promise.all([
           listGroupPlans(groupId),
-          group.memberRole === 'ADMIN' ? listGroupInvites(groupId) : Promise.resolve([]),
+          group.memberRole === GroupRole.ADMIN ? listGroupInvites(groupId) : Promise.resolve([]),
         ]);
         if (active) {
           if (requestId === planRequestId.current) setPlans(foundPlans);
@@ -232,7 +232,7 @@ export default function TripGroupsScreen() {
             {group.pictureUrl ? <GroupPicture groupId={group.id} size={42} />
               : <View style={styles.groupIcon}><UsersRound size={20} color={BLUE} /></View>}
             <View style={styles.groupText}><Text style={styles.groupName}>{group.name}</Text>
-              <Text style={styles.hint}>{group.memberRole === 'ADMIN' ? 'Admin' : 'Member'}</Text></View>
+              <Text style={styles.hint}>{group.memberRole === GroupRole.ADMIN ? 'Admin' : 'Member'}</Text></View>
           </Pressable>)}
       </>}
 
@@ -272,7 +272,7 @@ export default function TripGroupsScreen() {
                 pathname: '/trip-groups', params: { groupId: selected.id, tab: 'plan', planId: plan.id },
               })}><Text style={styles.editText}>Open preset</Text></Pressable>
             </View>
-            {selected.memberRole === 'ADMIN' && <Pressable accessibilityRole="button"
+            {selected.memberRole === GroupRole.ADMIN && <Pressable accessibilityRole="button"
               disabled={Boolean(selectingPlanId)} onPress={() => { void makeCurrent(plan.id); }}>
               <Text style={styles.editText}>{selectingPlanId === plan.id ? 'Selecting…' : 'Set current'}</Text>
             </Pressable>}
@@ -281,14 +281,14 @@ export default function TripGroupsScreen() {
         {selected.description && <View style={styles.card}><Text style={styles.body}>{selected.description}</Text></View>}
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Your role</Text>
-          <Text style={styles.body}>{selected.memberRole === 'ADMIN' ? 'Admin' : 'Member'}</Text>
+          <Text style={styles.body}>{selected.memberRole === GroupRole.ADMIN ? 'Admin' : 'Member'}</Text>
         </View>
-        {selected.memberRole === 'ADMIN' && <Pressable accessibilityRole="button"
+        {selected.memberRole === GroupRole.ADMIN && <Pressable accessibilityRole="button"
           onPress={() => router.push({ pathname: '/trip-group-edit', params: { groupId: selected.id } })}
           style={styles.editButton}>
           <Pencil size={18} color={BLUE} /><Text style={styles.editText}>Edit group</Text>
         </Pressable>}
-        {selected.memberRole === 'ADMIN' && <View style={styles.card}>
+        {selected.memberRole === GroupRole.ADMIN && <View style={styles.card}>
           <Text style={styles.sectionTitle}>Invite someone</Text>
           <Text style={styles.hint}>Each link can be used once. You can revoke it before it is used.</Text>
           <Pressable accessibilityRole="button" disabled={creating} onPress={() => { void createInvite(); }}

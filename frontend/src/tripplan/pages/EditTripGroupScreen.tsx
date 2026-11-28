@@ -7,7 +7,7 @@ import type { ImagePickerAsset } from 'expo-image-picker';
 import { ArrowLeft, Camera, Save, UsersRound, X } from 'lucide-react-native';
 import { environment } from '../../config/environment';
 import { useSession } from '../../login/components/SessionProvider';
-import { getTripGroup, getTripGroupPicture, updateTripGroup, type CreatedTripGroup } from '../api/tripGroups';
+import { getTripGroup, getTripGroupPicture, GroupRole, updateTripGroup, type CreatedTripGroup } from '../api/tripGroups';
 
 const BLUE = '#0065EB';
 const INK = '#202632';
@@ -106,7 +106,7 @@ export default function EditTripGroupScreen() {
   }
 
   async function save() {
-    if (submitting.current || !groupId || group?.memberRole !== 'ADMIN') return;
+    if (submitting.current || !groupId || group?.memberRole !== GroupRole.ADMIN) return;
     const groupName = name.trim();
     const groupDescription = description.trim();
     if (!groupName || groupName.length > 100 || /[\u0000-\u001F\u007F]/.test(groupName)) {
@@ -155,7 +155,7 @@ export default function EditTripGroupScreen() {
           <Text accessibilityRole="header" style={styles.title}>Edit group</Text>
           <Text style={styles.subtitle}>Update the details your group members see.</Text>
         </View>
-        {loading ? <ActivityIndicator color={BLUE} /> : group?.memberRole === 'ADMIN' ? <View style={styles.card}>
+        {loading ? <ActivityIndicator color={BLUE} /> : group?.memberRole === GroupRole.ADMIN ? <View style={styles.card}>
           <Text style={styles.label}>Group name</Text>
           <TextInput accessibilityLabel="Group name" value={name} maxLength={100} onChangeText={setName}
             autoCapitalize="sentences" placeholder="Group name" placeholderTextColor="#8892A2" style={styles.input} />
