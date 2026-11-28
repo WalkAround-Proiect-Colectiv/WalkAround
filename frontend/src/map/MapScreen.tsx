@@ -465,6 +465,7 @@ export default function MapScreen() {
     setCoordinateQuery(result.name);
     map.current?.goTo({ center: result.coordinates, zoom: 15 });
     setSelectedPoi({
+      id: 'selected-coordinate',
       name: result.name,
       category: result.detail || 'Search Result',
       coordinates: result.coordinates
