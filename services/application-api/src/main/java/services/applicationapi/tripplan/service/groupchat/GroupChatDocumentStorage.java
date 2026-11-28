@@ -4,7 +4,7 @@ import java.util.UUID;
 
 public interface GroupChatDocumentStorage {
     StoredDocument upload(UUID groupId, UUID messageId, byte[] data, String extension, String contentType);
-    String signedUrl(String bucket, String objectKey, String fileName);
+    String signedUrl(String filePath, String fileName);
     void delete(StoredDocument document);
-    record StoredDocument(String objectKey, String bucket) {}
+    record StoredDocument(String fileId, String filePath) {}
 }

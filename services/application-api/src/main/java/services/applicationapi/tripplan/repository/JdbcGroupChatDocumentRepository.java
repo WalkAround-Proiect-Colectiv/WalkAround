@@ -14,8 +14,8 @@ public class JdbcGroupChatDocumentRepository implements GroupChatDocumentReposit
 
     public Optional<GroupChatDocument> findByMessageId(UUID id) {
         return jdbc.query("SELECT * FROM trip_group_chat_documents WHERE message_id = ?", (rs, row) ->
-            new GroupChatDocument(rs.getObject("message_id", UUID.class), rs.getString("object_key"),
-                rs.getString("bucket_name"), rs.getString("content_sha256"),
+            new GroupChatDocument(rs.getObject("message_id", UUID.class), rs.getString("file_id"),
+                rs.getString("file_path"), rs.getString("content_sha256"),
                 new GroupChatDocumentMetadata(rs.getString("file_name"), rs.getString("content_type"), rs.getLong("size_bytes"))), id)
             .stream().findFirst();
     }
@@ -23,9 +23,9 @@ public class JdbcGroupChatDocumentRepository implements GroupChatDocumentReposit
     public void insert(GroupChatDocument document) {
         jdbc.update("""
             INSERT INTO trip_group_chat_documents
-                (message_id, object_key, bucket_name, content_sha256, file_name, content_type, size_bytes)
+                (message_id, file_id, file_path, content_sha256, file_name, content_type, size_bytes)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, document.messageId(), document.objectKey(), document.bucketName(), document.contentSha256(),
+            """, document.messageId(), document.fileId(), document.filePath(), document.contentSha256(),
             document.metadata().fileName(), document.metadata().contentType(), document.metadata().sizeBytes());
     }
 }

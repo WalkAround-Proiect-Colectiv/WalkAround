@@ -66,7 +66,7 @@ public class GroupChatDocumentServiceImpl implements GroupChatDocumentService {
                     return new SendResult(sameDocument(saved, groupId, userId, body, validated, replyToMessageId), false);
                 }
                 checkIdentity(saved, groupId, userId, body, replyToMessageId);
-                documents.insert(new GroupChatDocument(messageId, uploaded.objectKey(), uploaded.bucket(), validated.sha256(), validated.metadata()));
+                documents.insert(new GroupChatDocument(messageId, uploaded.fileId(), uploaded.filePath(), validated.sha256(), validated.metadata()));
                 var response = response(messages.findById(messageId).orElseThrow());
                 messages.setPayload(messageId, mapper.writeValueAsString(new DocumentEvent("GROUP_CHAT_MESSAGE", response.id(),
                     response.conversationId(), response.sequence(), messages.eventSequence(messageId), response.senderId(), response.senderName(),
@@ -89,7 +89,7 @@ public class GroupChatDocumentServiceImpl implements GroupChatDocumentService {
         messages.findById(messageId).filter(m -> groupId.equals(m.conversationId()) && "DOCUMENT".equals(m.messageType()))
             .orElseThrow(GroupChatDocumentNotFoundException::new);
         var document = documents.findByMessageId(messageId).orElseThrow(GroupChatDocumentNotFoundException::new);
-        return new DownloadLink(storage.signedUrl(document.bucketName(), document.objectKey(), document.metadata().fileName()));
+        return new DownloadLink(storage.signedUrl(document.filePath(), document.metadata().fileName()));
     }
 
     private GroupChatMessageResponse sameDocument(GroupChatMessage message, UUID groupId, UUID userId, String body,
