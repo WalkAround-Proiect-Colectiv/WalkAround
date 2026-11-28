@@ -8,6 +8,13 @@ export function documentSize(bytes: number): string {
   return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.ceil(bytes / 1024))} KB`;
 }
 
+const DOCUMENT_TYPE_LABELS: Record<string, string> = {
+  'application/pdf': 'PDF',
+  'text/plain': 'TXT',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+  'text/csv': 'CSV',
+};
+
 export default function GroupChatDocumentCard({ groupId, message, own }: {
   groupId: string; message: GroupChatMessage; own: boolean;
 }) {
@@ -45,7 +52,7 @@ export default function GroupChatDocumentCard({ groupId, message, own }: {
       <View style={styles.icon}><FileText size={25} color="#0065EB" /></View>
       <View style={styles.details}>
         <Text style={styles.name} numberOfLines={2}>{attachment.fileName}</Text>
-        <Text style={styles.meta}>{attachment.contentType === 'application/pdf' ? 'PDF' : 'TXT'} · {documentSize(attachment.sizeBytes)}</Text>
+        <Text style={styles.meta}>{DOCUMENT_TYPE_LABELS[attachment.contentType] ?? 'Document'} · {documentSize(attachment.sizeBytes)}</Text>
       </View>
     </View>
     {Boolean(message.body) && <Text style={styles.caption}>{message.body}</Text>}

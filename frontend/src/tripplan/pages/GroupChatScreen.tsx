@@ -23,6 +23,8 @@ import { closeGroupChatPoll, getGroupChatEventCursor, getGroupChatEvents,
 import type { CreatedTripGroup } from '../api/tripGroups';
 
 const BLUE = '#0065EB';
+const DOCUMENT_CONTENT_TYPES = ['application/pdf', 'text/plain',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/csv'];
 const PAGE_SIZE = 50;
 const RECONNECT_DELAY_MS = 3000;
 const CATCH_UP_INTERVAL_MS = 3000;
@@ -76,7 +78,7 @@ function parseSocketEvent(data: unknown): SocketEvent | null {
         || !Number.isSafeInteger(image.height) || image.height < 1)) return null;
     const document = event.messageType === 'DOCUMENT' ? event.document : null;
     if (event.messageType === 'DOCUMENT' && (!document || typeof document.fileName !== 'string'
-        || !['application/pdf', 'text/plain'].includes(document.contentType)
+        || !DOCUMENT_CONTENT_TYPES.includes(document.contentType)
         || !Number.isSafeInteger(document.sizeBytes) || document.sizeBytes < 1)) return null;
     return {
       type: 'GROUP_CHAT_MESSAGE',
@@ -336,12 +338,12 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
     if (sending || pendingRef.current) return;
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'text/plain'], multiple: false, copyToCacheDirectory: true,
+        type: DOCUMENT_CONTENT_TYPES, multiple: false, copyToCacheDirectory: true,
       });
       if (result.canceled) return;
       const chosen = result.assets[0];
-      if (!/\.(pdf|txt)$/i.test(chosen.name)) {
-        setSendError('Choose a PDF or TXT document.');
+      if (!/\.(pdf|txt|docx|csv)$/i.test(chosen.name)) {
+        setSendError('Choose a PDF, TXT, DOCX, or CSV document.');
         return;
       }
       const size = chosen.file?.size ?? chosen.size;
@@ -678,7 +680,7 @@ export default function GroupChatScreen({ group }: { group: CreatedTripGroup }) 
       <FileText size={24} color={BLUE} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={2} style={styles.previewText}>{documentAsset.name}</Text>
-        <Text style={styles.time}>{documentAsset.size !== undefined ? documentSize(documentAsset.size) : 'PDF or TXT'} ? Up to 5 MB</Text>
+        <Text style={styles.time}>{documentAsset.size !== undefined ? documentSize(documentAsset.size) : 'PDF, TXT, DOCX, or CSV'} ? Up to 5 MB</Text>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Remove selected document"
         style={styles.cancelReply} onPress={() => setDocumentAsset(null)}><X size={19} color="#65758B" /></Pressable>
